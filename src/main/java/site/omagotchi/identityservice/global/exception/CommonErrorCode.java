@@ -1,11 +1,14 @@
 package site.omagotchi.identityservice.global.exception;
 
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.Accessors;
 
+@Getter
+@Accessors(fluent = true)
 @RequiredArgsConstructor
 public enum CommonErrorCode implements ErrorCode {
 
-    // 400 Bad Request
     INVALID_REQUEST(
             ErrorType.INVALID_INPUT,
             "COMMON_INVALID_REQUEST",
@@ -20,19 +23,4 @@ public enum CommonErrorCode implements ErrorCode {
     private final ErrorType type;
     private final String code;
     private final String message;
-
-    @Override
-    public ErrorType type() {
-        return type;
-    }
-
-    @Override
-    public String code() {
-        return code;
-    }
-
-    @Override
-    public String message() {
-        return message;
-    }
 }

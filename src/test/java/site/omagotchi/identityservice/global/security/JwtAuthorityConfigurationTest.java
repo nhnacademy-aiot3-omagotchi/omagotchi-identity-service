@@ -1,0 +1,33 @@
+package site.omagotchi.identityservice.global.security;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+
+import static org.assertj.core.api.BDDAssertions.then;
+
+class JwtAuthorityConfigurationTest {
+
+    @Test
+    @DisplayName("role claim의 ROLE_ 권한 변환")
+    void convertsRoleClaim() {
+        // Given
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "RS256")
+                .subject("1")
+                .claim("role", "USER")
+                .build();
+        JwtAuthenticationConverter converter = new JwtAuthorityConfiguration()
+                .jwtAuthenticationConverter();
+
+        // When
+        var authentication = converter.convert(jwt);
+
+        // Then
+        then(authentication.getAuthorities())
+                .extracting(GrantedAuthority::getAuthority)
+                .contains("ROLE_USER");
+    }
+}
