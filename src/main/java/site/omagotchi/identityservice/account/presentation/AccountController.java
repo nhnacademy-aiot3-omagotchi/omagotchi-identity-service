@@ -17,6 +17,8 @@ import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.presentation.dto.AccountResponse;
 import site.omagotchi.identityservice.account.presentation.dto.SignupRequest;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
@@ -35,7 +37,7 @@ public class AccountController {
 
     @GetMapping("/users/me")
     public ResponseEntity<AccountResponse> me(@AuthenticationPrincipal Jwt jwt) {
-        Account account = accountReader.readById(Long.parseLong(jwt.getSubject()));
+        Account account = accountReader.readById(UUID.fromString(jwt.getSubject()));
         return ResponseEntity.ok(AccountResponse.from(account));
     }
 }

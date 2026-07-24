@@ -54,7 +54,7 @@ JWT 이메일 로그인은 아래 순서로 읽으면 됩니다.
 
 로그인에 성공하면 Identity Service가 private key로 서명한 Access JWT를 발급합니다. 클라이언트는 보호 API 요청의 `Authorization: Bearer <token>` 헤더에 이 Token을 보냅니다.
 
-- `sub`: 변경되지 않는 `userId`
+- `sub`: 계정 수명 동안 변경되지 않는 UUID `userId` (`accounts.id`)
 - `role`: 전역 권한 `USER` 또는 `SYSTEM_ADMIN`
 - `iss`: Token 발급자
 - `aud`: Token을 사용할 대상 시스템

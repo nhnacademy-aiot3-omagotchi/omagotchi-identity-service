@@ -19,6 +19,7 @@ import java.security.interfaces.RSAPublicKey;
 import java.time.Clock;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Configuration
 @EnableConfigurationProperties(JwtProperties.class)
@@ -42,7 +43,7 @@ public class JwtConfiguration {
         );
         OAuth2TokenValidator<Jwt> subjectValidator = new JwtClaimValidator<String>(
                 "sub",
-                JwtConfiguration::isValidUserId
+                JwtConfiguration::isValidSubject
         );
         OAuth2TokenValidator<Jwt> roleValidator = new JwtClaimValidator<String>(
                 "role",
@@ -72,15 +73,15 @@ public class JwtConfiguration {
         }
     }
 
-    private static boolean isValidUserId(String subject) {
+    private static boolean isValidSubject(String subject) {
         if (subject == null) {
             return false;
         }
 
         try {
-            long userId = Long.parseLong(subject);
-            return userId > 0 && Long.toString(userId).equals(subject);
-        } catch (NumberFormatException exception) {
+            UUID userId = UUID.fromString(subject);
+            return userId.toString().equals(subject);
+        } catch (IllegalArgumentException exception) {
             return false;
         }
     }

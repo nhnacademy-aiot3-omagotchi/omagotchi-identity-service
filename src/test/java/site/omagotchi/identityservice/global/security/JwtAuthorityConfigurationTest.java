@@ -10,13 +10,15 @@ import static org.assertj.core.api.BDDAssertions.then;
 
 class JwtAuthorityConfigurationTest {
 
+    private static final String USER_ID = "019d2a48-80c0-4d6a-9a15-0b16d2dd74f1";
+
     @Test
     @DisplayName("role claim의 ROLE_ 권한 변환")
     void convertsRoleClaim() {
         // Given
         Jwt jwt = Jwt.withTokenValue("token")
                 .header("alg", "RS256")
-                .subject("1")
+                .subject(USER_ID)
                 .claim("role", "USER")
                 .build();
         JwtAuthenticationConverter converter = new JwtAuthorityConfiguration()

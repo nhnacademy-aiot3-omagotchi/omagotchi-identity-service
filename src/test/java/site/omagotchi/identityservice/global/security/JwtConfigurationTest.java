@@ -25,6 +25,8 @@ import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 
 class JwtConfigurationTest {
 
+    private static final String USER_ID = "019d2a48-80c0-4d6a-9a15-0b16d2dd74f1";
+
     private final JwtConfiguration jwtConfiguration = new JwtConfiguration();
 
     @Test
@@ -104,8 +106,8 @@ class JwtConfigurationTest {
         );
         JwtDecoder decoder = jwtConfiguration.jwtDecoder(publicKey, jwtProperties());
         List<String> tokens = List.of(
-                issue(encoder, "https://identity.omagotchi.local", "omagotchi-api", "1", "USER"),
-                issue(encoder, "https://identity.omagotchi.local", "omagotchi-api", "1", "SYSTEM_ADMIN")
+                issue(encoder, "https://identity.omagotchi.local", "omagotchi-api", USER_ID, "USER"),
+                issue(encoder, "https://identity.omagotchi.local", "omagotchi-api", USER_ID, "SYSTEM_ADMIN")
         );
 
         // When
@@ -129,11 +131,11 @@ class JwtConfigurationTest {
         );
         JwtDecoder decoder = jwtConfiguration.jwtDecoder(publicKey, jwtProperties());
         List<String> invalidTokens = List.of(
-                issue(encoder, "https://other-issuer.example", "omagotchi-api", "1", "USER"),
-                issue(encoder, "https://identity.omagotchi.local", "other-api", "1", "USER"),
-                issue(encoder, "https://identity.omagotchi.local", "omagotchi-api", "01", "USER"),
-                issue(encoder, "https://identity.omagotchi.local", "omagotchi-api", "1", "ADMIN"),
-                issue(encoder, "https://identity.omagotchi.local", "omagotchi-api", "1", "MANAGER")
+                issue(encoder, "https://other-issuer.example", "omagotchi-api", USER_ID, "USER"),
+                issue(encoder, "https://identity.omagotchi.local", "other-api", USER_ID, "USER"),
+                issue(encoder, "https://identity.omagotchi.local", "omagotchi-api", "not-a-uuid", "USER"),
+                issue(encoder, "https://identity.omagotchi.local", "omagotchi-api", USER_ID, "ADMIN"),
+                issue(encoder, "https://identity.omagotchi.local", "omagotchi-api", USER_ID, "MANAGER")
         );
 
         // When

@@ -35,11 +35,19 @@ class IdentityServiceApplicationTests {
                 "SELECT to_regclass('identity_service.accounts')::text",
                 String.class
         );
+        String accountIdType = jdbcTemplate.queryForObject("""
+                SELECT data_type
+                FROM information_schema.columns
+                WHERE table_schema = 'identity_service'
+                  AND table_name = 'accounts'
+                  AND column_name = 'id'
+                """, String.class);
 
         // Then
         thenSoftly(softly -> {
             softly.then(serverVersion).startsWith(expectedVersionPrefix);
             softly.then(accountsTable).isEqualTo(expectedAccountsTable);
+            softly.then(accountIdType).isEqualTo("uuid");
         });
     }
 }

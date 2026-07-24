@@ -25,6 +25,8 @@ import site.omagotchi.identityservice.global.exception.BusinessException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.BDDAssertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
@@ -70,7 +72,7 @@ class AuthApiIntegrationTest {
         String loginEmail = "  USER@EXAMPLE.COM  ";
 
         // When
-        long userId = signup(signupEmail);
+        UUID userId = signup(signupEmail);
         Account account = accountJpaRepository.findById(userId).orElseThrow();
         String accessToken = login(loginEmail, "password-passphrase");
         Jwt jwt = jwtDecoder.decode(accessToken);
@@ -81,12 +83,13 @@ class AuthApiIntegrationTest {
         thenSoftly(softly -> {
             softly.then(account.getEmail()).isEqualTo("user@example.com");
             softly.then(passwordEncoder.matches("password-passphrase", account.getPasswordHash())).isTrue();
-            softly.then(jwt.getSubject()).isEqualTo(Long.toString(userId));
+            softly.then(userId.version()).isEqualTo(4);
+            softly.then(jwt.getSubject()).isEqualTo(userId.toString());
             softly.then(jwt.getClaimAsString("role")).isEqualTo("USER");
         });
         meResponse.andExpectAll(
                 status().isOk(),
-                jsonPath("$.userId").value(userId)
+                jsonPath("$.userId").value(userId.toString())
         );
     }
 
@@ -227,7 +230,7 @@ class AuthApiIntegrationTest {
         );
     }
 
-    private long signup(String email) throws Exception {
+    private UUID signup(String email) throws Exception {
         String response = mockMvc.perform(post("/api/v1/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(signupBody(email)))
@@ -235,7 +238,7 @@ class AuthApiIntegrationTest {
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
-        return objectMapper.readTree(response).get("userId").asLong();
+        return UUID.fromString(objectMapper.readTree(response).get("userId").asString());
     }
 
     private String login(String email, String password) throws Exception {

@@ -5,9 +5,10 @@ import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.domain.GlobalRole;
 
 import java.time.Instant;
+import java.util.UUID;
 
 public record AccountResponse(
-        Long userId,
+        UUID userId,
         String email,
         String name,
         GlobalRole role,

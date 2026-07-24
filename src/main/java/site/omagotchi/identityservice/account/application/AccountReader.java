@@ -9,6 +9,7 @@ import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepositor
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @Component
 @Transactional(readOnly = true)
@@ -17,7 +18,7 @@ public class AccountReader {
 
     private final AccountJpaRepository accountJpaRepository;
 
-    public Account readById(Long userId) {
+    public Account readById(UUID userId) {
         return accountJpaRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(AccountErrorCode.NOT_FOUND));
     }
