@@ -23,7 +23,7 @@ public class AccessTokenIssuer {
     private final JwtProperties properties;
     private final Clock clock;
 
-    public String issue(Account account) {
+    public IssuedAccessToken issue(Account account) {
         Instant issuedAt = clock.instant();
         Instant expiresAt = issuedAt.plus(properties.accessTokenTtl());
 
@@ -40,7 +40,11 @@ public class AccessTokenIssuer {
                 .type("JWT")
                 .build();
 
-        return jwtEncoder.encode(JwtEncoderParameters.from(header, claims))
+        String value = jwtEncoder.encode(JwtEncoderParameters.from(header, claims))
                 .getTokenValue();
+        return new IssuedAccessToken(
+                value,
+                properties.accessTokenTtl().toSeconds()
+        );
     }
 }

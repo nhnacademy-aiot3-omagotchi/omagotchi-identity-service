@@ -8,6 +8,7 @@ import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtValidationException;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 
@@ -149,6 +150,49 @@ class JwtConfigurationTest {
         ));
     }
 
+    @Test
+    @DisplayName("변조/만료 JWT 거부")
+    void rejectsTamperedAndExpiredTokens() throws Exception {
+        // Given
+        KeyPair keyPair = generateKeyPair(2048);
+        RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
+        JwtEncoder encoder = jwtConfiguration.jwtEncoder(
+                publicKey,
+                (RSAPrivateKey) keyPair.getPrivate()
+        );
+        JwtDecoder decoder = jwtConfiguration.jwtDecoder(publicKey, jwtProperties());
+        String validToken = issue(
+                encoder,
+                "https://identity.omagotchi.local",
+                "omagotchi-api",
+                USER_ID,
+                "USER"
+        );
+        Instant expiresAt = Instant.now().minusSeconds(60);
+        List<String> invalidTokens = List.of(
+                tamperSignature(validToken),
+                issue(
+                        encoder,
+                        "https://identity.omagotchi.local",
+                        "omagotchi-api",
+                        USER_ID,
+                        "USER",
+                        expiresAt.minusSeconds(60),
+                        expiresAt
+                )
+        );
+
+        // When
+        List<Throwable> failures = invalidTokens.stream()
+                .map(token -> catchThrowable(() -> decoder.decode(token)))
+                .toList();
+
+        // Then
+        thenSoftly(softly -> failures.forEach(failure ->
+                softly.then(failure).isInstanceOf(JwtException.class)
+        ));
+    }
+
     private String issue(
             JwtEncoder encoder,
             String issuer,
@@ -157,12 +201,32 @@ class JwtConfigurationTest {
             String role
     ) {
         Instant now = Instant.now();
+        return issue(
+                encoder,
+                issuer,
+                audience,
+                subject,
+                role,
+                now,
+                now.plusSeconds(60)
+        );
+    }
+
+    private String issue(
+            JwtEncoder encoder,
+            String issuer,
+            String audience,
+            String subject,
+            String role,
+            Instant issuedAt,
+            Instant expiresAt
+    ) {
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(issuer)
                 .subject(subject)
                 .audience(List.of(audience))
-                .issuedAt(now)
-                .expiresAt(now.plusSeconds(60))
+                .issuedAt(issuedAt)
+                .expiresAt(expiresAt)
                 .claim("role", role)
                 .build();
         JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256)
@@ -171,6 +235,14 @@ class JwtConfigurationTest {
 
         return encoder.encode(JwtEncoderParameters.from(header, claims))
                 .getTokenValue();
+    }
+
+    private String tamperSignature(String token) {
+        String[] parts = token.split("\\.");
+        String signature = parts[2];
+        char replacement = signature.charAt(0) == 'A' ? 'B' : 'A';
+
+        return parts[0] + "." + parts[1] + "." + replacement + signature.substring(1);
     }
 
     private JwtProperties jwtProperties() {

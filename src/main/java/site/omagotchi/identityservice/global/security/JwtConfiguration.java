@@ -1,6 +1,5 @@
 package site.omagotchi.identityservice.global.security;
 
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -22,7 +21,6 @@ import java.util.Set;
 import java.util.UUID;
 
 @Configuration
-@EnableConfigurationProperties(JwtProperties.class)
 public class JwtConfiguration {
 
     private static final int MIN_RSA_KEY_SIZE = 2048;

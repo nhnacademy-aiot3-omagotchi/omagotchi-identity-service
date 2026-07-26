@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -21,8 +22,8 @@ import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.domain.AccountErrorCode;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
 import site.omagotchi.identityservice.account.infrastructure.AccountStore;
+import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
 import site.omagotchi.identityservice.global.exception.BusinessException;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.UUID;
@@ -31,7 +32,6 @@ import static org.assertj.core.api.BDDAssertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -54,13 +54,20 @@ class AuthApiIntegrationTest {
     private AccountStore accountStore;
 
     @Autowired
+    private RefreshTokenJpaRepository refreshTokenJpaRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
     private JwtDecoder jwtDecoder;
 
+    private AuthApiTestClient api;
+
     @BeforeEach
-    void clearAccounts() {
+    void setUp() {
+        api = new AuthApiTestClient(mockMvc, objectMapper);
+        refreshTokenJpaRepository.deleteAll();
         accountJpaRepository.deleteAll();
     }
 
@@ -72,12 +79,15 @@ class AuthApiIntegrationTest {
         String loginEmail = "  USER@EXAMPLE.COM  ";
 
         // When
-        UUID userId = signup(signupEmail);
+        UUID userId = api.signupSuccessfully(signupEmail);
         Account account = accountJpaRepository.findById(userId).orElseThrow();
-        String accessToken = login(loginEmail, "password-passphrase");
+        String accessToken = api.loginSuccessfully(
+                loginEmail,
+                "password-passphrase"
+        ).accessToken();
         Jwt jwt = jwtDecoder.decode(accessToken);
         ResultActions meResponse = mockMvc.perform(get("/api/v1/users/me")
-                .header("Authorization", "Bearer " + accessToken));
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken));
 
         // Then
         thenSoftly(softly -> {
@@ -97,18 +107,18 @@ class AuthApiIntegrationTest {
     @DisplayName("중복 가입·잘못된 로그인 오류")
     void rejectsDuplicateSignupAndInvalidLogin() throws Exception {
         // Given
-        signup("user@example.com");
+        api.signupSuccessfully("user@example.com");
 
         // When
-        ResultActions duplicateSignup = mockMvc.perform(post("/api/v1/auth/signup")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(signupBody("  USER@EXAMPLE.COM  ")));
-        ResultActions missingAccountLogin = mockMvc.perform(post("/api/v1/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(loginBody("missing@example.com", "wrong-password1")));
-        ResultActions wrongPasswordLogin = mockMvc.perform(post("/api/v1/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(loginBody("user@example.com", "wrong-password1")));
+        ResultActions duplicateSignup = api.signup("  USER@EXAMPLE.COM  ");
+        ResultActions missingAccountLogin = api.login(
+                "missing@example.com",
+                "wrong-password1"
+        );
+        ResultActions wrongPasswordLogin = api.login(
+                "user@example.com",
+                "wrong-password1"
+        );
 
         // Then
         duplicateSignup.andExpectAll(
@@ -160,7 +170,7 @@ class AuthApiIntegrationTest {
         // When
         ResultActions missingTokenResponse = mockMvc.perform(get("/api/v1/users/me"));
         ResultActions invalidTokenResponse = mockMvc.perform(get("/api/v1/users/me")
-                .header("Authorization", "Bearer " + invalidAccessToken));
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + invalidAccessToken));
 
         // Then
         missingTokenResponse.andExpectAll(
@@ -219,56 +229,12 @@ class AuthApiIntegrationTest {
         String invalidEmail = "not-an-email";
 
         // When
-        ResultActions response = mockMvc.perform(post("/api/v1/auth/signup")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(signupBody(invalidEmail)));
+        ResultActions response = api.signup(invalidEmail);
 
         // Then
         response.andExpectAll(
                 status().isBadRequest(),
                 jsonPath("$.code").value("COMMON_INVALID_REQUEST")
         );
-    }
-
-    private UUID signup(String email) throws Exception {
-        String response = mockMvc.perform(post("/api/v1/auth/signup")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(signupBody(email)))
-                .andExpect(status().isCreated())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-        return UUID.fromString(objectMapper.readTree(response).get("userId").asString());
-    }
-
-    private String login(String email, String password) throws Exception {
-        String response = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginBody(email, password)))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-        JsonNode json = objectMapper.readTree(response);
-        return json.get("accessToken").asString();
-    }
-
-    private String signupBody(String email) {
-        return """
-                {
-                  "email": "%s",
-                  "password": "password-passphrase",
-                  "name": "홍길동"
-                }
-                """.formatted(email);
-    }
-
-    private String loginBody(String email, String password) {
-        return """
-                {
-                  "email": "%s",
-                  "password": "%s"
-                }
-                """.formatted(email, password);
     }
 }

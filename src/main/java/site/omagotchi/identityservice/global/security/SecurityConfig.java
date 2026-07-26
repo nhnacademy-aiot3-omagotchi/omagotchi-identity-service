@@ -21,8 +21,8 @@ public class SecurityConfig {
             JwtAuthenticationConverter jwtAuthenticationConverter
     ) throws Exception {
         http
-                // Access JWT는 Authorization 헤더로만 전달됨
-                // Refresh Token Cookie 도입 시 CSRF 정책 다시 검토
+                // 일반 API는 Bearer Token을 사용하고, Refresh Cookie 경로는
+                // SameSite=Strict와 허용 Origin 검증으로 별도 보호함
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .httpBasic(AbstractHttpConfigurer::disable)
@@ -32,7 +32,9 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/auth/signup",
-                                "/api/v1/auth/login"
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/refresh",
+                                "/api/v1/auth/logout"
                         ).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated()

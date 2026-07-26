@@ -88,12 +88,17 @@ public class Account {
         return new Account(normalizedEmail, passwordHash, normalizedName);
     }
 
-    public static String normalizeEmail(String email) {
-        return normalizeLowercase(email);
-    }
-
     public boolean isLoginAllowed() {
         return status == AccountStatus.ACTIVE;
+    }
+
+    public boolean isRefreshAllowed() {
+        return status == AccountStatus.ACTIVE
+                || status == AccountStatus.LOCKED;
+    }
+
+    public static String normalizeEmail(String email) {
+        return normalizeLowercase(email);
     }
 
     private static String normalizeLowercase(String value) {

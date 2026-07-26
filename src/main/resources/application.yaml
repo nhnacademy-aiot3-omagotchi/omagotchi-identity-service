@@ -56,3 +56,7 @@ auth:
     access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:PT15M}
     public-key-location: ${JWT_PUBLIC_KEY_LOCATION:file:./secrets/jwt-public.pem}
     private-key-location: ${JWT_PRIVATE_KEY_LOCATION:file:./secrets/jwt-private.pem}
+  refresh-token:
+    ttl: ${REFRESH_TOKEN_TTL:P7D}
+    secure: ${REFRESH_TOKEN_COOKIE_SECURE:true}
+    allowed-origins: ${AUTH_ALLOWED_ORIGINS:http://localhost:8080}

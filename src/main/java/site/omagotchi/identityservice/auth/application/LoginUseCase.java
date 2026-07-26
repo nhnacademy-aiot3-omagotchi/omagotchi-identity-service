@@ -5,11 +5,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import site.omagotchi.identityservice.account.application.AccountReader;
 import site.omagotchi.identityservice.account.domain.Account;
-import site.omagotchi.identityservice.auth.application.dto.LoginResult;
+import site.omagotchi.identityservice.auth.application.dto.TokenIssueResult;
 import site.omagotchi.identityservice.auth.domain.AuthErrorCode;
 import site.omagotchi.identityservice.auth.infrastructure.AccessTokenIssuer;
+import site.omagotchi.identityservice.auth.infrastructure.IssuedAccessToken;
+import site.omagotchi.identityservice.auth.infrastructure.IssuedRefreshToken;
+import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenIssuer;
+import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenStore;
 import site.omagotchi.identityservice.global.exception.BusinessException;
-import site.omagotchi.identityservice.global.security.JwtProperties;
+
+import java.time.Clock;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
@@ -18,10 +24,12 @@ public class LoginUseCase {
     private final AccountReader accountReader;
     private final CredentialVerifier credentialVerifier;
     private final AccessTokenIssuer accessTokenIssuer;
-    private final JwtProperties jwtProperties;
+    private final RefreshTokenIssuer refreshTokenIssuer;
+    private final RefreshTokenStore refreshTokenStore;
+    private final Clock clock;
 
-    @Transactional(readOnly = true)
-    public LoginResult execute(String email, String password) {
+    @Transactional
+    public TokenIssueResult execute(String email, String password) {
         Account account = accountReader.findByEmail(email).orElse(null);
         boolean passwordMatches = credentialVerifier.matches(account, password);
 
@@ -29,7 +37,16 @@ public class LoginUseCase {
             throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
         }
 
-        String accessToken = accessTokenIssuer.issue(account);
-        return new LoginResult(accessToken, jwtProperties.accessTokenTtl().toSeconds());
+        Instant issuedAt = clock.instant();
+        IssuedRefreshToken refreshToken = refreshTokenIssuer.issueNewFamily(account.getId(), issuedAt);
+        refreshTokenStore.save(refreshToken.refreshToken());
+
+        IssuedAccessToken accessToken = accessTokenIssuer.issue(account);
+        return new TokenIssueResult(
+                accessToken.value(),
+                accessToken.expiresInSeconds(),
+                refreshToken.value(),
+                refreshToken.refreshToken().getExpiresAt()
+        );
     }
 }

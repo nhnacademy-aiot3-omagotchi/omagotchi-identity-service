@@ -1,6 +1,6 @@
 package site.omagotchi.identityservice.auth.presentation.dto;
 
-import site.omagotchi.identityservice.auth.application.dto.LoginResult;
+import site.omagotchi.identityservice.auth.application.dto.TokenIssueResult;
 
 public record TokenResponse(
         String accessToken,
@@ -8,11 +8,11 @@ public record TokenResponse(
         long expiresInSeconds
 ) {
 
-    public static TokenResponse from(LoginResult result) {
+    public static TokenResponse from(TokenIssueResult result) {
         return new TokenResponse(
                 result.accessToken(),
                 "Bearer",
-                result.expiresInSeconds()
+                result.accessTokenExpiresInSeconds()
         );
     }
 }
