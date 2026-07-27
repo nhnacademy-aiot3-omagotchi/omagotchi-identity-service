@@ -4,6 +4,26 @@ server:
 spring:
   application:
     name: identity-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/identity_service}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    default-schema: identity_service
+    schemas:
+      - identity_service
+    create-schemas: true
+    clean-disabled: true
+    validate-on-migrate: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: identity_service
 
 eureka:
   client:
@@ -28,3 +48,15 @@ management:
   endpoint:
     health:
       show-details: never
+
+auth:
+  jwt:
+    issuer: ${JWT_ISSUER:https://identity.omagotchi.local}
+    audience: ${JWT_AUDIENCE:omagotchi-api}
+    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:PT15M}
+    public-key-location: ${JWT_PUBLIC_KEY_LOCATION:file:./secrets/jwt-public.pem}
+    private-key-location: ${JWT_PRIVATE_KEY_LOCATION:file:./secrets/jwt-private.pem}
+  refresh-token:
+    ttl: ${REFRESH_TOKEN_TTL:P7D}
+    secure: ${REFRESH_TOKEN_COOKIE_SECURE:true}
+    allowed-origins: ${AUTH_ALLOWED_ORIGINS:http://localhost:8080}
