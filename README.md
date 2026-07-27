@@ -63,6 +63,12 @@ Refresh Token 갱신은 아래 순서로 읽으면 됩니다.
 
 클라이언트의 잘못된 로그인·Refresh Token·Origin은 공통 `BusinessException` 응답으로 처리합니다. 반면 RSA key, 필수 인증 설정과 암호화 알고리즘처럼 정상 실행 자체가 불가능한 오류는 애플리케이션 시작을 실패시킵니다.
 
+예외는 다음 기준으로 구분합니다.
+
+- 예상 가능한 사용자 요청 실패: `BusinessException`으로 정해진 4xx 응답
+- 요청 처리 중 불변식 위반: `IllegalArgumentException`·`IllegalStateException`으로 500 응답과 오류 로그, 애플리케이션은 계속 실행
+- 필수 설정·Bean 생성 실패: 애플리케이션 시작 중단
+
 ## JWT 최소 개념
 
 로그인에 성공하면 Identity Service가 private key로 서명한 Access JWT를 발급합니다. 클라이언트는 보호 API 요청의 `Authorization: Bearer <token>` 헤더에 이 Token을 보냅니다.
@@ -88,3 +94,7 @@ Refresh Token은 예측하기 어려운 불투명 난수로 발급하고 DB에�
 Refresh Cookie는 `HttpOnly`, `SameSite=Strict`, `Path=/api/v1/auth`를 사용합니다. 운영 HTTPS에서는 `Secure=true`, 로컬 HTTP에서는 profile 설정으로 `false`를 사용합니다. Refresh와 로그아웃은 `AUTH_ALLOWED_ORIGINS`에 등록한 Origin만 허용합니다.
 
 Request ID의 공통 형식과 전파 규칙은 [Omagotchi HTTP Request ID 가이드](../docs/50-guides/08-http-request-id.md)를 따릅니다. Identity Service에는 아직 적용하지 않았으며 Gateway와 각 서비스가 같은 값을 전달하도록 공통 관측성 작업에서 추가합니다.
+
+## 서비스 내부 결정 기록
+
+- [Refresh Token 회전 동시성 정책](docs/adr/0001-refresh-token-rotation-concurrency.md): 현재 Token 행 잠금과 family 폐기 동작, 동시 갱신의 결과와 고정 로그인 세션 행 도입 여부
