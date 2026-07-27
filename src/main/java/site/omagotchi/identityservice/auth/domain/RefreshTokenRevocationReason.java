@@ -14,4 +14,3 @@ public enum RefreshTokenRevocationReason {
     // 계정 탈퇴됨
     ACCOUNT_WITHDRAWN
 }
-

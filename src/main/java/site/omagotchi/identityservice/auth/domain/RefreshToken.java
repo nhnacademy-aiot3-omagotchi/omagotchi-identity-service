@@ -31,9 +31,11 @@ public class RefreshToken {
     @Column(name = "account_id", nullable = false)
     private UUID accountId;
 
+    // 한 로그인에서 회전된 Token을 함께 폐기하기 위한 식별자
     @Column(name = "family_id", nullable = false)
     private UUID familyId;
 
+    // 원문 Token은 저장하지 않고 SHA-256 Hash만 저장
     @Column(name = "token_hash", nullable = false, unique = true, length = SHA_256_HEX_LENGTH)
     private String tokenHash;
 

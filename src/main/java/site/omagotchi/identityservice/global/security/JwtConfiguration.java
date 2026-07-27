@@ -27,6 +27,7 @@ public class JwtConfiguration {
 
     @Bean
     JwtEncoder jwtEncoder(RSAPublicKey publicKey, RSAPrivateKey privateKey) {
+        // 잘못된 key로 인증 서버가 실행되지 않도록 시작 시점에 검증
         validateKeyPair(publicKey, privateKey);
         return NimbusJwtEncoder.withKeyPair(publicKey, privateKey).build();
     }

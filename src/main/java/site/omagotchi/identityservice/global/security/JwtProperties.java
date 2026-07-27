@@ -9,9 +9,7 @@ import org.springframework.validation.annotation.Validated;
 
 import java.time.Duration;
 
-/**
- * 잘못된 JWT 설정은 바인딩 단계에서 검증해 어플리케이션 시작 방지
- */
+// 잘못된 JWT 설정은 바인딩 단계에서 검증해 애플리케이션 시작 차단
 @Validated
 @ConfigurationProperties(prefix = "auth.jwt")
 public record JwtProperties(

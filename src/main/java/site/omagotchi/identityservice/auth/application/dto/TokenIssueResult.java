@@ -9,14 +9,12 @@ public record TokenIssueResult(
         Instant refreshTokenExpiresAt
 ) {
 
-    // accessToken과 refreshToken이 의도치 않게 로그로 노출되는 것을 막는 방어 코드
+    // Token 원문의 로그 노출 방지
     @Override
     public String toString() {
-        return "TokenIssueResult[accessToken=[REDACTED], accessTokenExpiresInSeconds="
-                + accessTokenExpiresInSeconds
-                + ", refreshToken=[REDACTED], refreshTokenExpiresAt="
-                + refreshTokenExpiresAt
-                + "]";
+        return "TokenIssueResult[accessToken=[REDACTED]"
+                + ", accessTokenExpiresInSeconds=" + accessTokenExpiresInSeconds
+                + ", refreshToken=[REDACTED]"
+                + ", refreshTokenExpiresAt=" + refreshTokenExpiresAt + "]";
     }
 }
-

@@ -21,14 +21,17 @@ public class SecurityConfig {
             JwtAuthenticationConverter jwtAuthenticationConverter
     ) throws Exception {
         http
-                // 일반 API는 Bearer Token을 사용하고, Refresh Cookie 경로는
-                // SameSite=Strict와 허용 Origin 검증으로 별도 보호함
+                // Access Token은 Bearer Header 사용
+                // Refresh Cookie 요청은 SameSite와 Origin 검증으로 별도 보호
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
                 .authorizeHttpRequests(authorize -> authorize
+                        // 오류 처리 재디스패치가 인증 검사에 다시 막히지 않도록 허용
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/auth/signup",

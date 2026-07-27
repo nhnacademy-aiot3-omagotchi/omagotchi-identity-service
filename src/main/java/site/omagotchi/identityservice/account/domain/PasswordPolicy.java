@@ -13,6 +13,7 @@ public final class PasswordPolicy {
     private PasswordPolicy() {
     }
 
+    // 문자 조합 대신 길이를 요구하고 제어 문자와 BCrypt의 72 byte 초과 입력을 거부
     public static void validate(String password) {
         if (password == null
                 || password.length() < MIN_LENGTH

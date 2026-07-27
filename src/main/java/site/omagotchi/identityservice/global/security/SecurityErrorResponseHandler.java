@@ -17,6 +17,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+// Controller 이전에 발생한 Security 예외를 공통 JSON 응답으로 변환
 @Component
 @RequiredArgsConstructor
 public class SecurityErrorResponseHandler implements AuthenticationEntryPoint, AccessDeniedHandler {

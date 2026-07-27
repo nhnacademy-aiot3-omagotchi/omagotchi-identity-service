@@ -24,10 +24,6 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class RefreshTokenRotation {
 
-    /*
-     * 재사용 감지로 Token family를 폐기한 트랜잭션을 먼저 커밋하고,
-     * 호출한 UseCase가 트랜잭션 밖에서 인증 실패를 반환할 수 있도록 분리함
-     */
     private final AccountReader accountReader;
     private final AccessTokenIssuer accessTokenIssuer;
     private final RefreshTokenHasher refreshTokenHasher;
@@ -35,12 +31,17 @@ public class RefreshTokenRotation {
     private final RefreshTokenStore refreshTokenStore;
     private final Clock clock;
 
+    /*
+     * 갱신 실패는 Optional.empty로 반환해 현재 트랜잭션을 정상 커밋
+     * family 폐기 커밋 후 RefreshTokenUseCase에서 인증 실패 예외로 변환
+     */
     @Transactional
     public Optional<TokenIssueResult> rotate(String rawRefreshToken) {
         if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
             return Optional.empty();
         }
 
+        // 현재 Token 행을 잠가 동일 Token의 동시 갱신 직렬화
         Optional<RefreshToken> storedToken = refreshTokenStore
                 .lockByHash(refreshTokenHasher.hash(rawRefreshToken));
         if (storedToken.isEmpty()) {
@@ -54,6 +55,7 @@ public class RefreshTokenRotation {
             return Optional.empty();
         }
         if (currentToken.isUsed()) {
+            // 사용된 Token의 재요청은 탈취 가능성으로 판단해 family 전체 폐기
             refreshTokenStore.revokeFamily(
                     currentToken.getFamilyId(),
                     now,
@@ -72,7 +74,9 @@ public class RefreshTokenRotation {
             return Optional.empty();
         }
 
+        // 기존 Token 소비와 다음 Token 저장을 같은 트랜잭션에서 원자적으로 처리
         currentToken.markUsed(now);
+        // 회전해도 현재 로그인 family와 최초 만료 시각 유지
         IssuedRefreshToken nextRefreshToken = refreshTokenIssuer.issue(
                 account.getId(),
                 currentToken.getFamilyId(),

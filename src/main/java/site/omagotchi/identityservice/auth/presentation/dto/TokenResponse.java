@@ -18,13 +18,11 @@ public record TokenResponse(
         );
     }
 
-    // accessToken이 의도치 않게 로그로 노출되는 것을 막는 방어 코드
+    // Access Token 원문의 로그 노출 방지
     @Override
     public String toString() {
-        return "TokenResponse[accessToken=[REDACTED], tokenType="
-                + tokenType
-                + ", expiresInSeconds="
-                + expiresInSeconds
-                + "]";
+        return "TokenResponse[accessToken=[REDACTED]"
+                + ", tokenType=" + tokenType
+                + ", expiresInSeconds=" + expiresInSeconds + "]";
     }
 }

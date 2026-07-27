@@ -14,10 +14,12 @@ public class RefreshTokenHasher {
     private static final String HASH_ALGORITHM = "SHA-256";
 
     public RefreshTokenHasher() {
+        // Bean 생성 시 SHA-256 지원 여부 확인
         newDigest();
     }
 
     public String hash(String rawToken) {
+        // 예측하기 어려운 난수 Token이므로 비밀번호와 달리 빠른 SHA-256 사용
         byte[] hash = newDigest()
                 .digest(Objects.requireNonNull(rawToken, "rawToken")
                         .getBytes(StandardCharsets.UTF_8));

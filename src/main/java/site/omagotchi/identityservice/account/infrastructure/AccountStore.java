@@ -8,13 +8,6 @@ import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.domain.AccountErrorCode;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
-/**
- * 두 요청이 같은 이메일로 중복 검사를 통과한 경우 한 요청의 실패를 비지니스 예외로 정확하게 알려주기 위함
- * - 해당 경우 한 요청은 INSERT를 성공하지만
- * - 다른 요청은 INSERT가 UNIQUE 제약을 위반해 실패하게 됨
- * - 해당 실패를 도메인 비지니스 예외로 변환함
- * - DB의 UNIQUE 제약 조건을 직접 명시하는 건 다른 대안들에 비해 감수할만 하다고 판단함
- */
 @Component
 @RequiredArgsConstructor
 public class AccountStore {
@@ -25,28 +18,30 @@ public class AccountStore {
 
     public Account save(Account account) {
         try {
+            // UNIQUE 제약 위반을 이 메서드 안에서 변환하기 위해 즉시 반영
             return accountJpaRepository.saveAndFlush(account);
         } catch (DataIntegrityViolationException exception) {
-            throw translate(exception);
+            throw translateConstraintViolation(exception);
         }
     }
 
-    private RuntimeException translate(DataIntegrityViolationException exception) {
-        if (EMAIL_CONSTRAINT.equals(findConstraintName(exception))) {
+    private RuntimeException translateConstraintViolation(DataIntegrityViolationException exception) {
+        if (EMAIL_CONSTRAINT.equals(extractConstraintName(exception))) {
             return new BusinessException(AccountErrorCode.DUPLICATE_EMAIL);
         }
         return exception;
     }
 
-    private String findConstraintName(Throwable exception) {
+    private String extractConstraintName(Throwable exception) {
         Throwable current = exception;
 
         while (current != null) {
             if (current instanceof ConstraintViolationException constraintViolation) {
+                // 해당 예외가 제약조건 위반으로 인한 예외라면
                 return constraintViolation.getConstraintName();
             }
             if (current.getCause() == current) {
-                break;
+                break; // 비정상적 자기참조 예외로 인한 무한 반복 방어 (스프링, Hibernate에서는 필요 없다고는 함)
             }
             current = current.getCause();
         }

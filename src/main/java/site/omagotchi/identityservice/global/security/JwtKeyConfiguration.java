@@ -10,15 +10,7 @@ import java.io.InputStream;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 
-/**
- * PEM 파일 -> Java RSA Key 객체
- * 흐름:
- * - application.yaml의 key 파일 위치
- * -> JwtProperties의 Resource
- * -> JwtKeyConfiguration이 PEM 파일 읽기
- * -> RSAPublicKey/RSAPrivateKey Bean 생성
- * -> JwtConfiguration이 JwtEncoder/JwtDecoder 생성
- */
+// PEM key를 Bean으로 준비하지 못하면 애플리케이션 시작 중단
 @Configuration
 @Profile("!test")
 public class JwtKeyConfiguration {

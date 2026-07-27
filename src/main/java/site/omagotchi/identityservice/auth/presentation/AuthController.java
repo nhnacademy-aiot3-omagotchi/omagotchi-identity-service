@@ -62,6 +62,7 @@ public class AuthController {
     }
 
     private ResponseEntity<TokenResponse> tokenResponse(TokenIssueResult result) {
+        // Refresh Token은 HttpOnly Cookie, Access Token은 응답 본문으로 전달
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookieManager.issue(result).toString())
                 .body(TokenResponse.from(result));

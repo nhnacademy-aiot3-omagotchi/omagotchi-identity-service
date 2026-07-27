@@ -10,6 +10,7 @@ public class JwtAuthorityConfiguration {
 
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {
+        // role=SYSTEM_ADMIN -> ROLE_SYSTEM_ADMIN
         JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
         authoritiesConverter.setAuthoritiesClaimName("role");
         authoritiesConverter.setAuthorityPrefix("ROLE_");

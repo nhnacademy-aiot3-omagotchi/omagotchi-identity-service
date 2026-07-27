@@ -20,6 +20,7 @@ public class LogoutUseCase {
     @Transactional
     public void execute(String rawRefreshToken) {
         if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
+            // Refresh Cookie가 없어도 로그아웃은 성공 처리
             return;
         }
 
@@ -32,4 +33,3 @@ public class LogoutUseCase {
                 ));
     }
 }
-

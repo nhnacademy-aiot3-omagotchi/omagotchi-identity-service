@@ -27,6 +27,7 @@ public class AccessTokenIssuer {
         Instant issuedAt = clock.instant();
         Instant expiresAt = issuedAt.plus(properties.accessTokenTtl());
 
+        // sub는 계정 식별자, jti는 개별 Access Token 식별자
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(properties.issuer())
                 .subject(account.getId().toString())
@@ -36,7 +37,8 @@ public class AccessTokenIssuer {
                 .id(UUID.randomUUID().toString())
                 .claim("role", account.getGlobalRole().name())
                 .build();
-        JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256)
+        JwsHeader header = JwsHeader
+                .with(SignatureAlgorithm.RS256)
                 .type("JWT")
                 .build();
 
