@@ -3,6 +3,11 @@ spring:
     # 확장자가 없는 .env를 Java properties 형식으로 읽음
     import: "optional:file:./.env[.properties]"
 
+auth:
+  refresh-token:
+    # 로컬 HTTP에서만 Secure Cookie를 비활성화
+    secure: ${REFRESH_TOKEN_COOKIE_SECURE:false}
+
 eureka:
   client:
     # Discovery를 함께 실행할 때 .env에서 true로 변경

@@ -1,6 +1,7 @@
 package site.omagotchi.identityservice.global.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
@@ -43,6 +45,22 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return response(CommonErrorCode.MALFORMED_REQUEST, request);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiErrorResponse> handleUnexpectedException(
+            Exception exception,
+            HttpServletRequest request
+    ) {
+        log.error(
+                "예상하지 못한 서버 오류 code={}, exception={}, method={}, path={}",
+                CommonErrorCode.INTERNAL_SERVER_ERROR.code(),
+                exception.getClass().getName(),
+                request.getMethod(),
+                request.getRequestURI(),
+                exception
+        );
+        return response(CommonErrorCode.INTERNAL_SERVER_ERROR, request);
     }
 
     private ResponseEntity<ApiErrorResponse> response(

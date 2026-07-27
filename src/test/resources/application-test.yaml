@@ -2,3 +2,9 @@ eureka:
   client:
     # 테스트에서 실행 중인 Discovery Service에 연결하지 않음
     enabled: false
+
+auth:
+  refresh-token:
+    secure: false
+    allowed-origins:
+      - http://localhost:8080
