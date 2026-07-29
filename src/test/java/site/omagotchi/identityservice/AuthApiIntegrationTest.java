@@ -49,7 +49,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
-@Import({TestcontainersConfiguration.class, TestJwtConfiguration.class})
+@Import({TestcontainersConfig.class, TestJwtConfig.class})
 class AuthApiIntegrationTest {
 
     @Autowired

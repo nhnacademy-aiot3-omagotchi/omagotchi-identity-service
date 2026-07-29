@@ -39,11 +39,11 @@ public class JwtConfig {
                 "aud",
                 audience -> audience.contains(properties.audience())
         );
-        OAuth2TokenValidator<Jwt> subjectValidator = new JwtClaimValidator<String>(
+        OAuth2TokenValidator<Jwt> subjectValidator = new JwtClaimValidator<>(
                 "sub",
                 JwtConfig::isValidSubject
         );
-        OAuth2TokenValidator<Jwt> roleValidator = new JwtClaimValidator<String>(
+        OAuth2TokenValidator<Jwt> roleValidator = new JwtClaimValidator<>(
                 "role",
                 GlobalRole::isSupported
         );

@@ -40,7 +40,7 @@ import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 @SpringBootTest
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
-@Import({TestcontainersConfiguration.class, TestJwtConfiguration.class})
+@Import({TestcontainersConfig.class, TestJwtConfig.class})
 class RefreshTokenConcurrencyIntegrationTest {
 
     /*
