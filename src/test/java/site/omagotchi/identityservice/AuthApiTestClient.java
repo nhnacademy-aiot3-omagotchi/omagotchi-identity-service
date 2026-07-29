@@ -5,7 +5,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
-import site.omagotchi.identityservice.auth.presentation.RefreshTokenCookieManager;
+import site.omagotchi.identityservice.auth.presentation.RefreshTokenCookieFactory;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -27,7 +27,7 @@ final class AuthApiTestClient {
         this.objectMapper = objectMapper;
     }
 
-    ResultActions signup(String email) throws Exception {
+    ResultActions signUp(String email) throws Exception {
         return mockMvc.perform(post("/api/v1/auth/signup")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(signupBody(email)));
@@ -60,7 +60,7 @@ final class AuthApiTestClient {
     }
 
     UUID signupSuccessfully(String email) throws Exception {
-        String response = signup(email)
+        String response = signUp(email)
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
@@ -76,7 +76,7 @@ final class AuthApiTestClient {
                 .getResponse();
 
         return readTokens(response.getContentAsString(), response.getCookie(
-                RefreshTokenCookieManager.COOKIE_NAME
+                RefreshTokenCookieFactory.COOKIE_NAME
         ));
     }
 
@@ -87,7 +87,7 @@ final class AuthApiTestClient {
                 .getResponse();
 
         return readTokens(response.getContentAsString(), response.getCookie(
-                RefreshTokenCookieManager.COOKIE_NAME
+                RefreshTokenCookieFactory.COOKIE_NAME
         ));
     }
 

@@ -19,6 +19,10 @@ public enum CommonErrorCode implements ErrorCode {
             "COMMON_MALFORMED_REQUEST",
             "요청 본문을 읽을 수 없습니다."
     ),
+    /**
+     * 예상하지 못한 실패를 최종 외부 경계에서 숨겨 응답할 때 사용하는 공통 오류.
+     * 내부 예외를 이 오류의 {@link BusinessException}으로 미리 변환하면 안됨 (docs 문서 참고)
+     */
     INTERNAL_SERVER_ERROR(
             ErrorType.INTERNAL,
             "COMMON_INTERNAL_SERVER_ERROR",

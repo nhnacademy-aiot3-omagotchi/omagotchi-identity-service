@@ -2,7 +2,6 @@ package site.omagotchi.identityservice.account.domain;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import site.omagotchi.identityservice.global.exception.BusinessException;
 
 import static org.assertj.core.api.BDDAssertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
@@ -30,6 +29,78 @@ class AccountTest {
             softly.then(account.getName()).isEqualTo("홍길동");
             softly.then(account.getGlobalRole()).isEqualTo(GlobalRole.USER);
             softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(Account.isRegistrationDetailsValid(
+                    "user@example.com",
+                    "사용자"
+            )).isTrue();
+            softly.then(Account.isRegistrationDetailsValid(
+                    null,
+                    "사용자"
+            )).isFalse();
+        });
+    }
+
+    @Test
+    @DisplayName("이메일 최소 구조와 최종 생성 방어")
+    void validatesEmailStructure() {
+        // Given
+        String passwordHash = "encoded-password";
+        String name = "사용자";
+        String maximumLengthEmail = "a".repeat(64)
+                + "@"
+                + "b".repeat(63)
+                + "."
+                + "c".repeat(63)
+                + "."
+                + "d".repeat(61);
+        String tooLongEmail = maximumLengthEmail + "d";
+
+        // When
+        Throwable thrown = catchThrowable(() -> Account.register(
+                "not-an-email",
+                passwordHash,
+                name
+        ));
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(Account.isRegistrationDetailsValid(
+                    "user+tag@example.co.kr",
+                    name
+            )).isTrue();
+            softly.then(Account.isRegistrationDetailsValid(
+                    "user @example.com",
+                    name
+            )).isFalse();
+            softly.then(Account.isRegistrationDetailsValid(
+                    "@example.com",
+                    name
+            )).isFalse();
+            softly.then(Account.isRegistrationDetailsValid(
+                    "user@",
+                    name
+            )).isFalse();
+            softly.then(Account.isRegistrationDetailsValid(
+                    "user@@example.com",
+                    name
+            )).isFalse();
+            softly.then(Account.isRegistrationDetailsValid(
+                    ".user@example.com",
+                    name
+            )).isFalse();
+            softly.then(Account.isRegistrationDetailsValid(
+                    "user@.",
+                    name
+            )).isFalse();
+            softly.then(Account.isRegistrationDetailsValid(
+                    maximumLengthEmail,
+                    name
+            )).isTrue();
+            softly.then(Account.isRegistrationDetailsValid(
+                    tooLongEmail,
+                    name
+            )).isFalse();
+            softly.then(thrown).isInstanceOf(IllegalArgumentException.class);
         });
     }
 
@@ -41,35 +112,22 @@ class AccountTest {
         String tooShortPassword = "가".repeat(14);
         String passwordWithControlCharacter = "가".repeat(14) + "\n";
 
-        // When
-        Throwable validResult = catchThrowable(() -> PasswordPolicy.validate(validPassword));
-        Throwable tooShortResult = catchThrowable(() -> PasswordPolicy.validate(tooShortPassword));
-        Throwable controlCharacterResult = catchThrowable(
-                () -> PasswordPolicy.validate(passwordWithControlCharacter)
-        );
-
         // Then
         thenSoftly(softly -> {
-            softly.then(validResult).isNull();
-            softly.then(tooShortResult).isInstanceOf(BusinessException.class);
-            softly.then(controlCharacterResult).isInstanceOf(BusinessException.class);
+            softly.then(PasswordPolicy.isSatisfiedBy(validPassword)).isTrue();
+            softly.then(PasswordPolicy.isSatisfiedBy(null)).isFalse();
+            softly.then(PasswordPolicy.isSatisfiedBy(tooShortPassword)).isFalse();
+            softly.then(PasswordPolicy.isSatisfiedBy(passwordWithControlCharacter)).isFalse();
         });
     }
 
     @Test
-    @DisplayName("BCrypt 72바이트 제한")
-    void rejectsPasswordOverBcryptLimit() {
+    @DisplayName("UTF-8 72바이트 초과 입력 거부")
+    void rejectsPasswordOverMaximumUtf8Bytes() {
         // Given
         String password = "가".repeat(24) + "a1";
 
-        // When
-        Throwable thrown = catchThrowable(() -> PasswordPolicy.validate(password));
-
         // Then
-        then(thrown).isInstanceOfSatisfying(
-                BusinessException.class,
-                exception -> then(exception.getErrorCode())
-                        .isEqualTo(AccountErrorCode.INVALID_SIGNUP_INPUT)
-        );
+        then(PasswordPolicy.isSatisfiedBy(password)).isFalse();
     }
 }

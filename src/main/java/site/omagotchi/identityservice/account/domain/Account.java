@@ -13,9 +13,9 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
-import site.omagotchi.identityservice.global.exception.BusinessException;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -75,26 +75,30 @@ public class Account {
         String normalizedEmail = normalizeEmail(email);
         String normalizedName = normalize(name);
 
-        if (normalizedEmail.isEmpty()
-                || normalizedEmail.length() > 254
-                || passwordHash == null
-                || passwordHash.isBlank()
-                || normalizedName.isEmpty()
-                || normalizedName.length() > 30
-        ) {
-            throw new BusinessException(AccountErrorCode.INVALID_SIGNUP_INPUT);
+        if (!isNormalizedRegistrationInputValid(
+                normalizedEmail,
+                passwordHash,
+                normalizedName
+        )) {
+            // Application 검사를 우회한 호출에도 불완전한 Account 생성을 허용하지 않는다.
+            throw new IllegalArgumentException("회원가입 계정 값이 올바르지 않습니다.");
         }
 
         return new Account(normalizedEmail, passwordHash, normalizedName);
     }
 
-    public boolean isLoginAllowed() {
-        return status == AccountStatus.ACTIVE;
+    public static boolean isRegistrationDetailsValid(
+            String email,
+            String name
+    ) {
+        return isNormalizedRegistrationDetailsValid(
+                normalizeEmail(email),
+                normalize(name)
+        );
     }
 
-    public boolean isRefreshAllowed() {
-        return status == AccountStatus.ACTIVE
-                || status == AccountStatus.LOCKED;
+    public boolean isLoginAllowed() {
+        return status == AccountStatus.ACTIVE;
     }
 
     public static String normalizeEmail(String email) {
@@ -107,6 +111,66 @@ public class Account {
 
     private static String normalize(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static boolean isNormalizedRegistrationInputValid(
+            String normalizedEmail,
+            String passwordHash,
+            String normalizedName
+    ) {
+        return isNormalizedRegistrationDetailsValid(normalizedEmail, normalizedName)
+                && passwordHash != null
+                && !passwordHash.isBlank();
+    }
+
+    private static boolean isNormalizedRegistrationDetailsValid(
+            String normalizedEmail,
+            String normalizedName
+    ) {
+        return isEmailFormatValid(normalizedEmail)
+                && normalizedEmail.length() <= 254
+                && !normalizedName.isEmpty()
+                && normalizedName.length() <= 30;
+    }
+
+    // RFC 전체를 판별하지 않고 서비스가 허용하는 이메일의 최소 구조만 확인한다.
+    private static boolean isEmailFormatValid(String email) {
+        int separatorIndex = email.indexOf('@');
+        if (separatorIndex <= 0
+                || separatorIndex != email.lastIndexOf('@')
+                || separatorIndex == email.length() - 1) {
+            return false;
+        }
+
+        String localPart = email.substring(0, separatorIndex);
+        String domainPart = email.substring(separatorIndex + 1);
+        return isEmailLocalPartValid(localPart)
+                && Arrays.stream(domainPart.split("\\.", -1)).allMatch(
+                Account::isEmailDomainLabelValid
+        );
+    }
+
+    private static boolean isEmailLocalPartValid(String localPart) {
+        return localPart.length() <= 64
+                && localPart.charAt(0) != '.'
+                && localPart.charAt(localPart.length() - 1) != '.'
+                && !localPart.contains("..")
+                && localPart.chars().allMatch(Account::isEmailLocalCharacter);
+    }
+
+    private static boolean isEmailLocalCharacter(int character) {
+        return Character.isLetterOrDigit(character)
+                || "!#$%&'*+-/=?^_`{|}~.".indexOf(character) >= 0;
+    }
+
+    private static boolean isEmailDomainLabelValid(String label) {
+        return !label.isEmpty()
+                && label.length() <= 63
+                && Character.isLetterOrDigit(label.charAt(0))
+                && Character.isLetterOrDigit(label.charAt(label.length() - 1))
+                && label.chars().allMatch(
+                character -> Character.isLetterOrDigit(character) || character == '-'
+        );
     }
 
     @PrePersist
