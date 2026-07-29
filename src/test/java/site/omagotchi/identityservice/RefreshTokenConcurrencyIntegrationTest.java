@@ -13,12 +13,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
-import site.omagotchi.identityservice.auth.application.RefreshTokenUseCase;
-import site.omagotchi.identityservice.auth.application.dto.TokenIssueResult;
-import site.omagotchi.identityservice.auth.domain.AuthErrorCode;
+import site.omagotchi.identityservice.auth.application.AuthErrorCode;
+import site.omagotchi.identityservice.auth.application.AuthenticationService;
+import site.omagotchi.identityservice.auth.application.RefreshTokenHasher;
+import site.omagotchi.identityservice.auth.application.result.TokenIssueResult;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
-import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenHasher;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 import tools.jackson.databind.ObjectMapper;
@@ -68,7 +68,7 @@ class RefreshTokenConcurrencyIntegrationTest {
     private RefreshTokenHasher refreshTokenHasher;
 
     @Autowired
-    private RefreshTokenUseCase refreshTokenUseCase;
+    private AuthenticationService authenticationService;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -114,7 +114,7 @@ class RefreshTokenConcurrencyIntegrationTest {
         // A 요청: 정상 갱신 후 테스트가 허용할 때까지 커밋 보류
         Future<TokenIssueResult> firstRotation = executor.submit(() ->
                 transaction.execute(status -> {
-                    TokenIssueResult result = refreshTokenUseCase.execute(login.refreshToken());
+                    TokenIssueResult result = authenticationService.refresh(login.refreshToken());
                     firstRotationFinished.countDown();
                     await(allowFirstCommit);
                     return result;
@@ -128,7 +128,7 @@ class RefreshTokenConcurrencyIntegrationTest {
         // B 요청: A와 동일한 원본 Token으로 갱신 시도
         Future<Throwable> secondRotation = executor.submit(() -> {
             secondRotationStarted.countDown();
-            return catchThrowable(() -> refreshTokenUseCase.execute(login.refreshToken()));
+            return catchThrowable(() -> authenticationService.refresh(login.refreshToken()));
         });
         await(secondRotationStarted);
 
@@ -172,7 +172,7 @@ class RefreshTokenConcurrencyIntegrationTest {
                     });
         });
 
-        thenThrownBy(() -> refreshTokenUseCase.execute(issuedToken.refreshToken()))
+        thenThrownBy(() -> authenticationService.refresh(issuedToken.refreshToken()))
                 .isInstanceOf(BusinessException.class)
                 .extracting(throwable ->
                         ((BusinessException) throwable).getErrorCode()

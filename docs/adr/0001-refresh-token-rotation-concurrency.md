@@ -139,4 +139,4 @@ MVP에서는 `refresh_sessions`, Redis와 BFF를 추가하지 않습니다. 다�
 - 중앙 ADR `0003`: 브라우저 직접 JWT 인증 경계
 - 중앙 ADR `0008`: 계정 UUID와 JWT Subject 식별자
 - 중앙 인증·인가 명세: `10-specifications/01-identity/02-authentication-authorization.md`
-- 구현: `RefreshTokenRotation`, `RefreshTokenStore`, `RefreshTokenJpaRepository`
+- 구현: `AuthenticationService`, `RefreshTokenRotation`, `RefreshTokenRepository`, `RefreshTokenJpaRepository`

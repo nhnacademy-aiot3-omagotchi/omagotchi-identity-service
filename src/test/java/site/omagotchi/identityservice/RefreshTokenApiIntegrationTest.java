@@ -4,21 +4,26 @@ import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
+import site.omagotchi.identityservice.auth.application.RefreshTokenHasher;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
-import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenHasher;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
-import site.omagotchi.identityservice.auth.presentation.RefreshTokenCookieManager;
+import site.omagotchi.identityservice.auth.presentation.RefreshTokenCookieFactory;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
@@ -28,6 +33,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -51,6 +57,9 @@ class RefreshTokenApiIntegrationTest {
 
     @Autowired
     private RefreshTokenHasher refreshTokenHasher;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private JwtDecoder jwtDecoder;
@@ -123,6 +132,65 @@ class RefreshTokenApiIntegrationTest {
     }
 
     @Test
+    @DisplayName("잠긴 계정의 기존 Refresh Token 갱신 허용")
+    void allowsRefreshForLockedAccount() throws Exception {
+        // Given
+        UUID accountId = api.signupSuccessfully("user@example.com");
+        AuthApiTestClient.LoginTokens login = api.loginSuccessfully(
+                "user@example.com",
+                "password-passphrase"
+        );
+        changeAccountStatus(accountId, AccountStatus.LOCKED);
+
+        // When
+        AuthApiTestClient.LoginTokens refreshed = api.refreshSuccessfully(login.refreshCookie());
+
+        // Then
+        then(jwtDecoder.decode(refreshed.accessToken()).getSubject())
+                .isEqualTo(accountId.toString());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "DISABLED, ACCOUNT_DISABLED",
+            "WITHDRAWN, ACCOUNT_WITHDRAWN"
+    })
+    @DisplayName("Refresh 불가 계정의 Token Family 폐기")
+    void revokesFamilyForAccountWithoutRefreshAccess(
+            AccountStatus accountStatus,
+            RefreshTokenRevocationReason expectedRevocationReason
+    ) throws Exception {
+        // Given
+        UUID accountId = api.signupSuccessfully("user@example.com");
+        AuthApiTestClient.LoginTokens login = api.loginSuccessfully(
+                "user@example.com",
+                "password-passphrase"
+        );
+        AuthApiTestClient.LoginTokens refreshed = api.refreshSuccessfully(login.refreshCookie());
+        UUID familyId = storedToken(login.refreshToken()).getFamilyId();
+        changeAccountStatus(accountId, accountStatus);
+
+        // When
+        ResultActions response = api.refresh(refreshed.refreshCookie());
+        List<RefreshToken> family = refreshTokenJpaRepository.findAll().stream()
+                .filter(token -> token.getFamilyId().equals(familyId))
+                .toList();
+
+        // Then
+        response.andExpectAll(
+                status().isUnauthorized(),
+                jsonPath("$.code").value("AUTH_INVALID_REFRESH_TOKEN")
+        );
+        then(family)
+                .hasSize(2)
+                .allSatisfy(token -> thenSoftly(softly -> {
+                    softly.then(token.isRevoked()).isTrue();
+                    softly.then(token.getRevocationReason())
+                            .isEqualTo(expectedRevocationReason);
+                }));
+    }
+
+    @Test
     @DisplayName("사용한 Refresh Token 재사용 시 Family 폐기")
     void revokesFamilyWhenUsedRefreshTokenIsReused() throws Exception {
         // Given
@@ -177,7 +245,7 @@ class RefreshTokenApiIntegrationTest {
         logoutResponse.andExpect(status().isNoContent())
                 .andExpect(result -> {
                     Cookie expiredCookie = result.getResponse()
-                            .getCookie(RefreshTokenCookieManager.COOKIE_NAME);
+                            .getCookie(RefreshTokenCookieFactory.COOKIE_NAME);
                     then(expiredCookie).isNotNull();
                     then(expiredCookie.getMaxAge()).isZero();
                 });
@@ -214,21 +282,23 @@ class RefreshTokenApiIntegrationTest {
 
         // When
         ResultActions tamperedTokenResponse = api.refresh(new Cookie(
-                RefreshTokenCookieManager.COOKIE_NAME,
+                RefreshTokenCookieFactory.COOKIE_NAME,
                 login.refreshToken() + "tampered"
         ));
         ResultActions expiredTokenResponse = api.refresh(new Cookie(
-                RefreshTokenCookieManager.COOKIE_NAME,
+                RefreshTokenCookieFactory.COOKIE_NAME,
                 expiredTokenValue
         ));
 
         // Then
         tamperedTokenResponse.andExpectAll(
                 status().isUnauthorized(),
+                header().doesNotExist(HttpHeaders.WWW_AUTHENTICATE),
                 jsonPath("$.code").value("AUTH_INVALID_REFRESH_TOKEN")
         );
         expiredTokenResponse.andExpectAll(
                 status().isUnauthorized(),
+                header().doesNotExist(HttpHeaders.WWW_AUTHENTICATE),
                 jsonPath("$.code").value("AUTH_INVALID_REFRESH_TOKEN")
         );
     }
@@ -247,6 +317,7 @@ class RefreshTokenApiIntegrationTest {
         // When
         ResultActions refreshResponse = api.refresh(login.refreshCookie(), untrustedOrigin);
         ResultActions logoutResponse = api.logout(login.refreshCookie(), untrustedOrigin);
+        ResultActions allowedRefreshResponse = api.refresh(login.refreshCookie());
 
         // Then
         refreshResponse.andExpectAll(
@@ -257,6 +328,7 @@ class RefreshTokenApiIntegrationTest {
                 status().isForbidden(),
                 jsonPath("$.code").value("AUTH_INVALID_REQUEST_ORIGIN")
         );
+        allowedRefreshResponse.andExpect(status().isOk());
     }
 
     private RefreshToken storedToken(String rawRefreshToken) {
@@ -266,4 +338,27 @@ class RefreshTokenApiIntegrationTest {
                 .findFirst()
                 .orElseThrow();
     }
+
+    private void changeAccountStatus(UUID accountId, AccountStatus accountStatus) {
+        jdbcTemplate.update(
+                """
+                        UPDATE identity_service.accounts
+                        SET status = ?,
+                            locked_until = CASE
+                                WHEN ? = 'LOCKED' THEN CURRENT_TIMESTAMP + INTERVAL '1 hour'
+                                ELSE NULL
+                            END,
+                            withdrawn_at = CASE
+                                WHEN ? = 'WITHDRAWN' THEN CURRENT_TIMESTAMP
+                                ELSE NULL
+                            END
+                        WHERE id = ?
+                        """,
+                accountStatus.name(),
+                accountStatus.name(),
+                accountStatus.name(),
+                accountId
+        );
+    }
+
 }
