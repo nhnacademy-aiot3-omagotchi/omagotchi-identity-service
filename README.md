@@ -31,43 +31,50 @@ openssl pkey -in secrets/jwt-private.pem -pubout -out secrets/jwt-public.pem
 각 기능은 다음 네 패키지를 기본으로 사용합니다.
 
 - `domain`: Entity와 상태 규칙
-- `application`: 기능 실행 순서
-- `infrastructure`: JPA Repository와 JWT 같은 기술 구현
+- `application`: 기능 실행 순서, 내부 정책과 외부 기술에 요구하는 Port
+- `infrastructure`: JPA, BCrypt와 JWT 같은 Port 구현
 - `presentation`: HTTP 요청과 응답
 
-Security 설정과 인증·인가 오류 처리는 `global.security`에, 공통 예외 응답은 `global.exception`에 둡니다. 구현체가 하나뿐인 port, adapter와 `ServiceImpl` 계층은 만들지 않습니다.
+Security 설정과 인증·인가 오류 처리는 `global.security`에, 공통 예외 응답은 `global.exception`에 둡니다. Application은 외부 기술 경계를 `application.port`로 제한하고, JPA·BCrypt·JWT 구현은 `infrastructure`가 소유합니다. 외부 I/O가 없는 SHA-256 Hash와 난수 Token 발급은 구체 Application Class로 둡니다. 모든 Use Case의 Interface나 `adapter`, `ServiceImpl` 계층은 만들지 않습니다.
+
+구조 기준은 [Backend Code Structure](https://github.com/nhnacademy-aiot3-omagotchi/docs/blob/main/50-guides/10-backend-code-structure.md), 오류 분류와 응답 기준은 [공통 예외 처리](https://github.com/nhnacademy-aiot3-omagotchi/docs/blob/main/50-guides/04-error-handling.md)를 따릅니다.
+
+Account 영속화는 `AccountRepository` Port를 `AccountJpaPersistence`가 구현하고, Spring Data Interface인 `AccountJpaRepository`에 위임합니다. 이메일 UNIQUE 위반은 `AccountJpaPersistence`가 `DUPLICATE_EMAIL`의 `BusinessException`으로 변환하고 원본 예외를 `cause`로 보존합니다.
+
+`auth`는 `account.domain`을 직접 사용하지 않습니다. 계정 인증과 Refresh 허용 여부는 `AccountAuthenticationService`가 판단하고, `AccountAuthenticationResult`와 `AccountRefreshAccess`를 공개 Application 계약으로 사용합니다.
 
 JWT 이메일 로그인은 아래 순서로 읽으면 됩니다.
 
 1. `LoginRequest`
 2. `AuthController.login()`
-3. `LoginUseCase.execute()`
-4. `CredentialVerifier.matches()`
-5. `AccessTokenIssuer.issue()`
-6. `TokenResponse`
-7. `SecurityConfig`
-8. `AccountController.me()`
+3. `AuthenticationService.login()`
+4. `AccountAuthenticationService.authenticate()`
+5. `PasswordHasher` → `BcryptPasswordHasher`
+6. `AccessTokenIssuer` → `JwtAccessTokenIssuer`
+7. `RefreshTokenIssuer`
+8. `TokenResponse`
 
-`AccessTokenIssuer`는 RSA private key로 Access JWT를 발급합니다. 반대 방향의 Bearer Token 검증은 직접 만든 Filter가 아니라 Spring Security Resource Server가 public key로 처리합니다.
+`AccessTokenIssuer`의 `JwtAccessTokenIssuer` 구현은 RSA private key로 Access JWT를 발급합니다. 반대 방향의 Bearer Token 검증은 직접 만든 Filter가 아니라 Spring Security Resource Server가 public key로 처리합니다.
 
 Refresh Token 갱신은 아래 순서로 읽으면 됩니다.
 
 1. `AuthController.refresh()`
 2. `RefreshRequestOriginValidator.validate()`
-3. `RefreshTokenUseCase.execute()`
+3. `AuthenticationService.refresh()`
 4. `RefreshTokenRotation.rotate()`
-5. `RefreshTokenStore.lockByHash()`
+5. `RefreshTokenRepository.lockByHash()`
 6. `RefreshToken.markUsed()`
 7. `RefreshTokenIssuer.issue()`
-8. `RefreshTokenCookieManager.issue()`
+8. `RefreshTokenCookieFactory.issue()`
 
 클라이언트의 잘못된 로그인·Refresh Token·Origin은 공통 `BusinessException` 응답으로 처리합니다. 반면 RSA key, 필수 인증 설정과 암호화 알고리즘처럼 정상 실행 자체가 불가능한 오류는 애플리케이션 시작을 실패시킵니다.
 
 예외는 다음 기준으로 구분합니다.
 
-- 예상 가능한 사용자 요청 실패: `BusinessException`으로 정해진 4xx 응답
-- 요청 처리 중 불변식 위반: `IllegalArgumentException`·`IllegalStateException`으로 500 응답과 오류 로그, 애플리케이션은 계속 실행
-- 필수 설정·Bean 생성 실패: 애플리케이션 시작 중단
+- 예상 가능한 사용자 요청 실패: Domain 검증 실패를 Application이 `BusinessException`으로 변환해 정해진 4xx 응답
+- 하나의 외부 오류와 명확하게 대응하는 Persistence 실패: Infrastructure가 원본 `cause`를 보존한 `BusinessException`으로 직접 변환
+- 요청 처리 중 불변식 위반: `IllegalArgumentException`·`IllegalStateException`을 공통 Handler가 500 응답으로 바꾸고 stack trace를 서버 로그에 기록
+- 필수 설정·Bean 생성 실패: 시작 중 `IllegalStateException`이 전파되어 애플리케이션 시작 중단
 
 ## JWT 최소 개념
 
@@ -93,7 +100,7 @@ Refresh Token은 예측하기 어려운 불투명 난수로 발급하고 DB에�
 
 Refresh Cookie는 `HttpOnly`, `SameSite=Strict`, `Path=/api/v1/auth`를 사용합니다. 운영 HTTPS에서는 `Secure=true`, 로컬 HTTP에서는 profile 설정으로 `false`를 사용합니다. Refresh와 로그아웃은 `AUTH_ALLOWED_ORIGINS`에 등록한 Origin만 허용합니다.
 
-Request ID의 공통 형식과 전파 규칙은 [Omagotchi HTTP Request ID 가이드](../docs/50-guides/08-http-request-id.md)를 따릅니다. Identity Service에는 아직 적용하지 않았으며 Gateway와 각 서비스가 같은 값을 전달하도록 공통 관측성 작업에서 추가합니다.
+Request ID의 공통 형식과 전파 규칙은 [Omagotchi HTTP Request ID 가이드](https://github.com/nhnacademy-aiot3-omagotchi/docs/blob/main/50-guides/08-http-request-id.md)를 따릅니다. Identity Service에는 아직 적용하지 않았으며 Gateway와 각 서비스가 같은 값을 전달하도록 공통 관측성 작업에서 추가합니다.
 
 ## 서비스 내부 결정 기록
 
