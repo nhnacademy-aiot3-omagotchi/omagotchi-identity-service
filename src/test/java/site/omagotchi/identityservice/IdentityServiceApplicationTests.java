@@ -13,7 +13,7 @@ import java.util.List;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 
 @DisplayName("Identity Service 설정")
-@Import({TestcontainersConfiguration.class, TestJwtConfiguration.class})
+@Import({TestcontainersConfig.class, TestJwtConfig.class})
 @ActiveProfiles("test")
 @SpringBootTest
 class IdentityServiceApplicationTests {

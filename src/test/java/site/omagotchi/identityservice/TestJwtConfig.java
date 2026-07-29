@@ -10,7 +10,7 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 
 @TestConfiguration
-class TestJwtConfiguration {
+class TestJwtConfig {
 
     @Bean
     KeyPair jwtKeyPair() {
