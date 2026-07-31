@@ -21,7 +21,7 @@ public enum CommonErrorCode implements ErrorCode {
     ),
     /**
      * 예상하지 못한 실패를 최종 외부 경계에서 숨겨 응답할 때 사용하는 공통 오류.
-     * 내부 예외를 이 오류의 {@link BusinessException}으로 미리 변환하면 안됨 (docs 문서 참고)
+     * 마지막 Handler의 응답 전용이며 {@link BusinessException}에 전달하면 안됨.
      */
     INTERNAL_SERVER_ERROR(
             ErrorType.INTERNAL,

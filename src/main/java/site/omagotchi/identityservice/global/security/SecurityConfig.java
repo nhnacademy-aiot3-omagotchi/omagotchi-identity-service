@@ -19,7 +19,7 @@ public class SecurityConfig {
             HttpSecurity http,
             SecurityErrorResponseHandler errorHandler,
             JwtAuthenticationConverter jwtAuthenticationConverter
-    ) throws Exception {
+    ) {
         http
                 // Access Token은 Bearer Header 사용
                 // Refresh Cookie 요청은 SameSite와 Origin 검증으로 별도 보호
@@ -32,14 +32,18 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(authorize -> authorize
                         // 오류 처리 재디스패치가 인증 검사에 다시 막히지 않도록 허용
-                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .dispatcherTypeMatchers(DispatcherType.ERROR
+                        ).permitAll()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/auth/signup",
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/refresh",
                                 "/api/v1/auth/logout"
                         ).permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers(
+                                "/actuator/health",
+                                "/actuator/health/**"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
