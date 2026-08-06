@@ -1,14 +1,15 @@
 package site.omagotchi.identityservice.global.exception;
 
 /**
- * API 오류를 JSON으로 전달하는 응답.
+ * API JSON 오류 응답
  *
- * @param path 요청 URI. HTML에 직접 삽입하지 않는다.
+ * @param path 요청 URI. HTML 직접 삽입 금지
+ * @param requestId 요청 추적 ID. Request ID 도입 전까지 {@code null}
  */
 public record ApiErrorResponse(
-        int status,
         String code,
         String message,
-        String path
+        String path,
+        String requestId
 ) {
 }

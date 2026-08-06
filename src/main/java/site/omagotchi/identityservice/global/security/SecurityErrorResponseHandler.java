@@ -60,12 +60,16 @@ public class SecurityErrorResponseHandler implements AuthenticationEntryPoint, A
             ErrorCode errorCode
     ) throws IOException {
         // Bearer delegate가 RFC 6750 오류에 맞춰 정한 상태와 Header를 보존한다.
-        int status = response.getStatus();
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         objectMapper.writeValue(
                 response.getOutputStream(),
-                new ApiErrorResponse(status, errorCode.code(), errorCode.message(), request.getRequestURI())
+                new ApiErrorResponse(
+                        errorCode.code(),
+                        errorCode.message(),
+                        request.getRequestURI(),
+                        null
+                )
         );
     }
 }

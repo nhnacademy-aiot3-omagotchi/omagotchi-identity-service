@@ -247,10 +247,7 @@ class AuthApiIntegrationTest {
                 }));
 
         // Then
-        response.andExpectAll(
-                status().isInternalServerError(),
-                jsonPath("$.status").value(originalStatus)
-        );
+        response.andExpect(status().isInternalServerError());
     }
 
     @Test
@@ -305,12 +302,10 @@ class AuthApiIntegrationTest {
         methodNotAllowed.andExpectAll(
                 status().isMethodNotAllowed(),
                 header().string(HttpHeaders.ALLOW, "POST"),
-                jsonPath("$.status").value(HttpStatus.METHOD_NOT_ALLOWED.value()),
                 jsonPath("$.code").value("COMMON_INVALID_REQUEST")
         );
         unsupportedMediaType.andExpectAll(
                 status().isUnsupportedMediaType(),
-                jsonPath("$.status").value(HttpStatus.UNSUPPORTED_MEDIA_TYPE.value()),
                 jsonPath("$.code").value("COMMON_INVALID_REQUEST")
         );
     }
@@ -327,7 +322,6 @@ class AuthApiIntegrationTest {
         // Then
         response.andExpectAll(
                 status().isBadRequest(),
-                jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()),
                 jsonPath("$.code").value("COMMON_MALFORMED_REQUEST")
         );
     }
