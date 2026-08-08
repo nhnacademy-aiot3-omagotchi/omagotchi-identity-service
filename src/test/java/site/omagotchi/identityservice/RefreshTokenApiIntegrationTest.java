@@ -65,10 +65,12 @@ class RefreshTokenApiIntegrationTest {
     private JwtDecoder jwtDecoder;
 
     private AuthApiTestClient api;
+    private AccountStateTestFixture accountStateFixture;
 
     @BeforeEach
     void setUp() {
         api = new AuthApiTestClient(mockMvc, objectMapper);
+        accountStateFixture = new AccountStateTestFixture(jdbcTemplate);
         refreshTokenJpaRepository.deleteAll();
         accountJpaRepository.deleteAll();
     }
@@ -140,7 +142,7 @@ class RefreshTokenApiIntegrationTest {
                 "user@example.com",
                 "password-passphrase"
         );
-        changeAccountStatus(accountId, AccountStatus.LOCKED);
+        accountStateFixture.changeStatus(accountId, AccountStatus.LOCKED);
 
         // When
         AuthApiTestClient.LoginTokens refreshed = api.refreshSuccessfully(login.refreshCookie());
@@ -168,7 +170,7 @@ class RefreshTokenApiIntegrationTest {
         );
         AuthApiTestClient.LoginTokens refreshed = api.refreshSuccessfully(login.refreshCookie());
         UUID familyId = storedToken(login.refreshToken()).getFamilyId();
-        changeAccountStatus(accountId, accountStatus);
+        accountStateFixture.changeStatus(accountId, accountStatus);
 
         // When
         ResultActions response = api.refresh(refreshed.refreshCookie());
@@ -337,28 +339,6 @@ class RefreshTokenApiIntegrationTest {
                 .filter(token -> token.getTokenHash().equals(tokenHash))
                 .findFirst()
                 .orElseThrow();
-    }
-
-    private void changeAccountStatus(UUID accountId, AccountStatus accountStatus) {
-        jdbcTemplate.update(
-                """
-                        UPDATE identity_service.accounts
-                        SET status = ?,
-                            locked_until = CASE
-                                WHEN ? = 'LOCKED' THEN CURRENT_TIMESTAMP + INTERVAL '1 hour'
-                                ELSE NULL
-                            END,
-                            withdrawn_at = CASE
-                                WHEN ? = 'WITHDRAWN' THEN CURRENT_TIMESTAMP
-                                ELSE NULL
-                            END
-                        WHERE id = ?
-                        """,
-                accountStatus.name(),
-                accountStatus.name(),
-                accountStatus.name(),
-                accountId
-        );
     }
 
 }

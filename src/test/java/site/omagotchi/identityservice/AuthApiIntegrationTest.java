@@ -77,10 +77,12 @@ class AuthApiIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     private AuthApiTestClient api;
+    private AccountStateTestFixture accountStateFixture;
 
     @BeforeEach
     void setUp() {
         api = new AuthApiTestClient(mockMvc, objectMapper);
+        accountStateFixture = new AccountStateTestFixture(jdbcTemplate);
         refreshTokenJpaRepository.deleteAll();
         accountJpaRepository.deleteAll();
     }
@@ -162,7 +164,7 @@ class AuthApiIntegrationTest {
     void rejectsLoginForUnavailableAccount(AccountStatus accountStatus) throws Exception {
         // Given
         UUID accountId = api.signupSuccessfully("user@example.com");
-        changeAccountStatus(accountId, accountStatus);
+        accountStateFixture.changeStatus(accountId, accountStatus);
 
         // When
         ResultActions response = api.login(
@@ -326,25 +328,4 @@ class AuthApiIntegrationTest {
         );
     }
 
-    private void changeAccountStatus(UUID accountId, AccountStatus accountStatus) {
-        jdbcTemplate.update(
-                """
-                        UPDATE identity_service.accounts
-                        SET status = ?,
-                            locked_until = CASE
-                                WHEN ? = 'LOCKED' THEN CURRENT_TIMESTAMP + INTERVAL '1 hour'
-                                ELSE NULL
-                            END,
-                            withdrawn_at = CASE
-                                WHEN ? = 'WITHDRAWN' THEN CURRENT_TIMESTAMP
-                                ELSE NULL
-                            END
-                        WHERE id = ?
-                        """,
-                accountStatus.name(),
-                accountStatus.name(),
-                accountStatus.name(),
-                accountId
-        );
-    }
 }
