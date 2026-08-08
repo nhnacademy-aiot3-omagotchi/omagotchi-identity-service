@@ -20,7 +20,7 @@ public class RefreshTokenIssuer {
     private final RefreshTokenProperties properties;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    // 새 로그인마다 독립적인 family와 고정 만료 시각 생성
+    // 새 로그인별 독립 family와 고정 만료 시각 생성
     public IssuedRefreshToken issueNewFamily(UUID accountId, Instant issuedAt) {
         return issue(
                 accountId,

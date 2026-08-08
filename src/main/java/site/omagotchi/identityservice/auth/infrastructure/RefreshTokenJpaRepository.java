@@ -22,7 +22,7 @@ public interface RefreshTokenJpaRepository
         return save(refreshToken);
     }
 
-    // 비관적 락: 호출 트랜잭션이 끝날 때까지 동일 Token의 갱신 직렬화
+    // 호출 트랜잭션 종료까지 유지되는 비관적 쓰기 락
     @Override
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
@@ -32,9 +32,9 @@ public interface RefreshTokenJpaRepository
             """)
     Optional<RefreshToken> lockByHash(@Param("tokenHash") String tokenHash);
 
-    // Token family 전체를 조회하지 않고 한 번의 UPDATE로 폐기
-    // flushAutomatically: 일괄 UPDATE 전, Java 객체 변경을 DB에 반영
-    // clearAutomatically: DB와 달라진 기존 JPA Entity를 영속성 컨텍스트에서 제거
+    // Token family 조회 없이 수행하는 단일 일괄 UPDATE
+    // flushAutomatically: 일괄 UPDATE 이전의 Entity 변경 반영
+    // clearAutomatically: 일괄 UPDATE 이후 낡은 영속성 컨텍스트 제거
     @Override
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

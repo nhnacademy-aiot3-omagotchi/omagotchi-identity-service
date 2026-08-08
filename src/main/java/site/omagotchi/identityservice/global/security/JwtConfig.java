@@ -26,7 +26,7 @@ public class JwtConfig {
 
     @Bean
     JwtEncoder jwtEncoder(RSAPublicKey publicKey, RSAPrivateKey privateKey) {
-        // 잘못된 key로 인증 서버가 실행되지 않도록 시작 시점에 검증
+        // 잘못된 key로 인한 인증 서버 실행 방지용 시작 시점 검증
         validateKeyPair(publicKey, privateKey);
         return NimbusJwtEncoder.withKeyPair(publicKey, privateKey).build();
     }
@@ -61,7 +61,7 @@ public class JwtConfig {
         return Clock.systemUTC();
     }
 
-    // 다음 검증을 통과하지 못하면 애플리케이션의 시작을 막아야 함
+    // RSA key 크기와 공개·개인 key 일치 여부의 시작 시점 검증
     private static void validateKeyPair(RSAPublicKey publicKey, RSAPrivateKey privateKey) {
         if (publicKey.getModulus().bitLength() < MIN_RSA_KEY_SIZE) {
             throw new IllegalStateException("RSA key는 2048 bit 이상이어야 합니다.");

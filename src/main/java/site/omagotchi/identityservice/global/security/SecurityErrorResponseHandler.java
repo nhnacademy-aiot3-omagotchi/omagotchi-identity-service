@@ -20,7 +20,8 @@ import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-// Controller 이전에 발생한 Security 예외를 공통 JSON 응답으로 변환
+// Controller 이전의 Bearer 인증·인가 실패를 공통 JSON 오류로 변환하는 Security 경계
+// RFC 6750 Header 보존과 RestControllerAdvice 적용 전 ServletResponse 직접 작성
 @Component
 @RequiredArgsConstructor
 public class SecurityErrorResponseHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
@@ -59,7 +60,7 @@ public class SecurityErrorResponseHandler implements AuthenticationEntryPoint, A
             HttpServletRequest request,
             ErrorCode errorCode
     ) throws IOException {
-        // Bearer delegate가 RFC 6750 오류에 맞춰 정한 상태와 Header를 보존한다.
+        // Bearer delegate가 RFC 6750에 맞춰 결정한 HTTP 상태와 Header 보존
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         objectMapper.writeValue(

@@ -17,6 +17,7 @@ import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+// Controller 내부의 업무·MVC·예상하지 못한 실패를 공통 JSON 오류로 변환하는 경계
 @Slf4j
 @RestControllerAdvice
 @NullMarked
@@ -78,6 +79,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpStatusCode statusCode,
             WebRequest request
     ) {
+        // Spring MVC가 결정한 HTTP 상태를 유지한 공통 오류 Code 선택
         ErrorCode errorCode = statusCode.is5xxServerError()
                 ? CommonErrorCode.INTERNAL_SERVER_ERROR
                 : CommonErrorCode.INVALID_REQUEST;
@@ -112,6 +114,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpStatusCode statusCode,
             WebRequest request
     ) {
+        // Spring의 상태·필수 Header 조립 이후 공통 오류 본문만 교체
         ResponseEntity<Object> springResponse = super.handleExceptionInternal(
                 exception,
                 null,
@@ -129,7 +132,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 ((ServletWebRequest) request).getRequest().getRequestURI(),
                 null
         );
-        // 요청 URI는 HTML이 아닌 JSON 문자열로 직렬화되므로 XSS 실행 문맥이 아님
+        // 요청 URI의 JSON 문자열 직렬화로 HTML 실행 문맥과 분리된 응답
         return new ResponseEntity<>(
                 body,
                 springResponse.getHeaders(),
@@ -154,7 +157,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ) {
         HttpStatus status = ErrorHttpStatusMapper.map(errorCode.type());
 
-        // 요청 URI는 HTML이 아닌 JSON 문자열로 직렬화되므로 XSS 실행 문맥이 아님
+        // 요청 URI의 JSON 문자열 직렬화로 HTML 실행 문맥과 분리된 응답
         return ResponseEntity
                 .status(status)
                 .body(new ApiErrorResponse(
