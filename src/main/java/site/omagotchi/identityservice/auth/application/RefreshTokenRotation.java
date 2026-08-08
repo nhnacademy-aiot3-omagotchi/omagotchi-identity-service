@@ -99,8 +99,10 @@ public class RefreshTokenRotation {
 
         // Access·Refresh Token과 인증 주체 정보를 묶은 회전 성공 결과 반환
         return Optional.of(new TokenIssueResult(
+                account.accountId(),
+                account.globalRole(),
                 accessToken.value(),
-                accessToken.expiresInSeconds(),
+                accessToken.expiresAt(),
                 nextRefreshToken.value(),
                 currentToken.getExpiresAt()
         ));

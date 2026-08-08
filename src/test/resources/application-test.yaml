@@ -1,10 +1,22 @@
+server:
+  port: 0
+
 eureka:
   client:
-    # 테스트에서 실행 중인 Discovery Service에 연결하지 않음
+    # Test의 외부 Discovery 연결 방지
     enabled: false
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
 
 auth:
+  frontend:
+    username: frontend
+    password: test-only-frontend-credential-password
+  jwt:
+    issuer: https://identity.omagotchi.test
+    audience: omagotchi-api
+    access-token-ttl: PT15M
+    public-key-location: classpath:unused-jwt-public.pem
+    private-key-location: classpath:unused-jwt-private.pem
   refresh-token:
-    secure: false
-    allowed-origins:
-      - http://localhost:8080
+    ttl: P7D

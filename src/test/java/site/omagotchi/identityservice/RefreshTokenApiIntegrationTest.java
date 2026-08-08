@@ -1,6 +1,5 @@
 package site.omagotchi.identityservice;
 
-import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,7 +22,6 @@ import site.omagotchi.identityservice.auth.application.RefreshTokenHasher;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
-import site.omagotchi.identityservice.auth.presentation.RefreshTokenCookieFactory;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
@@ -76,13 +74,13 @@ class RefreshTokenApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("로그인 Refresh Cookie와 Hash 저장")
-    void issuesRefreshCookieAndStoresOnlyHash() throws Exception {
+    @DisplayName("로그인 Token Bundle과 Refresh Token Hash 저장")
+    void issuesTokenBundleAndStoresOnlyRefreshTokenHash() throws Exception {
         // Given
         api.signupSuccessfully("user@example.com");
 
         // When
-        AuthApiTestClient.LoginTokens tokens = api.loginSuccessfully(
+        AuthApiTestClient.TokenBundle tokens = api.loginSuccessfully(
                 "user@example.com",
                 "password-passphrase"
         );
@@ -91,11 +89,7 @@ class RefreshTokenApiIntegrationTest {
         // Then
         thenSoftly(softly -> {
             softly.then(tokens.accessToken()).isNotBlank();
-            softly.then(tokens.refreshCookie().isHttpOnly()).isTrue();
-            softly.then(tokens.refreshCookie().getSecure()).isFalse();
-            softly.then(tokens.refreshCookie().getPath()).isEqualTo("/api/v1/auth");
-            softly.then(tokens.refreshCookie().getAttribute("SameSite")).isEqualTo("Strict");
-            softly.then(tokens.refreshCookie().getMaxAge()).isBetween(604_799, 604_800);
+            softly.then(tokens.refreshToken()).isNotBlank();
             softly.then(storedToken.getTokenHash())
                     .isEqualTo(refreshTokenHasher.hash(tokens.refreshToken()))
                     .isNotEqualTo(tokens.refreshToken());
@@ -109,7 +103,7 @@ class RefreshTokenApiIntegrationTest {
     void rotatesRefreshTokenWithoutExtendingFamilyExpiration() throws Exception {
         // Given
         UUID userId = api.signupSuccessfully("user@example.com");
-        AuthApiTestClient.LoginTokens login = api.loginSuccessfully(
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
                 "user@example.com",
                 "password-passphrase"
         );
@@ -117,7 +111,7 @@ class RefreshTokenApiIntegrationTest {
         Jwt originalAccessToken = jwtDecoder.decode(login.accessToken());
 
         // When
-        AuthApiTestClient.LoginTokens refreshed = api.refreshSuccessfully(login.refreshCookie());
+        AuthApiTestClient.TokenBundle refreshed = api.refreshSuccessfully(login.refreshToken());
         RefreshToken usedToken = storedToken(login.refreshToken());
         RefreshToken nextToken = storedToken(refreshed.refreshToken());
         Jwt refreshedAccessToken = jwtDecoder.decode(refreshed.accessToken());
@@ -138,14 +132,14 @@ class RefreshTokenApiIntegrationTest {
     void allowsRefreshForLockedAccount() throws Exception {
         // Given
         UUID accountId = api.signupSuccessfully("user@example.com");
-        AuthApiTestClient.LoginTokens login = api.loginSuccessfully(
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
                 "user@example.com",
                 "password-passphrase"
         );
         accountStateFixture.changeStatus(accountId, AccountStatus.LOCKED);
 
         // When
-        AuthApiTestClient.LoginTokens refreshed = api.refreshSuccessfully(login.refreshCookie());
+        AuthApiTestClient.TokenBundle refreshed = api.refreshSuccessfully(login.refreshToken());
 
         // Then
         then(jwtDecoder.decode(refreshed.accessToken()).getSubject())
@@ -164,16 +158,16 @@ class RefreshTokenApiIntegrationTest {
     ) throws Exception {
         // Given
         UUID accountId = api.signupSuccessfully("user@example.com");
-        AuthApiTestClient.LoginTokens login = api.loginSuccessfully(
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
                 "user@example.com",
                 "password-passphrase"
         );
-        AuthApiTestClient.LoginTokens refreshed = api.refreshSuccessfully(login.refreshCookie());
+        AuthApiTestClient.TokenBundle refreshed = api.refreshSuccessfully(login.refreshToken());
         UUID familyId = storedToken(login.refreshToken()).getFamilyId();
         accountStateFixture.changeStatus(accountId, accountStatus);
 
         // When
-        ResultActions response = api.refresh(refreshed.refreshCookie());
+        ResultActions response = api.refresh(refreshed.refreshToken());
         List<RefreshToken> family = refreshTokenJpaRepository.findAll().stream()
                 .filter(token -> token.getFamilyId().equals(familyId))
                 .toList();
@@ -197,16 +191,16 @@ class RefreshTokenApiIntegrationTest {
     void revokesFamilyWhenUsedRefreshTokenIsReused() throws Exception {
         // Given
         api.signupSuccessfully("user@example.com");
-        AuthApiTestClient.LoginTokens login = api.loginSuccessfully(
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
                 "user@example.com",
                 "password-passphrase"
         );
-        AuthApiTestClient.LoginTokens refreshed = api.refreshSuccessfully(login.refreshCookie());
+        AuthApiTestClient.TokenBundle refreshed = api.refreshSuccessfully(login.refreshToken());
         UUID familyId = storedToken(login.refreshToken()).getFamilyId();
 
         // When
-        ResultActions reusedTokenResponse = api.refresh(login.refreshCookie());
-        ResultActions activeTokenResponse = api.refresh(refreshed.refreshCookie());
+        ResultActions reusedTokenResponse = api.refresh(login.refreshToken());
+        ResultActions activeTokenResponse = api.refresh(refreshed.refreshToken());
         List<RefreshToken> family = refreshTokenJpaRepository.findAll().stream()
                 .filter(token -> token.getFamilyId().equals(familyId))
                 .toList();
@@ -229,28 +223,26 @@ class RefreshTokenApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("로그아웃 Refresh Family 폐기와 Cookie 만료")
-    void revokesRefreshFamilyAndExpiresCookieOnLogout() throws Exception {
+    @DisplayName("로그아웃 Refresh Family 폐기")
+    void revokesRefreshFamilyOnLogout() throws Exception {
         // Given
         api.signupSuccessfully("user@example.com");
-        AuthApiTestClient.LoginTokens login = api.loginSuccessfully(
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
                 "user@example.com",
                 "password-passphrase"
         );
 
         // When
-        ResultActions logoutResponse = api.logout(login.refreshCookie());
-        ResultActions refreshAfterLogout = api.refresh(login.refreshCookie());
+        ResultActions logoutResponse = api.logout(login.refreshToken());
+        ResultActions refreshAfterLogout = api.refresh(login.refreshToken());
         RefreshToken loggedOutToken = storedToken(login.refreshToken());
 
         // Then
-        logoutResponse.andExpect(status().isNoContent())
-                .andExpect(result -> {
-                    Cookie expiredCookie = result.getResponse()
-                            .getCookie(RefreshTokenCookieFactory.COOKIE_NAME);
-                    then(expiredCookie).isNotNull();
-                    then(expiredCookie.getMaxAge()).isZero();
-                });
+        logoutResponse.andExpectAll(
+                status().isNoContent(),
+                header().string(HttpHeaders.CACHE_CONTROL, org.hamcrest.Matchers.containsString("no-store")),
+                header().doesNotExist(HttpHeaders.SET_COOKIE)
+        );
         refreshAfterLogout.andExpectAll(
                 status().isUnauthorized(),
                 jsonPath("$.code").value("AUTH_INVALID_REFRESH_TOKEN")
@@ -267,7 +259,7 @@ class RefreshTokenApiIntegrationTest {
     void rejectsTamperedAndExpiredRefreshTokens() throws Exception {
         // Given
         UUID accountId = api.signupSuccessfully("user@example.com");
-        AuthApiTestClient.LoginTokens login = api.loginSuccessfully(
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
                 "user@example.com",
                 "password-passphrase"
         );
@@ -283,14 +275,8 @@ class RefreshTokenApiIntegrationTest {
         refreshTokenJpaRepository.saveAndFlush(expiredToken);
 
         // When
-        ResultActions tamperedTokenResponse = api.refresh(new Cookie(
-                RefreshTokenCookieFactory.COOKIE_NAME,
-                login.refreshToken() + "tampered"
-        ));
-        ResultActions expiredTokenResponse = api.refresh(new Cookie(
-                RefreshTokenCookieFactory.COOKIE_NAME,
-                expiredTokenValue
-        ));
+        ResultActions tamperedTokenResponse = api.refresh(login.refreshToken() + "tampered");
+        ResultActions expiredTokenResponse = api.refresh(expiredTokenValue);
 
         // Then
         tamperedTokenResponse.andExpectAll(
@@ -303,34 +289,6 @@ class RefreshTokenApiIntegrationTest {
                 header().doesNotExist(HttpHeaders.WWW_AUTHENTICATE),
                 jsonPath("$.code").value("AUTH_INVALID_REFRESH_TOKEN")
         );
-    }
-
-    @Test
-    @DisplayName("허용되지 않은 Origin의 Refresh·로그아웃 거부")
-    void rejectsRefreshAndLogoutFromUntrustedOrigin() throws Exception {
-        // Given
-        api.signupSuccessfully("user@example.com");
-        AuthApiTestClient.LoginTokens login = api.loginSuccessfully(
-                "user@example.com",
-                "password-passphrase"
-        );
-        String untrustedOrigin = "https://attacker.example";
-
-        // When
-        ResultActions refreshResponse = api.refresh(login.refreshCookie(), untrustedOrigin);
-        ResultActions logoutResponse = api.logout(login.refreshCookie(), untrustedOrigin);
-        ResultActions allowedRefreshResponse = api.refresh(login.refreshCookie());
-
-        // Then
-        refreshResponse.andExpectAll(
-                status().isForbidden(),
-                jsonPath("$.code").value("AUTH_INVALID_REQUEST_ORIGIN")
-        );
-        logoutResponse.andExpectAll(
-                status().isForbidden(),
-                jsonPath("$.code").value("AUTH_INVALID_REQUEST_ORIGIN")
-        );
-        allowedRefreshResponse.andExpect(status().isOk());
     }
 
     private RefreshToken storedToken(String rawRefreshToken) {

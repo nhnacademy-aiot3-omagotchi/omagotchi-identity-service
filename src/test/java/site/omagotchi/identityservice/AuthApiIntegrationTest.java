@@ -38,7 +38,7 @@ import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -293,9 +293,16 @@ class AuthApiIntegrationTest {
     void preservesSpringMvcErrorStatusAndHeaders() throws Exception {
         // When
         ResultActions methodNotAllowed = mockMvc.perform(get("/api/v1/auth/signup")
-                .with(jwt())
+                .with(httpBasic(
+                        AuthApiTestClient.FRONTEND_USERNAME,
+                        AuthApiTestClient.FRONTEND_PASSWORD
+                ))
                 .accept(MediaType.APPLICATION_JSON));
         ResultActions unsupportedMediaType = mockMvc.perform(post("/api/v1/auth/signup")
+                .with(httpBasic(
+                        AuthApiTestClient.FRONTEND_USERNAME,
+                        AuthApiTestClient.FRONTEND_PASSWORD
+                ))
                 .contentType(MediaType.TEXT_PLAIN)
                 .accept(MediaType.APPLICATION_JSON)
                 .content("{}"));
@@ -317,6 +324,10 @@ class AuthApiIntegrationTest {
     void preservesMalformedRequestContract() throws Exception {
         // When
         ResultActions response = mockMvc.perform(post("/api/v1/auth/signup")
+                .with(httpBasic(
+                        AuthApiTestClient.FRONTEND_USERNAME,
+                        AuthApiTestClient.FRONTEND_PASSWORD
+                ))
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .content("{"));
