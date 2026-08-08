@@ -5,7 +5,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import site.omagotchi.identityservice.account.application.AccountAuthenticationService;
 import site.omagotchi.identityservice.account.application.result.AccountAuthenticationResult;
-import site.omagotchi.identityservice.account.application.result.AccountRefreshAccess;
 import site.omagotchi.identityservice.auth.application.port.AccessTokenIssuer;
 import site.omagotchi.identityservice.auth.application.port.RefreshTokenRepository;
 import site.omagotchi.identityservice.auth.application.result.IssuedAccessToken;
@@ -30,30 +29,33 @@ public class RefreshTokenRotation {
     private final Clock clock;
 
     /*
-     * 갱신 실패는 Optional.empty로 반환해 현재 트랜잭션을 정상 커밋
-     * family 폐기 커밋 후 AuthenticationService에서 인증 실패 예외로 변환
+     * Token 회전·재사용 탐지·family 폐기의 단일 Transaction 경계
+     * Optional.empty 반환을 통한 폐기 변경 Commit 이후의 인증 실패 변환
      */
     @Transactional
     public Optional<TokenIssueResult> rotate(String rawRefreshToken) {
+        // 빈 원문 Token의 저장소 조회 없는 인증 실패 처리
         if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
             return Optional.empty();
         }
 
-        // 현재 Token 행을 잠가 동일 Token의 동시 갱신 직렬화
+        // Hash 조회와 현재 Token 행 잠금을 통한 동일 Token의 동시 갱신 직렬화
         Optional<RefreshToken> storedToken = refreshTokenRepository
                 .lockByHash(refreshTokenHasher.hash(rawRefreshToken));
         if (storedToken.isEmpty()) {
+            // 원문 Token 미보관에 따른 Hash 조회 실패의 인증 실패 처리
             return Optional.empty();
         }
 
         RefreshToken currentToken = storedToken.get();
         Instant now = clock.instant();
 
+        // 만료·기폐기 Token의 추가 상태 변경 없는 인증 실패 처리
         if (currentToken.isExpiredAt(now) || currentToken.isRevoked()) {
             return Optional.empty();
         }
         if (currentToken.isUsed()) {
-            // 사용된 Token의 재요청은 탈취 가능성으로 판단해 family 전체 폐기
+            // 사용된 Token 재요청을 탈취 가능성으로 판단한 family 전체 폐기
             refreshTokenRepository.revokeFamily(
                     currentToken.getFamilyId(),
                     now,
@@ -64,9 +66,14 @@ public class RefreshTokenRotation {
 
         AccountAuthenticationResult account = accountAuthenticationService
                 .getAuthenticationById(currentToken.getAccountId());
-        Optional<RefreshTokenRevocationReason> revocationReason =
-                findRevocationReason(account.refreshAccess());
+        // LOCKED 계정의 기존 로그인 유지와 DISABLED·WITHDRAWN 계정의 갱신 차단 정책
+        Optional<RefreshTokenRevocationReason> revocationReason = switch (account.refreshAccess()) {
+            case ALLOWED -> Optional.empty();
+            case ACCOUNT_DISABLED -> Optional.of(RefreshTokenRevocationReason.ACCOUNT_DISABLED);
+            case ACCOUNT_WITHDRAWN -> Optional.of(RefreshTokenRevocationReason.ACCOUNT_WITHDRAWN);
+        };
         if (revocationReason.isPresent()) {
+            // 갱신 권한을 잃은 계정의 현재 로그인 family 전체 폐기
             refreshTokenRepository.revokeFamily(
                     currentToken.getFamilyId(),
                     now,
@@ -75,9 +82,9 @@ public class RefreshTokenRotation {
             return Optional.empty();
         }
 
-        // 기존 Token 소비와 다음 Token 저장을 같은 트랜잭션에서 원자적으로 처리
+        // 기존 Token 소비와 다음 Token 저장의 단일 트랜잭션 처리
         currentToken.markUsed(now);
-        // 회전해도 현재 로그인 family와 최초 만료 시각 유지
+        // 회전 이후에도 현재 로그인 family와 최초 만료 시각 유지
         IssuedRefreshToken nextRefreshToken = refreshTokenIssuer.issue(
                 account.accountId(),
                 currentToken.getFamilyId(),
@@ -90,21 +97,12 @@ public class RefreshTokenRotation {
                 account.globalRole()
         );
 
+        // Access·Refresh Token과 인증 주체 정보를 묶은 회전 성공 결과 반환
         return Optional.of(new TokenIssueResult(
                 accessToken.value(),
                 accessToken.expiresInSeconds(),
                 nextRefreshToken.value(),
                 currentToken.getExpiresAt()
         ));
-    }
-
-    private Optional<RefreshTokenRevocationReason> findRevocationReason(
-            AccountRefreshAccess refreshAccess
-    ) {
-        return switch (refreshAccess) {
-            case ALLOWED -> Optional.empty();
-            case ACCOUNT_DISABLED -> Optional.of(RefreshTokenRevocationReason.ACCOUNT_DISABLED);
-            case ACCOUNT_WITHDRAWN -> Optional.of(RefreshTokenRevocationReason.ACCOUNT_WITHDRAWN);
-        };
     }
 }
