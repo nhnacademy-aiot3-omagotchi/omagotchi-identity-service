@@ -87,14 +87,12 @@ public class Account {
         return new Account(normalizedEmail, passwordHash, normalizedName);
     }
 
-    public static boolean isRegistrationDetailsValid(
-            String email,
-            String name
-    ) {
-        return isNormalizedRegistrationDetailsValid(
-                normalizeEmail(email),
-                normalize(name)
-        );
+    public static boolean isRegistrationEmailValid(String email) {
+        return isNormalizedRegistrationEmailValid(normalizeEmail(email));
+    }
+
+    public static boolean isRegistrationNameValid(String name) {
+        return isNormalizedRegistrationNameValid(normalize(name));
     }
 
     public boolean isLoginAllowed() {
@@ -127,9 +125,17 @@ public class Account {
             String normalizedEmail,
             String normalizedName
     ) {
+        return isNormalizedRegistrationEmailValid(normalizedEmail)
+                && isNormalizedRegistrationNameValid(normalizedName);
+    }
+
+    private static boolean isNormalizedRegistrationEmailValid(String normalizedEmail) {
         return isEmailFormatValid(normalizedEmail)
-                && normalizedEmail.length() <= 254
-                && !normalizedName.isEmpty()
+                && normalizedEmail.length() <= 254;
+    }
+
+    private static boolean isNormalizedRegistrationNameValid(String normalizedName) {
+        return !normalizedName.isEmpty()
                 && normalizedName.length() <= 30;
     }
 

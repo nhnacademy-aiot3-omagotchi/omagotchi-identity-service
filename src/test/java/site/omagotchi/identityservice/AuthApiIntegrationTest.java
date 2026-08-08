@@ -270,7 +270,7 @@ class AuthApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("잘못된 회원가입 이메일 거부")
+    @DisplayName("회원가입 이메일 정책 위반의 공개 오류")
     void rejectsInvalidSignupEmail() throws Exception {
         // Given
         String invalidEmail = "not-an-email";
@@ -284,7 +284,50 @@ class AuthApiIntegrationTest {
                 content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                 header().string("X-Content-Type-Options", "nosniff"),
                 jsonPath("$.path").value("/api/v1/auth/signup"),
-                jsonPath("$.code").value("COMMON_INVALID_REQUEST")
+                jsonPath("$.code").value("ACCOUNT_INVALID_EMAIL"),
+                jsonPath("$.message").value(
+                        "이메일은 올바른 주소 형식의 254자 이하여야 합니다."
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("회원가입 비밀번호 정책 위반의 공개 오류")
+    void rejectsInvalidSignupPassword() throws Exception {
+        // When
+        ResultActions response = api.signUp(
+                "user@example.com",
+                "short",
+                "홍길동"
+        );
+
+        // Then
+        response.andExpectAll(
+                status().isBadRequest(),
+                jsonPath("$.code").value("ACCOUNT_INVALID_PASSWORD"),
+                jsonPath("$.message").value(
+                        "비밀번호는 15~64자이며 제어 문자를 포함할 수 없습니다."
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("회원가입 이름 정책 위반의 공개 오류")
+    void rejectsInvalidSignupName() throws Exception {
+        // When
+        ResultActions response = api.signUp(
+                "user@example.com",
+                "password-passphrase",
+                "가".repeat(31)
+        );
+
+        // Then
+        response.andExpectAll(
+                status().isBadRequest(),
+                jsonPath("$.code").value("ACCOUNT_INVALID_NAME"),
+                jsonPath("$.message").value(
+                        "이름은 앞뒤 공백을 제외하고 1~30자여야 합니다."
+                )
         );
     }
 
