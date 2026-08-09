@@ -79,6 +79,41 @@ class FrontendCredentialPropertiesTest {
     }
 
     @Test
+    @DisplayName("URL-safe ASCII 32자 Frontend 비밀번호 허용")
+    void acceptsMinimumPasswordLength() {
+        // When
+        contextRunner
+                .withPropertyValues(
+                        "auth.frontend.username=frontend",
+                        "auth.frontend.password=" + "a".repeat(32)
+                )
+                .run(context -> {
+                    // Then
+                    then(context.getStartupFailure()).isNull();
+                    then(context).hasSingleBean(FrontendCredentialProperties.class);
+                });
+    }
+
+    @Test
+    @DisplayName("URL-safe ASCII 31자 Frontend 비밀번호 거부")
+    void rejectsPasswordBelowMinimumLength() {
+        // When
+        contextRunner
+                .withPropertyValues(
+                        "auth.frontend.username=frontend",
+                        "auth.frontend.password=" + "a".repeat(31)
+                )
+                .run(context -> {
+                    // Then
+                    then(context.getStartupFailure())
+                            .isNotNull()
+                            .hasStackTraceContaining(
+                                    "auth.frontend.password는 32자 이상 72자 이하여야 합니다."
+                            );
+                });
+    }
+
+    @Test
     @DisplayName("URL-safe ASCII 72자 Frontend 비밀번호 허용")
     void acceptsMaximumPasswordLength() {
         // When
@@ -116,14 +151,6 @@ class FrontendCredentialPropertiesTest {
                         "password 누락",
                         new String[]{"auth.frontend.username=frontend"},
                         "auth.frontend.password는 비어 있을 수 없습니다."
-                ),
-                Arguments.of(
-                        "password 길이 부족",
-                        new String[]{
-                                "auth.frontend.username=frontend",
-                                "auth.frontend.password=too-short"
-                        },
-                        "auth.frontend.password는 32자 이상 72자 이하여야 합니다."
                 ),
                 Arguments.of(
                         "Unicode password",
