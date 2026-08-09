@@ -24,10 +24,11 @@ openssl pkey -in secrets/jwt-private.pem -pubout -out secrets/jwt-public.pem
 
 `.env.local`의 DB 접속값은 실행 환경에 맞게 설정합니다. `secrets/`, `.env.local`, DB 비밀번호와 private key는 Git에 커밋하지 않습니다.
 `FRONTEND_USERNAME`과 `FRONTEND_PASSWORD`는 Frontend와 Identity에 같은 값을
-주입하며 비밀번호는 32자 이상이어야 합니다. 이 Credential은 로그인 전 Token 수명주기
+주입합니다. 비밀번호는 URL-safe ASCII 영문자·숫자·`-`·`_`만 사용하는 32~72자
+난수여야 합니다. 이 Credential은 로그인 전 Token 수명주기
 API를 호출하는 Frontend 프로세스를 인증하며, 사용자를 인증하거나 외부 Client를 대비하는
 설정이 아닙니다. 공유·운영 환경에서는
-`openssl rand -base64 32`처럼 예측하기 어려운 값을 새로 생성합니다.
+`openssl rand -hex 32`로 64자 난수를 생성합니다.
 
 2026-07-21 기준 학교 PostgreSQL의 배정 데이터베이스는 `aiot3-team5-project`, 접속 사용자는 `aiot3-team5`로 확인했습니다. 해당 사용자는 데이터베이스 `CREATE` 권한이 있고 `identity_service` schema는 아직 없습니다. 최초 실행 시 Flyway가 schema와 `flyway_schema_history`를 생성하고 V1 계정, V2 Refresh Token Migration을 순서대로 적용합니다. 실제 적용 여부는 최초 실행 후 `flyway_schema_history`로 확인합니다.
 

@@ -79,8 +79,8 @@ class FrontendCredentialPropertiesTest {
     }
 
     @Test
-    @DisplayName("UTF-8 기준 72바이트 Frontend 비밀번호 허용")
-    void acceptsMaximumPasswordByteLength() {
+    @DisplayName("URL-safe ASCII 72자 Frontend 비밀번호 허용")
+    void acceptsMaximumPasswordLength() {
         // When
         contextRunner
                 .withPropertyValues(
@@ -123,7 +123,23 @@ class FrontendCredentialPropertiesTest {
                                 "auth.frontend.username=frontend",
                                 "auth.frontend.password=too-short"
                         },
-                        "auth.frontend.password는 32자 이상이어야 합니다."
+                        "auth.frontend.password는 32자 이상 72자 이하여야 합니다."
+                ),
+                Arguments.of(
+                        "Unicode password",
+                        new String[]{
+                                "auth.frontend.username=frontend",
+                                "auth.frontend.password=" + "가".repeat(32)
+                        },
+                        "auth.frontend.password는 영문자·숫자·'-'·'_'만 사용할 수 있습니다."
+                ),
+                Arguments.of(
+                        "Base64URL에 포함되지 않는 ASCII password",
+                        new String[]{
+                                "auth.frontend.username=frontend",
+                                "auth.frontend.password=" + "a".repeat(31) + "+"
+                        },
+                        "auth.frontend.password는 영문자·숫자·'-'·'_'만 사용할 수 있습니다."
                 ),
                 Arguments.of(
                         "Basic username 구분자 포함",
@@ -134,12 +150,12 @@ class FrontendCredentialPropertiesTest {
                         "auth.frontend.username에는 ':'를 사용할 수 없습니다."
                 ),
                 Arguments.of(
-                        "password UTF-8 바이트 길이 초과",
+                        "password 72자 길이 초과",
                         new String[]{
                                 "auth.frontend.username=frontend",
-                                "auth.frontend.password=" + "가".repeat(32)
+                                "auth.frontend.password=" + "a".repeat(73)
                         },
-                        "auth.frontend.password는 UTF-8 기준 72바이트 이하여야 합니다."
+                        "auth.frontend.password는 32자 이상 72자 이하여야 합니다."
                 )
         );
     }

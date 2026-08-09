@@ -2,39 +2,35 @@ package site.omagotchi.identityservice.global.security;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
-
-import java.nio.charset.StandardCharsets;
 
 // 사용자 로그인 자격 증명과 분리된 Frontend 프로세스용 HTTP Basic Credential
 @Validated
 @ConfigurationProperties(prefix = "auth.frontend")
 public record FrontendCredentialProperties(
         @NotBlank(message = "auth.frontend.username은 비어 있을 수 없습니다.")
+        @Pattern(
+                regexp = "^[^:]*$",
+                message = "auth.frontend.username에는 ':'를 사용할 수 없습니다."
+        )
         String username,
 
         @NotBlank(message = "auth.frontend.password는 비어 있을 수 없습니다.")
         String password
 ) {
 
-    // HTTP Basic의 username:password 구분자 충돌 방지
-    @AssertTrue(message = "auth.frontend.username에는 ':'를 사용할 수 없습니다.")
-    public boolean isUsernameBasicCompatible() {
-        return username == null || !username.contains(":");
-    }
-
-    // 예측하기 어려운 프로세스 Credential을 위한 최소 길이
-    @AssertTrue(message = "auth.frontend.password는 32자 이상이어야 합니다.")
+    // 거부된 Credential 원문을 Binding 오류의 rejected value에 남기지 않는 파생값 검증
+    @AssertTrue(message = "auth.frontend.password는 32자 이상 72자 이하여야 합니다.")
     public boolean isPasswordLengthValid() {
-        return password == null || password.length() >= 32;
+        return password == null || password.length() >= 32 && password.length() <= 72;
     }
 
-    // BCrypt의 72바이트 이후 입력 절삭 방지
-    @AssertTrue(message = "auth.frontend.password는 UTF-8 기준 72바이트 이하여야 합니다.")
-    public boolean isPasswordByteLengthValid() {
-        return password == null
-                || password.getBytes(StandardCharsets.UTF_8).length <= 72;
+    // 환경 변수와 HTTP Basic 전송에 안전한 ASCII 난수 문자 범위
+    @AssertTrue(message = "auth.frontend.password는 영문자·숫자·'-'·'_'만 사용할 수 있습니다.")
+    public boolean isPasswordCharacterSetValid() {
+        return password == null || password.matches("[A-Za-z0-9_-]+");
     }
 
     @Override
