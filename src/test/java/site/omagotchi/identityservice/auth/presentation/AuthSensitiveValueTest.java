@@ -33,10 +33,14 @@ class AuthSensitiveValueTest {
         TokenResponse response = TokenResponse.from(result);
 
         // When
+        String resultText = result.toString();
         String requestText = request.toString();
         String responseText = response.toString();
 
         // Then
+        then(resultText)
+                .contains("[REDACTED]")
+                .doesNotContain(accessToken, refreshToken);
         then(requestText).contains("[REDACTED]").doesNotContain(refreshToken);
         then(responseText)
                 .contains("[REDACTED]")

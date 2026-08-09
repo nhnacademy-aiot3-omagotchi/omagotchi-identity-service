@@ -15,6 +15,7 @@ import static org.assertj.core.api.BDDAssertions.then;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -81,6 +82,7 @@ final class AuthApiTestClient {
         MockHttpServletResponse response = login(email, password)
                 .andExpectAll(
                         status().isOk(),
+                        content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                         header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")),
                         header().doesNotExist(HttpHeaders.SET_COOKIE)
                 )
@@ -94,6 +96,7 @@ final class AuthApiTestClient {
         MockHttpServletResponse response = refresh(refreshToken)
                 .andExpectAll(
                         status().isOk(),
+                        content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                         header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")),
                         header().doesNotExist(HttpHeaders.SET_COOKIE)
                 )
