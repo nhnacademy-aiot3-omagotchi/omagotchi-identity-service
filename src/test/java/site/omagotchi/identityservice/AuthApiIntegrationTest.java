@@ -297,7 +297,7 @@ class AuthApiIntegrationTest {
         // When
         ResultActions response = api.signUp(
                 "user@example.com",
-                "short",
+                " ".repeat(15),
                 "홍길동"
         );
 
@@ -306,7 +306,8 @@ class AuthApiIntegrationTest {
                 status().isBadRequest(),
                 jsonPath("$.code").value("ACCOUNT_INVALID_PASSWORD"),
                 jsonPath("$.message").value(
-                        "비밀번호는 15~64자이며 제어 문자를 포함할 수 없습니다."
+                        "비밀번호는 15~64자이며 공백만으로 구성하거나 제어 문자를 포함할 수 없습니다. "
+                                + "한글 등 일부 문자는 더 짧게 입력해야 합니다."
                 )
         );
     }

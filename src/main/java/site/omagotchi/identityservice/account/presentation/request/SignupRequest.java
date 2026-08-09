@@ -7,6 +7,7 @@ public record SignupRequest(
         @NotBlank(message = "이메일은 필수입니다.")
         String email,
 
+        // 누락만 요청 형식 오류로 처리하고 값의 정책 위반은 PasswordPolicy에서 분류
         @NotNull(message = "비밀번호는 필수입니다.")
         String password,
 

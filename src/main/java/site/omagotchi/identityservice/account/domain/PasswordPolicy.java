@@ -12,11 +12,12 @@ public final class PasswordPolicy {
     private PasswordPolicy() {
     }
 
-    // 문자 조합 대신 길이·제어 문자·BCrypt 최대 입력 길이로 구성한 비밀번호 정책
+    // 문자 조합 대신 길이·공백-only·제어 문자·BCrypt 최대 입력 길이로 구성한 비밀번호 정책
     public static boolean isSatisfiedBy(String password) {
         return password != null
                 && password.length() >= MIN_LENGTH
                 && password.length() <= MAX_LENGTH
+                && !password.isBlank()
                 && !containsIsoControlCharacter(password)
                 && password.getBytes(StandardCharsets.UTF_8).length <= MAX_UTF8_BYTES;
     }
