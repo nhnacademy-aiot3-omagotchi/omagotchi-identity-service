@@ -18,9 +18,15 @@ public class AccountRegistrationService {
 
     @Transactional
     public Account signUp(String email, String rawPassword, String name) {
-        if (!PasswordPolicy.isSatisfiedBy(rawPassword)
-                || !Account.isRegistrationDetailsValid(email, name)) {
-            throw new BusinessException(AccountErrorCode.INVALID_SIGNUP_INPUT);
+        // Identity가 소유하는 가입 정책별 공개 거절 Code
+        if (!Account.isRegistrationEmailValid(email)) {
+            throw new BusinessException(AccountErrorCode.INVALID_EMAIL);
+        }
+        if (!PasswordPolicy.isSatisfiedBy(rawPassword)) {
+            throw new BusinessException(AccountErrorCode.INVALID_PASSWORD);
+        }
+        if (!Account.isRegistrationNameValid(name)) {
+            throw new BusinessException(AccountErrorCode.INVALID_NAME);
         }
 
         String passwordHash = passwordHasher.hash(rawPassword);

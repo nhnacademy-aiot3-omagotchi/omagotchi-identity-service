@@ -25,8 +25,8 @@ public class AccountAuthenticationService {
     ) {
         this.accountRepository = accountRepository;
         this.passwordHasher = passwordHasher;
-        // 계정이 없어도 동일한 비밀번호 Hash 검증을 수행하기 위한 임의의 Hash
-        // 계정 유무에 따라 검증을 생략하면 응답 시간이 달라져 가입된 이메일을 추측하기 쉬워짐
+        // 미가입 이메일에도 동일한 비밀번호 검증 비용을 적용하기 위한 임의 Hash
+        // 응답 시간 차이에 의한 가입 이메일 추측 방지
         this.fallbackPasswordHash = passwordHasher.hash(UUID.randomUUID().toString());
     }
 

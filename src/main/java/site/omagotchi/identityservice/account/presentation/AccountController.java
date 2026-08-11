@@ -17,6 +17,7 @@ import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.presentation.request.SignupRequest;
 import site.omagotchi.identityservice.account.presentation.response.AccountResponse;
 
+import java.util.Objects;
 import java.util.UUID;
 
 @RestController
@@ -34,6 +35,8 @@ public class AccountController {
                 request.password(),
                 request.name()
         );
+        // AccountResponse의 application/json 직렬화 반환
+        // 사용자 입력값을 HTML에 직접 삽입하지 않는 REST 경계로 XSS sink 경고 비해당
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(AccountResponse.from(account));
@@ -41,7 +44,10 @@ public class AccountController {
 
     @GetMapping("/users/me")
     public ResponseEntity<AccountResponse> me(@AuthenticationPrincipal Jwt jwt) {
-        Account account = accountQueryService.getById(UUID.fromString(jwt.getSubject()));
+        // JwtDecoder의 UUID 형식 sub 검증 이후 nullable API 경계의 명시적 방어
+        Account account = accountQueryService.getById(
+                UUID.fromString(Objects.requireNonNull(jwt.getSubject()))
+        );
         return ResponseEntity.ok(AccountResponse.from(account));
     }
 }

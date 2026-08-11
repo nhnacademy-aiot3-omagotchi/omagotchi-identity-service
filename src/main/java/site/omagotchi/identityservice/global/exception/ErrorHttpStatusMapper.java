@@ -2,6 +2,7 @@ package site.omagotchi.identityservice.global.exception;
 
 import org.springframework.http.HttpStatus;
 
+// HTTP와 무관한 ErrorType을 외부 HTTP 상태로 변환하는 최종 Presentation 계약
 public final class ErrorHttpStatusMapper {
 
     private ErrorHttpStatusMapper() {

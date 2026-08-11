@@ -12,16 +12,17 @@ public final class PasswordPolicy {
     private PasswordPolicy() {
     }
 
-    // 문자 조합 대신 길이를 요구하고 제어 문자와 UTF-8 최대 바이트 초과 입력을 거부
+    // 문자 조합 대신 길이·공백-only·제어 문자·BCrypt 최대 입력 길이로 구성한 비밀번호 정책
     public static boolean isSatisfiedBy(String password) {
         return password != null
                 && password.length() >= MIN_LENGTH
                 && password.length() <= MAX_LENGTH
+                && !password.isBlank()
                 && !containsIsoControlCharacter(password)
                 && password.getBytes(StandardCharsets.UTF_8).length <= MAX_UTF8_BYTES;
     }
 
-    // NUL, 탭, 개행 등 ISO 제어 문자가 하나라도 포함됐는지 검사
+    // NUL·탭·개행을 포함한 ISO 제어 문자 검출
     private static boolean containsIsoControlCharacter(String password) {
         return password.codePoints().anyMatch(Character::isISOControl);
     }

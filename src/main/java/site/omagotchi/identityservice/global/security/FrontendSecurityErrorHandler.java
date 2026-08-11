@@ -4,33 +4,30 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
-import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
 import site.omagotchi.identityservice.global.exception.ApiErrorResponse;
-import site.omagotchi.identityservice.global.exception.CommonErrorCode;
 import site.omagotchi.identityservice.global.exception.ErrorCode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-// Controller 이전의 Bearer 인증·인가 실패를 공통 JSON 오류로 변환하는 Security 경계
-// RFC 6750 Header 보존과 RestControllerAdvice 적용 전 ServletResponse 직접 작성
+// Controller 이전의 Frontend HTTP Basic 실패를 공통 JSON 오류로 변환하는 Security 경계
+// RestControllerAdvice 적용 전 단계로 인한 ServletResponse 직접 작성
 @Component
 @RequiredArgsConstructor
-public class SecurityErrorResponseHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
+public class FrontendSecurityErrorHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
+
+    private static final String BASIC_CHALLENGE =
+            "Basic realm=\"omagotchi-identity-frontend\", charset=\"UTF-8\"";
 
     private final ObjectMapper objectMapper;
-    private final BearerTokenAuthenticationEntryPoint bearerTokenAuthenticationEntryPoint =
-            new BearerTokenAuthenticationEntryPoint();
-    private final BearerTokenAccessDeniedHandler bearerTokenAccessDeniedHandler =
-            new BearerTokenAccessDeniedHandler();
 
     @Override
     public void commence(
@@ -38,11 +35,9 @@ public class SecurityErrorResponseHandler implements AuthenticationEntryPoint, A
             @NonNull HttpServletResponse response,
             @NonNull AuthenticationException exception
     ) throws IOException {
-        bearerTokenAuthenticationEntryPoint.commence(request, response, exception);
-        ErrorCode errorCode = response.getStatus() == HttpServletResponse.SC_BAD_REQUEST
-                ? CommonErrorCode.INVALID_REQUEST
-                : SecurityErrorCode.AUTHENTICATION_REQUIRED;
-        write(response, request, errorCode);
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setHeader(HttpHeaders.WWW_AUTHENTICATE, BASIC_CHALLENGE);
+        write(response, request, SecurityErrorCode.AUTHENTICATION_REQUIRED);
     }
 
     @Override
@@ -51,7 +46,7 @@ public class SecurityErrorResponseHandler implements AuthenticationEntryPoint, A
             @NonNull HttpServletResponse response,
             @NonNull AccessDeniedException exception
     ) throws IOException {
-        bearerTokenAccessDeniedHandler.handle(request, response, exception);
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         write(response, request, SecurityErrorCode.ACCESS_DENIED);
     }
 
@@ -60,7 +55,6 @@ public class SecurityErrorResponseHandler implements AuthenticationEntryPoint, A
             HttpServletRequest request,
             ErrorCode errorCode
     ) throws IOException {
-        // Bearer delegate가 RFC 6750에 맞춰 결정한 HTTP 상태와 Header 보존
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         objectMapper.writeValue(

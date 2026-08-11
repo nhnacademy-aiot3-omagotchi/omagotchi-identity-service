@@ -1,23 +1,28 @@
 package site.omagotchi.identityservice;
 
-import jakarta.servlet.http.Cookie;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
-import site.omagotchi.identityservice.auth.presentation.RefreshTokenCookieFactory;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.BDDAssertions.then;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 final class AuthApiTestClient {
 
-    static final String ALLOWED_ORIGIN = "http://localhost:8080";
+    static final String FRONTEND_USERNAME = "frontend";
+    static final String FRONTEND_PASSWORD = "test-only-frontend-credential-password";
 
     private final MockMvc mockMvc;
     private final ObjectMapper objectMapper;
@@ -28,40 +33,44 @@ final class AuthApiTestClient {
     }
 
     ResultActions signUp(String email) throws Exception {
+        return signUp(email, "password-passphrase", "홍길동");
+    }
+
+    ResultActions signUp(String email, String password, String name) throws Exception {
         return mockMvc.perform(post("/api/v1/auth/signup")
+                .with(httpBasic(FRONTEND_USERNAME, FRONTEND_PASSWORD))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(signupBody(email)));
+                .content(signupBody(email, password, name)));
     }
 
     ResultActions login(String email, String password) throws Exception {
         return mockMvc.perform(post("/api/v1/auth/login")
+                .with(httpBasic(FRONTEND_USERNAME, FRONTEND_PASSWORD))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(loginBody(email, password)));
     }
 
-    ResultActions refresh(Cookie refreshCookie) throws Exception {
-        return refresh(refreshCookie, ALLOWED_ORIGIN);
-    }
-
-    ResultActions refresh(Cookie refreshCookie, String origin) throws Exception {
+    ResultActions refresh(String refreshToken) throws Exception {
         return mockMvc.perform(post("/api/v1/auth/refresh")
-                .header(HttpHeaders.ORIGIN, origin)
-                .cookie(refreshCookie));
+                .with(httpBasic(FRONTEND_USERNAME, FRONTEND_PASSWORD))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(refreshBody(refreshToken)));
     }
 
-    ResultActions logout(Cookie refreshCookie) throws Exception {
-        return logout(refreshCookie, ALLOWED_ORIGIN);
-    }
-
-    ResultActions logout(Cookie refreshCookie, String origin) throws Exception {
+    ResultActions logout(String refreshToken) throws Exception {
         return mockMvc.perform(post("/api/v1/auth/logout")
-                .header(HttpHeaders.ORIGIN, origin)
-                .cookie(refreshCookie));
+                .with(httpBasic(FRONTEND_USERNAME, FRONTEND_PASSWORD))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(refreshBody(refreshToken)));
     }
 
     UUID signupSuccessfully(String email) throws Exception {
         String response = signUp(email)
-                .andExpect(status().isCreated())
+                .andExpectAll(
+                        status().isCreated(),
+                        header().string("X-Content-Type-Options", "nosniff"),
+                        header().string(HttpHeaders.CONTENT_TYPE, containsString("application/json"))
+                )
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -69,47 +78,56 @@ final class AuthApiTestClient {
         return UUID.fromString(objectMapper.readTree(response).get("userId").asString());
     }
 
-    LoginTokens loginSuccessfully(String email, String password) throws Exception {
-        var response = login(email, password)
-                .andExpect(status().isOk())
+    TokenBundle loginSuccessfully(String email, String password) throws Exception {
+        MockHttpServletResponse response = login(email, password)
+                .andExpectAll(
+                        status().isOk(),
+                        content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
+                        header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")),
+                        header().doesNotExist(HttpHeaders.SET_COOKIE)
+                )
                 .andReturn()
                 .getResponse();
 
-        return readTokens(response.getContentAsString(), response.getCookie(
-                RefreshTokenCookieFactory.COOKIE_NAME
-        ));
+        return readTokenBundle(response.getContentAsString());
     }
 
-    LoginTokens refreshSuccessfully(Cookie refreshCookie) throws Exception {
-        var response = refresh(refreshCookie)
-                .andExpect(status().isOk())
+    TokenBundle refreshSuccessfully(String refreshToken) throws Exception {
+        MockHttpServletResponse response = refresh(refreshToken)
+                .andExpectAll(
+                        status().isOk(),
+                        content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
+                        header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")),
+                        header().doesNotExist(HttpHeaders.SET_COOKIE)
+                )
                 .andReturn()
                 .getResponse();
 
-        return readTokens(response.getContentAsString(), response.getCookie(
-                RefreshTokenCookieFactory.COOKIE_NAME
-        ));
+        return readTokenBundle(response.getContentAsString());
     }
 
-    private LoginTokens readTokens(String content, Cookie refreshCookie) throws Exception {
+    private TokenBundle readTokenBundle(String content) throws Exception {
         JsonNode json = objectMapper.readTree(content);
-        then(refreshCookie).isNotNull();
+        then(json.get("refreshToken").asString()).isNotBlank();
 
-        return new LoginTokens(
+        return new TokenBundle(
+                UUID.fromString(json.get("userId").asString()),
+                json.get("globalRole").asString(),
                 json.get("accessToken").asString(),
-                refreshCookie.getValue(),
-                refreshCookie
+                Instant.parse(json.get("accessTokenExpiresAt").asString()),
+                json.get("refreshToken").asString(),
+                Instant.parse(json.get("refreshTokenExpiresAt").asString())
         );
     }
 
-    private String signupBody(String email) {
+    private String signupBody(String email, String password, String name) {
         return """
                 {
                   "email": "%s",
-                  "password": "password-passphrase",
-                  "name": "홍길동"
+                  "password": "%s",
+                  "name": "%s"
                 }
-                """.formatted(email);
+                """.formatted(email, password, name);
     }
 
     private String loginBody(String email, String password) {
@@ -121,10 +139,21 @@ final class AuthApiTestClient {
                 """.formatted(email, password);
     }
 
-    record LoginTokens(
+    private String refreshBody(String refreshToken) {
+        return """
+                {
+                  "refreshToken": "%s"
+                }
+                """.formatted(refreshToken);
+    }
+
+    record TokenBundle(
+            UUID userId,
+            String globalRole,
             String accessToken,
+            Instant accessTokenExpiresAt,
             String refreshToken,
-            Cookie refreshCookie
+            Instant refreshTokenExpiresAt
     ) {
     }
 }

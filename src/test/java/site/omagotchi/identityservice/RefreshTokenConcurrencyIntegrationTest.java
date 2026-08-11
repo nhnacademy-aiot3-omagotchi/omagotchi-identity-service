@@ -94,7 +94,7 @@ class RefreshTokenConcurrencyIntegrationTest {
     void serializesConcurrentRefreshAndRevokesFamily() throws Exception {
         // Given
         api.signupSuccessfully("user@example.com");
-        AuthApiTestClient.LoginTokens login = api.loginSuccessfully(
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
                 "user@example.com",
                 "password-passphrase"
         );

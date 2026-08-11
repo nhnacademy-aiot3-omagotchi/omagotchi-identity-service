@@ -38,7 +38,7 @@ import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -77,10 +77,12 @@ class AuthApiIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     private AuthApiTestClient api;
+    private AccountStateTestFixture accountStateFixture;
 
     @BeforeEach
     void setUp() {
         api = new AuthApiTestClient(mockMvc, objectMapper);
+        accountStateFixture = new AccountStateTestFixture(jdbcTemplate);
         refreshTokenJpaRepository.deleteAll();
         accountJpaRepository.deleteAll();
     }
@@ -162,7 +164,7 @@ class AuthApiIntegrationTest {
     void rejectsLoginForUnavailableAccount(AccountStatus accountStatus) throws Exception {
         // Given
         UUID accountId = api.signupSuccessfully("user@example.com");
-        changeAccountStatus(accountId, accountStatus);
+        accountStateFixture.changeStatus(accountId, accountStatus);
 
         // When
         ResultActions response = api.login(
@@ -268,7 +270,7 @@ class AuthApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("잘못된 회원가입 이메일 거부")
+    @DisplayName("회원가입 이메일 정책 위반의 공개 오류")
     void rejectsInvalidSignupEmail() throws Exception {
         // Given
         String invalidEmail = "not-an-email";
@@ -282,7 +284,51 @@ class AuthApiIntegrationTest {
                 content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
                 header().string("X-Content-Type-Options", "nosniff"),
                 jsonPath("$.path").value("/api/v1/auth/signup"),
-                jsonPath("$.code").value("COMMON_INVALID_REQUEST")
+                jsonPath("$.code").value("ACCOUNT_INVALID_EMAIL"),
+                jsonPath("$.message").value(
+                        "이메일은 올바른 주소 형식의 254자 이하여야 합니다."
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("회원가입 비밀번호 정책 위반의 공개 오류")
+    void rejectsInvalidSignupPassword() throws Exception {
+        // When
+        ResultActions response = api.signUp(
+                "user@example.com",
+                " ".repeat(15),
+                "홍길동"
+        );
+
+        // Then
+        response.andExpectAll(
+                status().isBadRequest(),
+                jsonPath("$.code").value("ACCOUNT_INVALID_PASSWORD"),
+                jsonPath("$.message").value(
+                        "비밀번호는 15~64자이며 공백만으로 구성하거나 제어 문자를 포함할 수 없습니다. "
+                                + "한글 등 일부 문자는 더 짧게 입력해야 합니다."
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("회원가입 이름 정책 위반의 공개 오류")
+    void rejectsInvalidSignupName() throws Exception {
+        // When
+        ResultActions response = api.signUp(
+                "user@example.com",
+                "password-passphrase",
+                "가".repeat(31)
+        );
+
+        // Then
+        response.andExpectAll(
+                status().isBadRequest(),
+                jsonPath("$.code").value("ACCOUNT_INVALID_NAME"),
+                jsonPath("$.message").value(
+                        "이름은 앞뒤 공백을 제외하고 1~30자여야 합니다."
+                )
         );
     }
 
@@ -291,9 +337,16 @@ class AuthApiIntegrationTest {
     void preservesSpringMvcErrorStatusAndHeaders() throws Exception {
         // When
         ResultActions methodNotAllowed = mockMvc.perform(get("/api/v1/auth/signup")
-                .with(jwt())
+                .with(httpBasic(
+                        AuthApiTestClient.FRONTEND_USERNAME,
+                        AuthApiTestClient.FRONTEND_PASSWORD
+                ))
                 .accept(MediaType.APPLICATION_JSON));
         ResultActions unsupportedMediaType = mockMvc.perform(post("/api/v1/auth/signup")
+                .with(httpBasic(
+                        AuthApiTestClient.FRONTEND_USERNAME,
+                        AuthApiTestClient.FRONTEND_PASSWORD
+                ))
                 .contentType(MediaType.TEXT_PLAIN)
                 .accept(MediaType.APPLICATION_JSON)
                 .content("{}"));
@@ -315,6 +368,10 @@ class AuthApiIntegrationTest {
     void preservesMalformedRequestContract() throws Exception {
         // When
         ResultActions response = mockMvc.perform(post("/api/v1/auth/signup")
+                .with(httpBasic(
+                        AuthApiTestClient.FRONTEND_USERNAME,
+                        AuthApiTestClient.FRONTEND_PASSWORD
+                ))
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .content("{"));
@@ -326,25 +383,4 @@ class AuthApiIntegrationTest {
         );
     }
 
-    private void changeAccountStatus(UUID accountId, AccountStatus accountStatus) {
-        jdbcTemplate.update(
-                """
-                        UPDATE identity_service.accounts
-                        SET status = ?,
-                            locked_until = CASE
-                                WHEN ? = 'LOCKED' THEN CURRENT_TIMESTAMP + INTERVAL '1 hour'
-                                ELSE NULL
-                            END,
-                            withdrawn_at = CASE
-                                WHEN ? = 'WITHDRAWN' THEN CURRENT_TIMESTAMP
-                                ELSE NULL
-                            END
-                        WHERE id = ?
-                        """,
-                accountStatus.name(),
-                accountStatus.name(),
-                accountStatus.name(),
-                accountId
-        );
-    }
 }

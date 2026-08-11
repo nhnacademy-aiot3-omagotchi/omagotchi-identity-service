@@ -11,10 +11,20 @@ import site.omagotchi.identityservice.global.exception.ErrorType;
 @RequiredArgsConstructor
 public enum AccountErrorCode implements ErrorCode {
 
-    INVALID_SIGNUP_INPUT(
+    INVALID_EMAIL(
             ErrorType.INVALID_INPUT,
-            "ACCOUNT_INVALID_SIGNUP_INPUT",
-            "회원가입 정보가 올바르지 않습니다."
+            "ACCOUNT_INVALID_EMAIL",
+            "이메일은 올바른 주소 형식의 254자 이하여야 합니다."
+    ),
+    INVALID_PASSWORD(
+            ErrorType.INVALID_INPUT,
+            "ACCOUNT_INVALID_PASSWORD",
+            "비밀번호는 15~64자이며 공백만으로 구성하거나 제어 문자를 포함할 수 없습니다. 한글 등 일부 문자는 더 짧게 입력해야 합니다."
+    ),
+    INVALID_NAME(
+            ErrorType.INVALID_INPUT,
+            "ACCOUNT_INVALID_NAME",
+            "이름은 앞뒤 공백을 제외하고 1~30자여야 합니다."
     ),
     DUPLICATE_EMAIL(
             ErrorType.CONFLICT,

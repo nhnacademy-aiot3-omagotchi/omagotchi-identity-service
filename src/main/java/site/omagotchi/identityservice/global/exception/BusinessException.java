@@ -5,8 +5,9 @@ import lombok.Getter;
 import java.util.Objects;
 
 /**
- * Service가 실패 의미와 외부에 공개할 {@link ErrorCode}를 확정한 예상 가능한 실패.
- * Bug, 호출 계약 위반, 내부 불변식 위반과 예상하지 못한 기술 실패를 감싸는 용도로 사용하지 않는다.
+ * Service가 실패 의미와 외부 공개 {@link ErrorCode}를 확정한 예상 가능한 실패
+ *
+ * <p>Bug·호출 계약 위반·내부 불변식 위반·예상하지 못한 기술 실패의 래핑 대상 제외
  */
 @Getter
 public class BusinessException extends RuntimeException {
