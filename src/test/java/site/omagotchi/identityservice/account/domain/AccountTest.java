@@ -29,14 +29,23 @@ class AccountTest {
             softly.then(account.getName()).isEqualTo("홍길동");
             softly.then(account.getGlobalRole()).isEqualTo(GlobalRole.USER);
             softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
-            softly.then(Account.isRegistrationDetailsValid(
-                    "user@example.com",
-                    "사용자"
-            )).isTrue();
-            softly.then(Account.isRegistrationDetailsValid(
-                    null,
-                    "사용자"
-            )).isFalse();
+        });
+    }
+
+    @Test
+    @DisplayName("가입 이름의 필수값·최대 길이 검증")
+    void validatesRegistrationName() {
+        // Given
+        String maximumLengthName = "가".repeat(30);
+        String tooLongName = maximumLengthName + "가";
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(Account.isRegistrationNameValid("사용자")).isTrue();
+            softly.then(Account.isRegistrationNameValid(maximumLengthName)).isTrue();
+            softly.then(Account.isRegistrationNameValid(null)).isFalse();
+            softly.then(Account.isRegistrationNameValid(" ")).isFalse();
+            softly.then(Account.isRegistrationNameValid(tooLongName)).isFalse();
         });
     }
 
@@ -64,42 +73,16 @@ class AccountTest {
 
         // Then
         thenSoftly(softly -> {
-            softly.then(Account.isRegistrationDetailsValid(
-                    "user+tag@example.co.kr",
-                    name
-            )).isTrue();
-            softly.then(Account.isRegistrationDetailsValid(
-                    "user @example.com",
-                    name
-            )).isFalse();
-            softly.then(Account.isRegistrationDetailsValid(
-                    "@example.com",
-                    name
-            )).isFalse();
-            softly.then(Account.isRegistrationDetailsValid(
-                    "user@",
-                    name
-            )).isFalse();
-            softly.then(Account.isRegistrationDetailsValid(
-                    "user@@example.com",
-                    name
-            )).isFalse();
-            softly.then(Account.isRegistrationDetailsValid(
-                    ".user@example.com",
-                    name
-            )).isFalse();
-            softly.then(Account.isRegistrationDetailsValid(
-                    "user@.",
-                    name
-            )).isFalse();
-            softly.then(Account.isRegistrationDetailsValid(
-                    maximumLengthEmail,
-                    name
-            )).isTrue();
-            softly.then(Account.isRegistrationDetailsValid(
-                    tooLongEmail,
-                    name
-            )).isFalse();
+            softly.then(Account.isRegistrationEmailValid("user+tag@example.co.kr")).isTrue();
+            softly.then(Account.isRegistrationEmailValid(null)).isFalse();
+            softly.then(Account.isRegistrationEmailValid("user @example.com")).isFalse();
+            softly.then(Account.isRegistrationEmailValid("@example.com")).isFalse();
+            softly.then(Account.isRegistrationEmailValid("user@")).isFalse();
+            softly.then(Account.isRegistrationEmailValid("user@@example.com")).isFalse();
+            softly.then(Account.isRegistrationEmailValid(".user@example.com")).isFalse();
+            softly.then(Account.isRegistrationEmailValid("user@.")).isFalse();
+            softly.then(Account.isRegistrationEmailValid(maximumLengthEmail)).isTrue();
+            softly.then(Account.isRegistrationEmailValid(tooLongEmail)).isFalse();
             softly.then(thrown).isInstanceOf(IllegalArgumentException.class);
         });
     }
@@ -110,6 +93,7 @@ class AccountTest {
         // Given
         String validPassword = "가나다라마바사 아자차카타파하";
         String tooShortPassword = "가".repeat(14);
+        String blankPassword = " ".repeat(15);
         String passwordWithControlCharacter = "가".repeat(14) + "\n";
 
         // Then
@@ -117,6 +101,7 @@ class AccountTest {
             softly.then(PasswordPolicy.isSatisfiedBy(validPassword)).isTrue();
             softly.then(PasswordPolicy.isSatisfiedBy(null)).isFalse();
             softly.then(PasswordPolicy.isSatisfiedBy(tooShortPassword)).isFalse();
+            softly.then(PasswordPolicy.isSatisfiedBy(blankPassword)).isFalse();
             softly.then(PasswordPolicy.isSatisfiedBy(passwordWithControlCharacter)).isFalse();
         });
     }

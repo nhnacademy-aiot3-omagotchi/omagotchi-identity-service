@@ -17,7 +17,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class AccountRegistrationServiceTest {
 
     @Test
-    @DisplayName("비밀번호 최대 UTF-8 바이트 위반을 가입 입력 오류로 변환")
+    @DisplayName("비밀번호 최대 UTF-8 바이트 위반을 비밀번호 오류로 변환")
     void rejectsPasswordOverMaximumUtf8Bytes() {
         // Given
         AccountRepository accountRepository = mock(AccountRepository.class);
@@ -39,13 +39,13 @@ class AccountRegistrationServiceTest {
         then(thrown).isInstanceOfSatisfying(
                 BusinessException.class,
                 exception -> then(exception.getErrorCode())
-                        .isEqualTo(AccountErrorCode.INVALID_SIGNUP_INPUT)
+                        .isEqualTo(AccountErrorCode.INVALID_PASSWORD)
         );
         verifyNoInteractions(accountRepository, passwordHasher);
     }
 
     @Test
-    @DisplayName("HTTP 외부에서도 잘못된 이메일을 가입 입력 오류로 변환")
+    @DisplayName("HTTP 외부에서도 잘못된 이메일을 이메일 오류로 변환")
     void rejectsInvalidEmailOutsidePresentation() {
         // Given
         AccountRepository accountRepository = mock(AccountRepository.class);
@@ -66,7 +66,34 @@ class AccountRegistrationServiceTest {
         then(thrown).isInstanceOfSatisfying(
                 BusinessException.class,
                 exception -> then(exception.getErrorCode())
-                        .isEqualTo(AccountErrorCode.INVALID_SIGNUP_INPUT)
+                        .isEqualTo(AccountErrorCode.INVALID_EMAIL)
+        );
+        verifyNoInteractions(accountRepository, passwordHasher);
+    }
+
+    @Test
+    @DisplayName("최대 길이를 넘은 이름을 이름 오류로 변환")
+    void rejectsNameOverMaximumLength() {
+        // Given
+        AccountRepository accountRepository = mock(AccountRepository.class);
+        PasswordHasher passwordHasher = mock(PasswordHasher.class);
+        AccountRegistrationService accountRegistrationService = new AccountRegistrationService(
+                accountRepository,
+                passwordHasher
+        );
+
+        // When
+        Throwable thrown = catchThrowable(() -> accountRegistrationService.signUp(
+                "user@example.com",
+                "password-passphrase",
+                "가".repeat(31)
+        ));
+
+        // Then
+        then(thrown).isInstanceOfSatisfying(
+                BusinessException.class,
+                exception -> then(exception.getErrorCode())
+                        .isEqualTo(AccountErrorCode.INVALID_NAME)
         );
         verifyNoInteractions(accountRepository, passwordHasher);
     }

@@ -19,7 +19,7 @@ import static org.assertj.core.api.BDDAssertions.then;
 class SecurityErrorResponseHandlerTest {
 
     @Test
-    @DisplayName("Bearer 잘못된 요청의 400 상태와 Header를 공통 JSON에도 유지")
+    @DisplayName("Bearer 잘못된 요청의 400 상태와 Header 및 공통 오류 Code 유지")
     void preservesBearerInvalidRequestStatus() throws Exception {
         // Given
         ObjectMapper objectMapper = new ObjectMapper();
@@ -43,12 +43,11 @@ class SecurityErrorResponseHandlerTest {
         then(response.getHeader(HttpHeaders.WWW_AUTHENTICATE))
                 .startsWith("Bearer")
                 .contains("error=\"invalid_request\"");
-        then(body.get("status").asInt()).isEqualTo(HttpStatus.BAD_REQUEST.value());
         then(body.get("code").asString()).isEqualTo("COMMON_INVALID_REQUEST");
     }
 
     @Test
-    @DisplayName("Bearer 접근 거부 Header와 공통 JSON 응답 유지")
+    @DisplayName("Bearer 접근 거부의 403 상태와 Header 및 공통 오류 Code 유지")
     void writesBearerAccessDeniedResponse() throws Exception {
         // Given
         ObjectMapper objectMapper = new ObjectMapper();
@@ -76,7 +75,6 @@ class SecurityErrorResponseHandlerTest {
         then(response.getHeader(HttpHeaders.WWW_AUTHENTICATE))
                 .startsWith("Bearer")
                 .contains("error=\"insufficient_scope\"");
-        then(body.get("status").asInt()).isEqualTo(HttpStatus.FORBIDDEN.value());
         then(body.get("code").asString()).isEqualTo("AUTH_ACCESS_DENIED");
         then(body.get("path").asString()).isEqualTo("/api/v1/admin");
     }

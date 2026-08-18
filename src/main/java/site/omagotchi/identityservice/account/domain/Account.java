@@ -80,21 +80,19 @@ public class Account {
                 passwordHash,
                 normalizedName
         )) {
-            // Application 검사를 우회한 호출에도 불완전한 Account 생성을 허용하지 않는다.
+            // Application 검사를 우회한 호출에 대한 Domain 불변식 방어
             throw new IllegalArgumentException("회원가입 계정 값이 올바르지 않습니다.");
         }
 
         return new Account(normalizedEmail, passwordHash, normalizedName);
     }
 
-    public static boolean isRegistrationDetailsValid(
-            String email,
-            String name
-    ) {
-        return isNormalizedRegistrationDetailsValid(
-                normalizeEmail(email),
-                normalize(name)
-        );
+    public static boolean isRegistrationEmailValid(String email) {
+        return isNormalizedRegistrationEmailValid(normalizeEmail(email));
+    }
+
+    public static boolean isRegistrationNameValid(String name) {
+        return isNormalizedRegistrationNameValid(normalize(name));
     }
 
     public boolean isLoginAllowed() {
@@ -127,13 +125,21 @@ public class Account {
             String normalizedEmail,
             String normalizedName
     ) {
+        return isNormalizedRegistrationEmailValid(normalizedEmail)
+                && isNormalizedRegistrationNameValid(normalizedName);
+    }
+
+    private static boolean isNormalizedRegistrationEmailValid(String normalizedEmail) {
         return isEmailFormatValid(normalizedEmail)
-                && normalizedEmail.length() <= 254
-                && !normalizedName.isEmpty()
+                && normalizedEmail.length() <= 254;
+    }
+
+    private static boolean isNormalizedRegistrationNameValid(String normalizedName) {
+        return !normalizedName.isEmpty()
                 && normalizedName.length() <= 30;
     }
 
-    // RFC 전체를 판별하지 않고 서비스가 허용하는 이메일의 최소 구조만 확인한다.
+    // RFC 전체 검증이 아닌 서비스 허용 이메일의 최소 구조 검증
     private static boolean isEmailFormatValid(String email) {
         int separatorIndex = email.indexOf('@');
         if (separatorIndex <= 0

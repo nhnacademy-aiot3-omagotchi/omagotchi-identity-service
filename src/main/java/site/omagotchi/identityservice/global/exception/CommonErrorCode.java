@@ -20,8 +20,9 @@ public enum CommonErrorCode implements ErrorCode {
             "요청 본문을 읽을 수 없습니다."
     ),
     /**
-     * 예상하지 못한 실패를 최종 외부 경계에서 숨겨 응답할 때 사용하는 공통 오류.
-     * 내부 예외를 이 오류의 {@link BusinessException}으로 미리 변환하면 안됨 (docs 문서 참고)
+     * 예상하지 못한 실패를 최종 외부 경계에서 숨기기 위한 공통 오류
+     *
+     * <p>마지막 Handler 응답 전용이며 {@link BusinessException} 전달 대상 제외
      */
     INTERNAL_SERVER_ERROR(
             ErrorType.INTERNAL,

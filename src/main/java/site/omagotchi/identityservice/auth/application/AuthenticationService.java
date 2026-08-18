@@ -46,15 +46,17 @@ public class AuthenticationService {
                 account.globalRole()
         );
         return new TokenIssueResult(
+                account.accountId(),
+                account.globalRole(),
                 accessToken.value(),
-                accessToken.expiresInSeconds(),
+                accessToken.expiresAt(),
                 refreshToken.value(),
                 refreshToken.refreshToken().getExpiresAt()
         );
     }
 
     public TokenIssueResult refresh(String rawRefreshToken) {
-        // Rotation의 family 폐기 트랜잭션이 끝난 뒤 인증 실패로 변환
+        // Token family 폐기 트랜잭션 커밋 이후의 인증 실패 변환
         return refreshTokenRotation.rotate(rawRefreshToken)
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
     }
@@ -62,7 +64,7 @@ public class AuthenticationService {
     @Transactional
     public void logout(String rawRefreshToken) {
         if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
-            // Refresh Cookie가 없어도 로그아웃은 성공 처리
+            // Refresh Token 부재를 허용하는 멱등 로그아웃
             return;
         }
 

@@ -13,6 +13,7 @@ import site.omagotchi.identityservice.global.security.JwtProperties;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,7 +27,8 @@ public class JwtAccessTokenIssuer implements AccessTokenIssuer {
 
     @Override
     public IssuedAccessToken issue(UUID accountId, String globalRole) {
-        Instant issuedAt = clock.instant();
+        // JWT NumericDate와 API 응답의 정밀도 일치를 위한 초 단위 발급 시각
+        Instant issuedAt = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         Instant expiresAt = issuedAt.plus(properties.accessTokenTtl());
 
         // sub는 계정 식별자, jti는 개별 Access Token 식별자
@@ -48,7 +50,7 @@ public class JwtAccessTokenIssuer implements AccessTokenIssuer {
                 .getTokenValue();
         return new IssuedAccessToken(
                 value,
-                properties.accessTokenTtl().toSeconds()
+                expiresAt
         );
     }
 }

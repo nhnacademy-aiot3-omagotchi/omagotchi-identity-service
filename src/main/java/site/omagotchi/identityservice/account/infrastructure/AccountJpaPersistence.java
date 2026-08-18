@@ -33,7 +33,7 @@ public class AccountJpaPersistence implements AccountRepository {
     @Override
     public Account create(Account account) {
         try {
-            // UNIQUE 제약 위반을 이 메서드 안에서 판별하기 위해 즉시 반영
+            // UNIQUE 제약 위반의 현재 Persistence 경계 내 판별을 위한 즉시 반영
             return accountJpaRepository.saveAndFlush(account);
         } catch (DataIntegrityViolationException exception) {
             if (isEmailConstraintViolation(exception)) {
@@ -43,6 +43,7 @@ public class AccountJpaPersistence implements AccountRepository {
         }
     }
 
+    // Spring·Hibernate 예외 래퍼 내부의 실제 DB 제약 이름 탐색
     private boolean isEmailConstraintViolation(Throwable exception) {
         Throwable current = exception;
 

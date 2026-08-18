@@ -1,13 +1,13 @@
 server:
-  port: ${SERVER_PORT:8083}
+  port: ${SERVER_PORT}
 
 spring:
   application:
     name: identity-service
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/identity_service}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:postgres}
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -27,13 +27,13 @@ spring:
 
 eureka:
   client:
-    enabled: ${EUREKA_ENABLED:true}
+    enabled: ${EUREKA_ENABLED}
     register-with-eureka: true
     fetch-registry: true
     healthcheck:
       enabled: true
     serviceUrl:
-      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+      defaultZone: ${EUREKA_URL}
 
   instance:
     prefer-ip-address: true
@@ -50,13 +50,15 @@ management:
       show-details: never
 
 auth:
+  frontend:
+    # 가입·Login·Refresh·Logout API를 직접 호출하는 Frontend 프로세스의 Credential
+    username: ${FRONTEND_USERNAME}
+    password: ${FRONTEND_PASSWORD}
   jwt:
-    issuer: ${JWT_ISSUER:https://identity.omagotchi.local}
-    audience: ${JWT_AUDIENCE:omagotchi-api}
-    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:PT15M}
-    public-key-location: ${JWT_PUBLIC_KEY_LOCATION:file:./secrets/jwt-public.pem}
-    private-key-location: ${JWT_PRIVATE_KEY_LOCATION:file:./secrets/jwt-private.pem}
+    issuer: ${JWT_ISSUER}
+    audience: ${JWT_AUDIENCE}
+    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL}
+    public-key-location: ${JWT_PUBLIC_KEY_LOCATION}
+    private-key-location: ${JWT_PRIVATE_KEY_LOCATION}
   refresh-token:
-    ttl: ${REFRESH_TOKEN_TTL:P7D}
-    secure: ${REFRESH_TOKEN_COOKIE_SECURE:true}
-    allowed-origins: ${AUTH_ALLOWED_ORIGINS:http://localhost:8080}
+    ttl: ${REFRESH_TOKEN_TTL}

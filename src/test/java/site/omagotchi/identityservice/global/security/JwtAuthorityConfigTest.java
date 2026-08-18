@@ -2,6 +2,7 @@ package site.omagotchi.identityservice.global.security;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
@@ -25,7 +26,7 @@ class JwtAuthorityConfigTest {
                 .jwtAuthenticationConverter();
 
         // When
-        var authentication = converter.convert(jwt);
+        AbstractAuthenticationToken authentication = converter.convert(jwt);
 
         // Then
         then(authentication.getAuthorities())

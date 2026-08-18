@@ -1,0 +1,106 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit review policy for account, credential, and token ownership.
+
+language: "ko-KR"
+tone_instructions: >
+  문제를 지적할 때 원인과 영향 범위를 설명하고, 필요하면 공식 문서나 근거를 함께 제안해주세요.
+  단, 추측만으로 변경을 요구하지 말고 실제 요청 흐름과 테스트를 근거로 판단해주세요.
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  changed_files_summary: true
+  collapse_walkthrough: true
+  sequence_diagrams: true
+  assess_linked_issues: true
+  related_issues: false
+  related_prs: true
+  suggested_labels: false
+  auto_apply_labels: false
+  suggested_reviewers: false
+  auto_assign_reviewers: false
+  poem: false
+  enable_prompt_for_ai_agents: false
+
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    title:
+      mode: "warning"
+      requirements: "무엇을 왜 바꿨는지 드러내세요. 예: fix(auth): Refresh Token 회전 경쟁 조건을 방지"
+
+  auto_review:
+    enabled: false
+    labels: ["review-ready"]
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 2
+    ignore_title_keywords: ["WIP", "wip", "[skip review]"]
+
+  path_filters:
+    - "!**/target/**"
+    - "!**/.mvn/**"
+    - "!mvnw"
+    - "!mvnw.cmd"
+    - "!**/generated/**"
+    - "!**/*.lock"
+
+  path_instructions:
+    - path: "**/application/**/*.java"
+      instructions: |
+        Application은 Use Case 순서와 Transaction 경계를 소유합니다.
+        JPA·BCrypt·JWT·HTTP 같은 기술 타입의 직접 의존, Domain 불변식 재구현, 토큰 회전의 경쟁 조건을 지적해주세요.
+        예상 가능한 외부 요청 실패만 명확한 ErrorCode의 BusinessException으로 변환하고, 내부 실패는 업무 오류로 숨기지 않는지 검토해주세요.
+
+    - path: "**/infrastructure/**/*.java"
+      instructions: |
+        JPA·BCrypt·JWT 구현과 기술 실패 변환만 소유합니다.
+        Application Service 호출, Presentation 참조, 원인 예외를 잃는 변환을 지적해주세요.
+        Refresh Token의 family·hash·잠금·폐기 처리가 원문 Token 노출 없이 원자적으로 동작하는지 확인해주세요.
+
+    - path: "**/presentation/**/*.java"
+      instructions: |
+        HTTP 진입점·Validation·응답 변환만 소유합니다. Infrastructure 직접 호출과 Domain 객체 직접 반환을 지적해주세요.
+        Frontend 프로세스 Credential과 사용자 인증을 구분하고, 비밀번호·Token 원문·내부 Credential을 로그나 오류 응답에 노출하지 않는지 검토해주세요.
+
+    - path: "**/src/main/resources/db/migration/**"
+      instructions: |
+        이미 적용된 Migration 수정, 되돌릴 수 없는 DDL, 운영 테이블 Lock, NOT NULL 추가 시 기본값 누락, Index 없는 FK를 지적해주세요.
+        계정·Refresh Token 데이터의 UNIQUE 제약과 동시성 보장에 영향을 주는 변경에는 통합 테스트가 있는지 확인해주세요.
+
+    - path: "**/src/test/**"
+      instructions: |
+        테스트 이름이 검증 동작을 설명하는지, Assertion 없는 테스트와 구현 세부에 결합된 과도한 Mock 검증이 없는지 확인해주세요.
+        인증·토큰 변경에는 잘못된 Credential, Token 재사용·경쟁, Commit·Rollback 경계를 검증하는 테스트가 있는지 살펴주세요.
+
+    - path: "**/pom.xml"
+      instructions: |
+        Java 21, Spring Boot 4.1.0, Spring Cloud 2025.1.2 BOM을 확인해주세요.
+        Spring이 관리하는 의존성에 개별 version을 지정하거나 production dependency를 불필요하게 추가하면 지적해주세요.
+
+    - path: "**/src/main/resources/application*.{yml,yaml,properties}"
+      instructions: |
+        평문 비밀번호, Key, Token, Frontend 프로세스 Credential을 지적해주세요.
+        RSA key 경로·형식, 환경별 설정 분리, Actuator 노출 범위와 안전한 기본값을 검토해주세요.
+
+    - path: ".github/workflows/**"
+      instructions: |
+        Secret 노출, pull_request_target 오용, 태그로만 고정된 third-party Action, 과도한 GITHUB_TOKEN 권한을 지적해주세요.
+
+chat:
+  auto_reply: false
+
+knowledge_base:
+  web_search:
+    enabled: true
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "docs/**/*.md"
+      - "README.md"
+  learnings:
+    scope: "local"
+  issues:
+    scope: "local"
+  pull_requests:
+    scope: "local"

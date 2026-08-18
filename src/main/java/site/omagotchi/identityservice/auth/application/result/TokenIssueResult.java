@@ -1,10 +1,13 @@
 package site.omagotchi.identityservice.auth.application.result;
 
 import java.time.Instant;
+import java.util.UUID;
 
 public record TokenIssueResult(
+        UUID userId,
+        String globalRole,
         String accessToken,
-        long accessTokenExpiresInSeconds,
+        Instant accessTokenExpiresAt,
         String refreshToken,
         Instant refreshTokenExpiresAt
 ) {
@@ -12,8 +15,10 @@ public record TokenIssueResult(
     // Token 원문의 로그 노출 방지
     @Override
     public String toString() {
-        return "TokenIssueResult[accessToken=[REDACTED]"
-                + ", accessTokenExpiresInSeconds=" + accessTokenExpiresInSeconds
+        return "TokenIssueResult[userId=" + userId
+                + ", globalRole=" + globalRole
+                + ", accessToken=[REDACTED]"
+                + ", accessTokenExpiresAt=" + accessTokenExpiresAt
                 + ", refreshToken=[REDACTED]"
                 + ", refreshTokenExpiresAt=" + refreshTokenExpiresAt + "]";
     }
