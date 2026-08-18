@@ -52,6 +52,8 @@ jobs:
               + .pull_request.user.login
               + (if .action == "closed"
                 then "\nMerged by: " + .pull_request.merged_by.login
+                  + "\nMerged by profile: https://github.com/"
+                  + .pull_request.merged_by.login
                 else ""
               end)
               + "\n"
