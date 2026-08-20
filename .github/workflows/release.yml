@@ -14,15 +14,13 @@ concurrency:
 
 jobs:
   test:
-    name: Maven Verify and SonarQube
+    name: Maven Verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -31,14 +29,11 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Run tests and SonarQube analysis
-        env:
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      - name: Run tests
         shell: bash
         run: |
           chmod +x mvnw
-          ./mvnw -B -ntp verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          ./mvnw -B -ntp verify
 
   image:
     name: Build and Push Image
