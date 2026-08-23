@@ -3,12 +3,16 @@ package site.omagotchi.identityservice.account.application.port;
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface AccountRepository {
 
     Optional<Account> findById(UUID accountId);
+
+    List<Account> findAllById(Collection<UUID> accountIds);
 
     Optional<Account> findByEmail(String email);
 

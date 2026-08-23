@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.global.security;
+package site.omagotchi.identityservice.global.security.error;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

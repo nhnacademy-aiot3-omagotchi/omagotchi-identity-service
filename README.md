@@ -10,6 +10,7 @@
 - 전역 권한: `USER`, `SYSTEM_ADMIN`
 - Token 계약: RSA 서명, `iss`·`aud`·`exp` 검증
 - Frontend 경계: 인증 API의 Frontend 프로세스 Credential 검증
+- Learning 경계: 계정 상태·표시 이름 조회의 Learning 프로세스 Credential 검증
 
 ## 기술 구성
 
@@ -70,6 +71,14 @@ chmod 644 secrets/jwt-public.pem
 - 형식: URL-safe 문자 32~72자
 - 공유 환경 생성 예시: `openssl rand -hex 32`
 
+### Learning Credential
+
+- 용도: Learning 프로세스의 `/api/v1/internal/accounts/**` 호출 인증
+- 설정: Learning과 Identity에 동일 값 주입
+- Frontend Credential·Rule Engine 공유 Credential과의 분리
+- 형식: URL-safe 문자 32~72자
+- 공유 환경 생성 예시: `openssl rand -hex 32`
+
 ### 실행
 
 ```bash
@@ -94,11 +103,18 @@ chmod 644 secrets/jwt-public.pem
 | `POST` | `/api/v1/auth/refresh` | Frontend Credential | Refresh Token 회전 |
 | `POST` | `/api/v1/auth/logout` | Frontend Credential | Token Family 폐기 |
 | `GET` | `/api/v1/users/me` | Access JWT | 본인 정보 조회 |
+| `GET` | `/api/v1/internal/accounts/{accountId}` | Learning Credential | 계정 상태·표시 이름 단건 조회 |
+| `POST` | `/api/v1/internal/accounts/batch` | Learning Credential | 계정 상태·표시 이름 일괄 조회 |
+
+- 일괄 조회: 특정 계정 ID 묶음의 단순 목록 응답, 요청당 최대 100개
+- 페이지 응답 제외: 전체 계정 목록 검색이 아닌 요청 ID 집합 조회
 
 ### 호출 경계
 
 - `/api/v1/auth/**`: Gateway Route 미등록
+- `/api/v1/internal/**`: Gateway Route 미등록
 - 인증 API: Frontend → Identity 직접 호출
+- 계정 조회 API: Learning → Identity 직접 호출
 - Browser 보관값: Frontend Session Cookie
 - Browser 미노출값: Access JWT, Refresh Token
 - 외부 보호 API: Gateway의 1차 JWT 검증
@@ -132,7 +148,12 @@ chmod 644 secrets/jwt-public.pem
 - JPA 정책: `ddl-auto=validate`
 - `account`: 계정 생성·조회·인증 근거
 - `auth`: Access JWT·Refresh Token 수명주기
-- `global.security`: 인증·인가 경계
+- `global.config`: Service 공통 시간·Password Encoder 등 Framework 설정
+- `global.security.basic`: 서비스 Credential 인증 Provider 조립
+- `global.security.frontend`: Frontend 전용 HTTP Basic 경계
+- `global.security.learning`: Learning 전용 HTTP Basic 경계
+- `global.security.jwt`: Access JWT 발급·검증과 기본 보호 API 경계
+- `global.security.error`: 인증·인가 공통 오류 응답
 - `global.exception`: 공통 오류 응답
 - 내부 계층: `domain` → `application` → `infrastructure`·`presentation`
 

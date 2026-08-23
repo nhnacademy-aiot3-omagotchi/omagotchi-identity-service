@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.global.security;
+package site.omagotchi.identityservice.global.security.jwt;
 
 import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
@@ -8,10 +8,11 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import site.omagotchi.identityservice.global.security.error.SecurityErrorResponseHandler;
 
 // Frontend 전용 인증 API를 제외한 Identity 보호 API의 Bearer JWT 경계
 @Configuration
-public class SecurityConfig {
+public class JwtSecurityConfig {
 
     @Bean
     SecurityFilterChain securityFilterChain(

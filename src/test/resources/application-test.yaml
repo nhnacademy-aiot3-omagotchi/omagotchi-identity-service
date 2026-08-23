@@ -12,6 +12,9 @@ auth:
   frontend:
     username: frontend
     password: test-only-frontend-credential-password
+  learning:
+    username: learning-service
+    password: test-only-learning-identity-password
   jwt:
     issuer: https://identity.omagotchi.test
     audience: omagotchi-api

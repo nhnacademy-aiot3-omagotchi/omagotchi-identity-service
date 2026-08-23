@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice;
+package site.omagotchi.identityservice.integration;
 
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -10,7 +10,7 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 
 @TestConfiguration
-class TestJwtConfig {
+public class TestJwtConfig {
 
     @Bean
     KeyPair jwtKeyPair() {

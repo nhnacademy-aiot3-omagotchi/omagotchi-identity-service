@@ -9,7 +9,7 @@ import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.stereotype.Component;
 import site.omagotchi.identityservice.auth.application.port.AccessTokenIssuer;
 import site.omagotchi.identityservice.auth.application.result.IssuedAccessToken;
-import site.omagotchi.identityservice.global.security.JwtProperties;
+import site.omagotchi.identityservice.global.security.jwt.JwtProperties;
 
 import java.time.Clock;
 import java.time.Instant;

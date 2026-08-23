@@ -1,14 +1,15 @@
 package site.omagotchi.identityservice.account.infrastructure;
 
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import site.omagotchi.identityservice.account.application.port.PasswordHasher;
 
 @Component
+@RequiredArgsConstructor
 public class BcryptPasswordHasher implements PasswordHasher {
 
-    private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public String hash(String rawPassword) {

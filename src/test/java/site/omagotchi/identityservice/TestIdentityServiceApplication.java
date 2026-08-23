@@ -1,6 +1,7 @@
 package site.omagotchi.identityservice;
 
 import org.springframework.boot.SpringApplication;
+import site.omagotchi.identityservice.integration.TestcontainersConfig;
 
 public class TestIdentityServiceApplication {
 
