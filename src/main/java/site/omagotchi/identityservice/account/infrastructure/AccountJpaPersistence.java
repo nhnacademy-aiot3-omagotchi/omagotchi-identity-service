@@ -9,6 +9,8 @@ import site.omagotchi.identityservice.account.application.port.AccountRepository
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -23,6 +25,11 @@ public class AccountJpaPersistence implements AccountRepository {
     @Override
     public Optional<Account> findById(UUID accountId) {
         return accountJpaRepository.findById(accountId);
+    }
+
+    @Override
+    public List<Account> findAllById(Collection<UUID> accountIds) {
+        return accountJpaRepository.findAllById(accountIds);
     }
 
     @Override
