@@ -176,6 +176,28 @@ class LearningAccountSecurityIntegrationTest {
     }
 
     @Test
+    @DisplayName("Learning 계정 일괄 조회는 요청 상한 100개까지 허용")
+    void acceptsMaximumAccountBatch() throws Exception {
+        // Given
+        String accountIds = IntStream
+                .rangeClosed(1, 100)
+                .mapToObj(ignored -> "\"" + UUID.randomUUID() + "\"")
+                .collect(java.util.stream.Collectors.joining(","));
+
+        // When & Then
+        mockMvc.perform(
+                        post("/api/v1/internal/accounts/batch")
+                                .with(httpBasic(LEARNING_USERNAME, LEARNING_PASSWORD))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"accountIds\":[" + accountIds + "]}")
+                )
+                .andExpectAll(
+                        status().isOk(),
+                        jsonPath("$").isArray()
+                );
+    }
+
+    @Test
     @DisplayName("Learning 계정 일괄 조회의 요청 상한 검증")
     void rejectsOversizedAccountBatch() throws Exception {
         // Given
