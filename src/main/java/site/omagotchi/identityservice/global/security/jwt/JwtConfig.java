@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.global.security;
+package site.omagotchi.identityservice.global.security.jwt;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,7 +15,6 @@ import site.omagotchi.identityservice.account.domain.GlobalRole;
 
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 
@@ -54,11 +53,6 @@ public class JwtConfig {
                 roleValidator
         ));
         return decoder;
-    }
-
-    @Bean
-    Clock clock() {
-        return Clock.systemUTC();
     }
 
     // RSA key 크기와 공개·개인 key 일치 여부의 시작 시점 검증

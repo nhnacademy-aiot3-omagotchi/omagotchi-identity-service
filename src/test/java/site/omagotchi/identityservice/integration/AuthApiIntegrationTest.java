@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice;
+package site.omagotchi.identityservice.integration;
 
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.RequestDispatcher;

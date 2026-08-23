@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice;
+package site.omagotchi.identityservice.integration;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;

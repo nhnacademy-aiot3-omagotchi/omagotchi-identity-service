@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.global.security;
+package site.omagotchi.identityservice.global.security.jwt;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

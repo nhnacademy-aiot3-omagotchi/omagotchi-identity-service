@@ -7,6 +7,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import site.omagotchi.identityservice.integration.TestJwtConfig;
+import site.omagotchi.identityservice.integration.TestcontainersConfig;
 
 import java.util.List;
 
