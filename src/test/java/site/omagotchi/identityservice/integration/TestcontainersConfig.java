@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice;
+package site.omagotchi.identityservice.integration;
 
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -7,7 +7,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 @TestConfiguration
-class TestcontainersConfig {
+public class TestcontainersConfig {
 
 	@Bean
 	@ServiceConnection

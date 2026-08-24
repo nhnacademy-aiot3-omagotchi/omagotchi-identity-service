@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.global.security;
+package site.omagotchi.identityservice.global.security.frontend;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;

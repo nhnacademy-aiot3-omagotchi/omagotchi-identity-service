@@ -54,6 +54,10 @@ auth:
     # 가입·Login·Refresh·Logout API를 직접 호출하는 Frontend 프로세스의 Credential
     username: ${FRONTEND_USERNAME}
     password: ${FRONTEND_PASSWORD}
+  learning:
+    # 계정 상태·표시 이름을 조회하는 Learning 프로세스의 관계 전용 Credential
+    username: ${LEARNING_IDENTITY_USERNAME}
+    password: ${LEARNING_IDENTITY_PASSWORD}
   jwt:
     issuer: ${JWT_ISSUER}
     audience: ${JWT_AUDIENCE}

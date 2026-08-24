@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice;
+package site.omagotchi.identityservice.integration;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
