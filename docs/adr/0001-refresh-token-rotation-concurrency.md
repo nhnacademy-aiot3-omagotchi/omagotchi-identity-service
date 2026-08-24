@@ -4,6 +4,10 @@
 - 작성일: 2026-07-27
 - 결정일: 2026-07-27
 
+> 후속 결정: 사용자 전체 Refresh Session 폐기와 서로 다른 Token 세대의 경합은
+> [ADR 0002](0002-account-authentication-refresh-session-serialization.md)의 계정 행 공통 잠금으로 보완합니다.
+> 이 문서의 엄격한 재사용 감지와 Token family 폐기 정책은 유지합니다.
+
 ## 배경
 
 Identity Service는 로그인할 때 불투명한 Refresh Token을 발급하고 DB에는 해시만 저장합니다. 갱신할 때 기존 Token을 사용 처리하고 같은 `familyId`로 다음 Token을 발급합니다. 이미 사용한 Token이 다시 들어오면 탈취 후 재사용일 수 있으므로 같은 family를 모두 폐기합니다.
