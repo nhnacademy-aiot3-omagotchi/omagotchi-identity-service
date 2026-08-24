@@ -16,8 +16,6 @@ import org.hibernate.annotations.UuidGenerator;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -74,7 +72,7 @@ public class Account {
     }
 
     public static Account register(String email, String passwordHash, String name) {
-        String normalizedEmail = normalizeEmail(email);
+        String normalizedEmail = EmailPolicy.normalize(email);
         String normalizedName = normalize(name);
 
         if (!isNormalizedRegistrationInputValid(
@@ -87,10 +85,6 @@ public class Account {
         }
 
         return new Account(normalizedEmail, passwordHash, normalizedName);
-    }
-
-    public static boolean isRegistrationEmailValid(String email) {
-        return isNormalizedRegistrationEmailValid(normalizeEmail(email));
     }
 
     public static boolean isRegistrationNameValid(String name) {
@@ -154,14 +148,6 @@ public class Account {
         lockedUntil = null;
     }
 
-    public static String normalizeEmail(String email) {
-        return normalizeLowercase(email);
-    }
-
-    private static String normalizeLowercase(String value) {
-        return normalize(value).toLowerCase(Locale.ROOT);
-    }
-
     private static String normalize(String value) {
         return value == null ? "" : value.trim();
     }
@@ -179,67 +165,15 @@ public class Account {
             String passwordHash,
             String normalizedName
     ) {
-        return isNormalizedRegistrationDetailsValid(normalizedEmail, normalizedName)
+        return EmailPolicy.isSatisfiedBy(normalizedEmail)
+                && isNormalizedRegistrationNameValid(normalizedName)
                 && passwordHash != null
                 && !passwordHash.isBlank();
-    }
-
-    private static boolean isNormalizedRegistrationDetailsValid(
-            String normalizedEmail,
-            String normalizedName
-    ) {
-        return isNormalizedRegistrationEmailValid(normalizedEmail)
-                && isNormalizedRegistrationNameValid(normalizedName);
-    }
-
-    private static boolean isNormalizedRegistrationEmailValid(String normalizedEmail) {
-        return isEmailFormatValid(normalizedEmail)
-                && normalizedEmail.length() <= 254;
     }
 
     private static boolean isNormalizedRegistrationNameValid(String normalizedName) {
         return !normalizedName.isEmpty()
                 && normalizedName.length() <= 30;
-    }
-
-    // RFC 전체 검증이 아닌 서비스 허용 이메일의 최소 구조 검증
-    private static boolean isEmailFormatValid(String email) {
-        int separatorIndex = email.indexOf('@');
-        if (separatorIndex <= 0
-                || separatorIndex != email.lastIndexOf('@')
-                || separatorIndex == email.length() - 1) {
-            return false;
-        }
-
-        String localPart = email.substring(0, separatorIndex);
-        String domainPart = email.substring(separatorIndex + 1);
-        return isEmailLocalPartValid(localPart)
-                && Arrays.stream(domainPart.split("\\.", -1)).allMatch(
-                Account::isEmailDomainLabelValid
-        );
-    }
-
-    private static boolean isEmailLocalPartValid(String localPart) {
-        return localPart.length() <= 64
-                && localPart.charAt(0) != '.'
-                && localPart.charAt(localPart.length() - 1) != '.'
-                && !localPart.contains("..")
-                && localPart.chars().allMatch(Account::isEmailLocalCharacter);
-    }
-
-    private static boolean isEmailLocalCharacter(int character) {
-        return Character.isLetterOrDigit(character)
-                || "!#$%&'*+-/=?^_`{|}~.".indexOf(character) >= 0;
-    }
-
-    private static boolean isEmailDomainLabelValid(String label) {
-        return !label.isEmpty()
-                && label.length() <= 63
-                && Character.isLetterOrDigit(label.charAt(0))
-                && Character.isLetterOrDigit(label.charAt(label.length() - 1))
-                && label.chars().allMatch(
-                character -> Character.isLetterOrDigit(character) || character == '-'
-        );
     }
 
     @PrePersist

@@ -53,19 +53,11 @@ class AccountTest {
     }
 
     @Test
-    @DisplayName("이메일 최소 구조와 최종 생성 방어")
-    void validatesEmailStructure() {
+    @DisplayName("올바르지 않은 이메일의 최종 생성 거부")
+    void rejectsInvalidEmail() {
         // Given
         String passwordHash = "encoded-password";
         String name = "사용자";
-        String maximumLengthEmail = "a".repeat(64)
-                + "@"
-                + "b".repeat(63)
-                + "."
-                + "c".repeat(63)
-                + "."
-                + "d".repeat(61);
-        String tooLongEmail = maximumLengthEmail + "d";
 
         // When
         Throwable thrown = catchThrowable(() -> Account.register(
@@ -75,19 +67,7 @@ class AccountTest {
         ));
 
         // Then
-        thenSoftly(softly -> {
-            softly.then(Account.isRegistrationEmailValid("user+tag@example.co.kr")).isTrue();
-            softly.then(Account.isRegistrationEmailValid(null)).isFalse();
-            softly.then(Account.isRegistrationEmailValid("user @example.com")).isFalse();
-            softly.then(Account.isRegistrationEmailValid("@example.com")).isFalse();
-            softly.then(Account.isRegistrationEmailValid("user@")).isFalse();
-            softly.then(Account.isRegistrationEmailValid("user@@example.com")).isFalse();
-            softly.then(Account.isRegistrationEmailValid(".user@example.com")).isFalse();
-            softly.then(Account.isRegistrationEmailValid("user@.")).isFalse();
-            softly.then(Account.isRegistrationEmailValid(maximumLengthEmail)).isTrue();
-            softly.then(Account.isRegistrationEmailValid(tooLongEmail)).isFalse();
-            softly.then(thrown).isInstanceOf(IllegalArgumentException.class);
-        });
+        then(thrown).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

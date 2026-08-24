@@ -6,6 +6,7 @@ import site.omagotchi.identityservice.account.application.port.AccountRepository
 import site.omagotchi.identityservice.account.application.port.PasswordHasher;
 import site.omagotchi.identityservice.account.application.result.AccountAuthenticationResult;
 import site.omagotchi.identityservice.account.domain.Account;
+import site.omagotchi.identityservice.account.domain.EmailPolicy;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -39,7 +40,7 @@ public class AccountAuthenticationService {
     @Transactional
     public Optional<AccountAuthenticationResult> authenticate(String email, String rawPassword) {
         Account account = accountRepository
-                .lockByEmail(Account.normalizeEmail(email))
+                .lockByEmail(EmailPolicy.normalize(email))
                 .orElse(null);
         String passwordHash = account == null
                 ? fallbackPasswordHash
