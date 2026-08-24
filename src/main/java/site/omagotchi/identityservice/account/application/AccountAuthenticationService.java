@@ -6,7 +6,6 @@ import site.omagotchi.identityservice.account.application.port.AccountRepository
 import site.omagotchi.identityservice.account.application.port.PasswordHasher;
 import site.omagotchi.identityservice.account.application.result.AccountAuthenticationResult;
 import site.omagotchi.identityservice.account.domain.Account;
-import site.omagotchi.identityservice.global.exception.BusinessException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -70,12 +69,5 @@ public class AccountAuthenticationService {
 
         account.recordLoginSuccess();
         return Optional.of(AccountAuthenticationResult.from(account));
-    }
-
-    @Transactional
-    public AccountAuthenticationResult lockAuthenticationById(UUID accountId) {
-        return accountRepository.lockById(accountId)
-                .map(AccountAuthenticationResult::from)
-                .orElseThrow(() -> new BusinessException(AccountErrorCode.NOT_FOUND));
     }
 }

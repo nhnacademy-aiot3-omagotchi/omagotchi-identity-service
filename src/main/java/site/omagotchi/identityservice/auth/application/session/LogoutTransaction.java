@@ -3,7 +3,7 @@ package site.omagotchi.identityservice.auth.application.session;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import site.omagotchi.identityservice.account.application.AccountAuthenticationService;
+import site.omagotchi.identityservice.account.application.AccountSessionStateService;
 import site.omagotchi.identityservice.auth.application.port.RefreshTokenRepository;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
@@ -16,7 +16,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class LogoutTransaction {
 
-    private final AccountAuthenticationService accountAuthenticationService;
+    private final AccountSessionStateService accountSessionStateService;
     private final RefreshTokenHasher refreshTokenHasher;
     private final RefreshTokenRepository refreshTokenRepository;
     private final Clock clock;
@@ -37,7 +37,7 @@ public class LogoutTransaction {
             return;
         }
 
-        accountAuthenticationService.lockAuthenticationById(accountId.get());
+        accountSessionStateService.lockById(accountId.get());
         Optional<RefreshToken> storedToken = refreshTokenRepository.lockByHash(refreshTokenHash);
         if (storedToken.isEmpty()) {
             return;

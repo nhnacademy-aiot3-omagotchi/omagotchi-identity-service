@@ -3,8 +3,8 @@ package site.omagotchi.identityservice.auth.application.session;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import site.omagotchi.identityservice.account.application.AccountAuthenticationService;
-import site.omagotchi.identityservice.account.application.result.AccountAuthenticationResult;
+import site.omagotchi.identityservice.account.application.AccountSessionStateService;
+import site.omagotchi.identityservice.account.application.result.AccountSessionStateResult;
 import site.omagotchi.identityservice.auth.application.port.AccessTokenIssuer;
 import site.omagotchi.identityservice.auth.application.port.RefreshTokenRepository;
 import site.omagotchi.identityservice.auth.application.result.IssuedAccessToken;
@@ -22,7 +22,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class RefreshTokenRotation {
 
-    private final AccountAuthenticationService accountAuthenticationService;
+    private final AccountSessionStateService accountSessionStateService;
     private final AccessTokenIssuer accessTokenIssuer;
     private final RefreshTokenHasher refreshTokenHasher;
     private final RefreshTokenIssuer refreshTokenIssuer;
@@ -50,8 +50,8 @@ public class RefreshTokenRotation {
         }
 
         // 계정 행을 공통 직렬화 지점으로 선점한 뒤 같은 순서로 Token 행 잠금
-        AccountAuthenticationResult account = accountAuthenticationService
-                .lockAuthenticationById(accountId.get());
+        AccountSessionStateResult account = accountSessionStateService
+                .lockById(accountId.get());
         Optional<RefreshToken> storedToken = refreshTokenRepository
                 .lockByHash(refreshTokenHash);
         if (storedToken.isEmpty()) {

@@ -1,10 +1,10 @@
-package site.omagotchi.identityservice.auth.application.session;
+package site.omagotchi.identityservice.auth.application;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InOrder;
-import site.omagotchi.identityservice.account.application.AccountAuthenticationService;
+import site.omagotchi.identityservice.account.application.AccountSessionStateService;
 import site.omagotchi.identityservice.auth.application.port.RefreshTokenRepository;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 
@@ -30,12 +30,12 @@ class RefreshSessionRevocationServiceTest {
             RefreshSessionRevocationReason sessionReason
     ) {
         // Given
-        AccountAuthenticationService accountAuthenticationService = mock(
-                AccountAuthenticationService.class
+        AccountSessionStateService accountSessionStateService = mock(
+                AccountSessionStateService.class
         );
         RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
         RefreshSessionRevocationService service = new RefreshSessionRevocationService(
-                accountAuthenticationService,
+                accountSessionStateService,
                 refreshTokenRepository,
                 Clock.fixed(NOW, ZoneOffset.UTC)
         );
@@ -45,11 +45,11 @@ class RefreshSessionRevocationServiceTest {
 
         // Then
         InOrder invocationOrder = inOrder(
-                accountAuthenticationService,
+                accountSessionStateService,
                 refreshTokenRepository
         );
-        invocationOrder.verify(accountAuthenticationService)
-                .lockAuthenticationById(ACCOUNT_ID);
+        invocationOrder.verify(accountSessionStateService)
+                .lockById(ACCOUNT_ID);
         invocationOrder.verify(refreshTokenRepository)
                 .revokeAllByAccountId(
                         ACCOUNT_ID,

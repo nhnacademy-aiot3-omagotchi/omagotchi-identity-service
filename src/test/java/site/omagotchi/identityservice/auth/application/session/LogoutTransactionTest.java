@@ -6,7 +6,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InOrder;
-import site.omagotchi.identityservice.account.application.AccountAuthenticationService;
+import site.omagotchi.identityservice.account.application.AccountSessionStateService;
 import site.omagotchi.identityservice.auth.application.port.RefreshTokenRepository;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
@@ -37,15 +37,15 @@ class LogoutTransactionTest {
     private static final String RAW_REFRESH_TOKEN = "raw-refresh-token";
     private static final String REFRESH_TOKEN_HASH = "a".repeat(64);
 
-    private final AccountAuthenticationService accountAuthenticationService = mock(
-            AccountAuthenticationService.class
+    private final AccountSessionStateService accountSessionStateService = mock(
+            AccountSessionStateService.class
     );
     private final RefreshTokenHasher refreshTokenHasher = mock(RefreshTokenHasher.class);
     private final RefreshTokenRepository refreshTokenRepository = mock(
             RefreshTokenRepository.class
     );
     private final LogoutTransaction logoutTransaction = new LogoutTransaction(
-            accountAuthenticationService,
+            accountSessionStateService,
             refreshTokenHasher,
             refreshTokenRepository,
             Clock.fixed(NOW, ZoneOffset.UTC)
@@ -61,7 +61,7 @@ class LogoutTransactionTest {
 
         // Then
         verifyNoInteractions(
-                accountAuthenticationService,
+                accountSessionStateService,
                 refreshTokenHasher,
                 refreshTokenRepository
         );
@@ -79,7 +79,7 @@ class LogoutTransactionTest {
         logoutTransaction.logout(RAW_REFRESH_TOKEN);
 
         // Then
-        verifyNoInteractions(accountAuthenticationService);
+        verifyNoInteractions(accountSessionStateService);
         verify(refreshTokenRepository, never()).lockByHash(REFRESH_TOKEN_HASH);
         verify(refreshTokenRepository, never()).revokeFamily(
                 any(),
@@ -103,13 +103,13 @@ class LogoutTransactionTest {
 
         // Then
         InOrder invocationOrder = inOrder(
-                accountAuthenticationService,
+                accountSessionStateService,
                 refreshTokenRepository
         );
         invocationOrder.verify(refreshTokenRepository)
                 .findAccountIdByHash(REFRESH_TOKEN_HASH);
-        invocationOrder.verify(accountAuthenticationService)
-                .lockAuthenticationById(ACCOUNT_ID);
+        invocationOrder.verify(accountSessionStateService)
+                .lockById(ACCOUNT_ID);
         invocationOrder.verify(refreshTokenRepository)
                 .lockByHash(REFRESH_TOKEN_HASH);
         verify(refreshTokenRepository, never()).revokeFamily(
@@ -141,13 +141,13 @@ class LogoutTransactionTest {
 
         // Then
         InOrder invocationOrder = inOrder(
-                accountAuthenticationService,
+                accountSessionStateService,
                 refreshTokenRepository
         );
         invocationOrder.verify(refreshTokenRepository)
                 .findAccountIdByHash(REFRESH_TOKEN_HASH);
-        invocationOrder.verify(accountAuthenticationService)
-                .lockAuthenticationById(ACCOUNT_ID);
+        invocationOrder.verify(accountSessionStateService)
+                .lockById(ACCOUNT_ID);
         invocationOrder.verify(refreshTokenRepository)
                 .lockByHash(REFRESH_TOKEN_HASH);
         invocationOrder.verify(refreshTokenRepository)

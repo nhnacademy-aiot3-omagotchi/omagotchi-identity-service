@@ -16,8 +16,8 @@ import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepositor
 import site.omagotchi.identityservice.auth.application.AuthErrorCode;
 import site.omagotchi.identityservice.auth.application.AuthenticationService;
 import site.omagotchi.identityservice.auth.application.result.TokenIssueResult;
-import site.omagotchi.identityservice.auth.application.session.RefreshSessionRevocationReason;
-import site.omagotchi.identityservice.auth.application.session.RefreshSessionRevocationService;
+import site.omagotchi.identityservice.auth.application.RefreshSessionRevocationReason;
+import site.omagotchi.identityservice.auth.application.RefreshSessionRevocationService;
 import site.omagotchi.identityservice.auth.application.session.RefreshTokenHasher;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
