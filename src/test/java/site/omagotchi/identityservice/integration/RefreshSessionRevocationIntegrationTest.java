@@ -10,8 +10,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
-import site.omagotchi.identityservice.auth.application.RefreshSessionRevocationReason;
-import site.omagotchi.identityservice.auth.application.RefreshTokenRevocationService;
+import site.omagotchi.identityservice.auth.application.session.RefreshSessionRevocationReason;
+import site.omagotchi.identityservice.auth.application.session.RefreshSessionRevocationService;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
@@ -31,7 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @Import({TestcontainersConfig.class, TestJwtConfig.class})
-class RefreshTokenRevocationIntegrationTest {
+class RefreshSessionRevocationIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -46,7 +46,7 @@ class RefreshTokenRevocationIntegrationTest {
     private RefreshTokenJpaRepository refreshTokenJpaRepository;
 
     @Autowired
-    private RefreshTokenRevocationService refreshTokenRevocationService;
+    private RefreshSessionRevocationService refreshSessionRevocationService;
 
     private AuthApiTestClient api;
 
@@ -81,7 +81,7 @@ class RefreshTokenRevocationIntegrationTest {
         );
 
         // When
-        refreshTokenRevocationService.revokeAllForAccount(
+        refreshSessionRevocationService.revokeAllForAccount(
                 targetAccountId,
                 RefreshSessionRevocationReason.PASSWORD_CHANGED
         );
@@ -90,7 +90,7 @@ class RefreshTokenRevocationIntegrationTest {
         );
 
         // 다른 사유의 반복 호출에도 최초 폐기 상태를 보존하는 멱등 경계
-        refreshTokenRevocationService.revokeAllForAccount(
+        refreshSessionRevocationService.revokeAllForAccount(
                 targetAccountId,
                 RefreshSessionRevocationReason.ACCOUNT_DISABLED
         );

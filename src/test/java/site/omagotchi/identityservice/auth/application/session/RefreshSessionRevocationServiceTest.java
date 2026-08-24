@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.auth.application;
+package site.omagotchi.identityservice.auth.application.session;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -16,7 +16,7 @@ import java.util.UUID;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 
-class RefreshTokenRevocationServiceTest {
+class RefreshSessionRevocationServiceTest {
 
     private static final UUID ACCOUNT_ID = UUID.fromString(
             "00000000-0000-0000-0000-000000000216"
@@ -34,7 +34,7 @@ class RefreshTokenRevocationServiceTest {
                 AccountAuthenticationService.class
         );
         RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
-        RefreshTokenRevocationService service = new RefreshTokenRevocationService(
+        RefreshSessionRevocationService service = new RefreshSessionRevocationService(
                 accountAuthenticationService,
                 refreshTokenRepository,
                 Clock.fixed(NOW, ZoneOffset.UTC)

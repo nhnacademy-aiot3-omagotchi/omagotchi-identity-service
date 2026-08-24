@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.auth.application;
+package site.omagotchi.identityservice.auth.application.session;
 
 import jakarta.validation.constraints.NotNull;
 import org.hibernate.validator.constraints.time.DurationMin;

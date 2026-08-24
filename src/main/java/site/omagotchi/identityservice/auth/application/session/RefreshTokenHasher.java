@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.auth.application;
+package site.omagotchi.identityservice.auth.application.session;
 
 import org.springframework.stereotype.Component;
 

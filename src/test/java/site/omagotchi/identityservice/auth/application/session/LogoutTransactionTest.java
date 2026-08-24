@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.auth.application;
+package site.omagotchi.identityservice.auth.application.session;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -18,7 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
-import site.omagotchi.identityservice.auth.application.RefreshTokenHasher;
+import site.omagotchi.identityservice.auth.application.session.RefreshTokenHasher;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;

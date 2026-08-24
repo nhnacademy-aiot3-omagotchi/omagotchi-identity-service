@@ -15,10 +15,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
 import site.omagotchi.identityservice.auth.application.AuthErrorCode;
 import site.omagotchi.identityservice.auth.application.AuthenticationService;
-import site.omagotchi.identityservice.auth.application.RefreshTokenHasher;
-import site.omagotchi.identityservice.auth.application.RefreshSessionRevocationReason;
-import site.omagotchi.identityservice.auth.application.RefreshTokenRevocationService;
 import site.omagotchi.identityservice.auth.application.result.TokenIssueResult;
+import site.omagotchi.identityservice.auth.application.session.RefreshSessionRevocationReason;
+import site.omagotchi.identityservice.auth.application.session.RefreshSessionRevocationService;
+import site.omagotchi.identityservice.auth.application.session.RefreshTokenHasher;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
@@ -73,7 +73,7 @@ class RefreshTokenConcurrencyIntegrationTest {
     private AuthenticationService authenticationService;
 
     @Autowired
-    private RefreshTokenRevocationService refreshTokenRevocationService;
+    private RefreshSessionRevocationService refreshSessionRevocationService;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -212,7 +212,7 @@ class RefreshTokenConcurrencyIntegrationTest {
         // When
         Future<Void> revocation = executor.submit(() -> {
             revocationStarted.countDown();
-            refreshTokenRevocationService.revokeAllForAccount(
+            refreshSessionRevocationService.revokeAllForAccount(
                     accountId,
                     RefreshSessionRevocationReason.PASSWORD_CHANGED
             );

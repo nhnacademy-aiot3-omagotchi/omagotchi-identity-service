@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.auth.application;
+package site.omagotchi.identityservice.auth.application.session;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -13,7 +13,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class RefreshTokenRevocationService {
+public class RefreshSessionRevocationService {
 
     private final AccountAuthenticationService accountAuthenticationService;
     private final RefreshTokenRepository refreshTokenRepository;

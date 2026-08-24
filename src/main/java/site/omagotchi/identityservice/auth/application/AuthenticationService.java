@@ -3,6 +3,9 @@ package site.omagotchi.identityservice.auth.application;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import site.omagotchi.identityservice.auth.application.result.TokenIssueResult;
+import site.omagotchi.identityservice.auth.application.session.LoginTransaction;
+import site.omagotchi.identityservice.auth.application.session.LogoutTransaction;
+import site.omagotchi.identityservice.auth.application.session.RefreshTokenRotation;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
 @Service
