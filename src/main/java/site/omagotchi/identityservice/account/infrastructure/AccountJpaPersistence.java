@@ -28,6 +28,11 @@ public class AccountJpaPersistence implements AccountRepository {
     }
 
     @Override
+    public Optional<Account> lockById(UUID accountId) {
+        return accountJpaRepository.lockById(accountId);
+    }
+
+    @Override
     public List<Account> findAllById(Collection<UUID> accountIds) {
         return accountJpaRepository.findAllById(accountIds);
     }

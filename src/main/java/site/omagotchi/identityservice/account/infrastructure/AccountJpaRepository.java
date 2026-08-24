@@ -18,6 +18,14 @@ public interface AccountJpaRepository extends JpaRepository<Account, UUID> {
     @Query("""
             SELECT account
             FROM Account account
+            WHERE account.id = :accountId
+            """)
+    Optional<Account> lockById(@Param("accountId") UUID accountId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT account
+            FROM Account account
             WHERE account.email = :email
             """)
     Optional<Account> lockByEmail(@Param("email") String email);

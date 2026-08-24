@@ -6,10 +6,13 @@ import org.springframework.transaction.annotation.Transactional;
 import site.omagotchi.identityservice.account.application.AccountAuthenticationService;
 import site.omagotchi.identityservice.auth.application.port.RefreshTokenRepository;
 import site.omagotchi.identityservice.auth.application.result.TokenIssueResult;
+import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
 import java.time.Clock;
+import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -41,12 +44,22 @@ public class AuthenticationService {
             return;
         }
 
-        refreshTokenRepository
-                .lockByHash(refreshTokenHasher.hash(rawRefreshToken))
-                .ifPresent(refreshToken -> refreshTokenRepository.revokeFamily(
-                        refreshToken.getFamilyId(),
-                        clock.instant(),
-                        RefreshTokenRevocationReason.LOGOUT
-                ));
+        String refreshTokenHash = refreshTokenHasher.hash(rawRefreshToken);
+        Optional<UUID> accountId = refreshTokenRepository.findAccountIdByHash(refreshTokenHash);
+        if (accountId.isEmpty()) {
+            return;
+        }
+
+        accountAuthenticationService.lockAuthenticationById(accountId.get());
+        Optional<RefreshToken> storedToken = refreshTokenRepository.lockByHash(refreshTokenHash);
+        if (storedToken.isEmpty()) {
+            return;
+        }
+
+        refreshTokenRepository.revokeFamily(
+                storedToken.get().getFamilyId(),
+                clock.instant(),
+                RefreshTokenRevocationReason.LOGOUT
+        );
     }
 }

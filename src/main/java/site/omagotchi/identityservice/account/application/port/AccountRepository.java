@@ -12,6 +12,8 @@ public interface AccountRepository {
 
     Optional<Account> findById(UUID accountId);
 
+    Optional<Account> lockById(UUID accountId);
+
     List<Account> findAllById(Collection<UUID> accountIds);
 
     Optional<Account> findByEmail(String email);

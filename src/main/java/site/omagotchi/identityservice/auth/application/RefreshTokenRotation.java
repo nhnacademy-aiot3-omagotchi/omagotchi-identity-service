@@ -16,6 +16,7 @@ import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -39,11 +40,21 @@ public class RefreshTokenRotation {
             return Optional.empty();
         }
 
-        // Hash 조회와 현재 Token 행 잠금을 통한 동일 Token의 동시 갱신 직렬화
-        Optional<RefreshToken> storedToken = refreshTokenRepository
-                .lockByHash(refreshTokenHasher.hash(rawRefreshToken));
-        if (storedToken.isEmpty()) {
+        String refreshTokenHash = refreshTokenHasher.hash(rawRefreshToken);
+        // Entity 로딩 없이 Token 소유 계정 식별자만 조회
+        Optional<UUID> accountId = refreshTokenRepository
+                .findAccountIdByHash(refreshTokenHash);
+        if (accountId.isEmpty()) {
             // 원문 Token 미보관에 따른 Hash 조회 실패의 인증 실패 처리
+            return Optional.empty();
+        }
+
+        // 계정 행을 공통 직렬화 지점으로 선점한 뒤 같은 순서로 Token 행 잠금
+        AccountAuthenticationResult account = accountAuthenticationService
+                .lockAuthenticationById(accountId.get());
+        Optional<RefreshToken> storedToken = refreshTokenRepository
+                .lockByHash(refreshTokenHash);
+        if (storedToken.isEmpty()) {
             return Optional.empty();
         }
 
@@ -64,8 +75,6 @@ public class RefreshTokenRotation {
             return Optional.empty();
         }
 
-        AccountAuthenticationResult account = accountAuthenticationService
-                .getAuthenticationById(currentToken.getAccountId());
         // LOCKED 계정의 기존 로그인 유지와 DISABLED·WITHDRAWN 계정의 갱신 차단 정책
         Optional<RefreshTokenRevocationReason> revocationReason = switch (account.refreshAccess()) {
             case ALLOWED -> Optional.empty();

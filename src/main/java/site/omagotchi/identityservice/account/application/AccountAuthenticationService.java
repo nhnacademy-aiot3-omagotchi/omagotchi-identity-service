@@ -72,8 +72,9 @@ public class AccountAuthenticationService {
         return Optional.of(AccountAuthenticationResult.from(account));
     }
 
-    public AccountAuthenticationResult getAuthenticationById(UUID accountId) {
-        return accountRepository.findById(accountId)
+    @Transactional
+    public AccountAuthenticationResult lockAuthenticationById(UUID accountId) {
+        return accountRepository.lockById(accountId)
                 .map(AccountAuthenticationResult::from)
                 .orElseThrow(() -> new BusinessException(AccountErrorCode.NOT_FOUND));
     }
