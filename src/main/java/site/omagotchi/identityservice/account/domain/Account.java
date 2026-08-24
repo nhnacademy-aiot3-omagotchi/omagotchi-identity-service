@@ -14,9 +14,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -99,6 +101,59 @@ public class Account {
         return status == AccountStatus.ACTIVE;
     }
 
+    public void recoverExpiredLoginLock(Instant now) {
+        Instant checkedAt = Objects.requireNonNull(now, "now");
+
+        if (status != AccountStatus.LOCKED) {
+            return;
+        }
+        if (lockedUntil == null) {
+            throw new IllegalStateException("잠긴 계정에는 잠금 종료 시각이 필요합니다.");
+        }
+        if (checkedAt.isBefore(lockedUntil)) {
+            return;
+        }
+
+        status = AccountStatus.ACTIVE;
+        failedLoginAttempts = 0;
+        lockedUntil = null;
+    }
+
+    public void recordLoginFailure(
+            Instant now,
+            int maximumFailedAttempts,
+            Duration lockDuration
+    ) {
+        Instant failedAt = Objects.requireNonNull(now, "now");
+        Duration duration = requireLockDuration(lockDuration);
+
+        if (maximumFailedAttempts < 1 || maximumFailedAttempts > Short.MAX_VALUE) {
+            throw new IllegalArgumentException("최대 로그인 실패 횟수 범위가 올바르지 않습니다.");
+        }
+        if (status != AccountStatus.ACTIVE) {
+            throw new IllegalStateException("활성 계정에만 로그인 실패를 기록할 수 있습니다.");
+        }
+
+        int nextFailedAttempts = failedLoginAttempts + 1;
+        if (nextFailedAttempts >= maximumFailedAttempts) {
+            failedLoginAttempts = (short) maximumFailedAttempts;
+            status = AccountStatus.LOCKED;
+            lockedUntil = failedAt.plus(duration);
+            return;
+        }
+
+        failedLoginAttempts = (short) nextFailedAttempts;
+    }
+
+    public void recordLoginSuccess() {
+        if (status != AccountStatus.ACTIVE) {
+            throw new IllegalStateException("활성 계정에만 로그인 성공을 기록할 수 있습니다.");
+        }
+
+        failedLoginAttempts = 0;
+        lockedUntil = null;
+    }
+
     public static String normalizeEmail(String email) {
         return normalizeLowercase(email);
     }
@@ -109,6 +164,14 @@ public class Account {
 
     private static String normalize(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static Duration requireLockDuration(Duration lockDuration) {
+        Duration duration = Objects.requireNonNull(lockDuration, "lockDuration");
+        if (duration.isZero() || duration.isNegative()) {
+            throw new IllegalArgumentException("로그인 잠금 기간은 0보다 커야 합니다.");
+        }
+        return duration;
     }
 
     private static boolean isNormalizedRegistrationInputValid(

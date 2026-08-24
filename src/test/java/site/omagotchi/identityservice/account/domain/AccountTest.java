@@ -3,6 +3,9 @@ package site.omagotchi.identityservice.account.domain;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+import java.time.Instant;
+
 import static org.assertj.core.api.BDDAssertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
@@ -114,5 +117,107 @@ class AccountTest {
 
         // Then
         then(PasswordPolicy.isSatisfiedBy(password)).isFalse();
+    }
+
+    @Test
+    @DisplayName("설정된 연속 실패 횟수에 도달하면 계정 잠금")
+    void locksAccountAtMaximumFailedAttempts() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "encoded-password",
+                "사용자"
+        );
+        Instant failedAt = Instant.parse("2026-08-24T00:00:00Z");
+        Duration lockDuration = Duration.ofMinutes(10);
+
+        // When
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            account.recordLoginFailure(failedAt, 5, lockDuration);
+        }
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(account.getFailedLoginAttempts()).isEqualTo((short) 5);
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.LOCKED);
+            softly.then(account.getLockedUntil()).isEqualTo(failedAt.plus(lockDuration));
+            softly.then(account.isLoginAllowed()).isFalse();
+        });
+    }
+
+    @Test
+    @DisplayName("성공한 로그인은 연속 실패 횟수 초기화")
+    void resetsFailedAttemptsOnLoginSuccess() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "encoded-password",
+                "사용자"
+        );
+        Instant now = Instant.parse("2026-08-24T00:00:00Z");
+        account.recordLoginFailure(now, 5, Duration.ofMinutes(10));
+        account.recordLoginFailure(now, 5, Duration.ofMinutes(10));
+
+        // When
+        account.recordLoginSuccess();
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(account.getFailedLoginAttempts()).isZero();
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(account.getLockedUntil()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("잠금 종료 시각부터 활성 상태와 실패 횟수 복구")
+    void recoversExpiredLoginLock() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "encoded-password",
+                "사용자"
+        );
+        Instant failedAt = Instant.parse("2026-08-24T00:00:00Z");
+        Duration lockDuration = Duration.ofMinutes(10);
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            account.recordLoginFailure(failedAt, 5, lockDuration);
+        }
+
+        // When
+        account.recoverExpiredLoginLock(failedAt.plus(lockDuration));
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(account.getFailedLoginAttempts()).isZero();
+            softly.then(account.getLockedUntil()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("잠금 종료 전에는 잠금 상태 유지")
+    void keepsUnexpiredLoginLock() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "encoded-password",
+                "사용자"
+        );
+        Instant failedAt = Instant.parse("2026-08-24T00:00:00Z");
+        Duration lockDuration = Duration.ofMinutes(10);
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            account.recordLoginFailure(failedAt, 5, lockDuration);
+        }
+
+        // When
+        account.recoverExpiredLoginLock(failedAt.plus(lockDuration).minusNanos(1));
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.LOCKED);
+            softly.then(account.getFailedLoginAttempts()).isEqualTo((short) 5);
+            softly.then(account.getLockedUntil()).isEqualTo(failedAt.plus(lockDuration));
+        });
     }
 }

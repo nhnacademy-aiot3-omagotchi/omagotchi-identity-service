@@ -16,6 +16,8 @@ public interface AccountRepository {
 
     Optional<Account> findByEmail(String email);
 
+    Optional<Account> lockByEmail(String email);
+
     /**
      * @throws BusinessException 이미 저장된 이메일과 충돌해 {@code DUPLICATE_EMAIL}이 발생한 경우
      */

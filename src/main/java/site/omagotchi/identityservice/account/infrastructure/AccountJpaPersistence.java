@@ -38,6 +38,11 @@ public class AccountJpaPersistence implements AccountRepository {
     }
 
     @Override
+    public Optional<Account> lockByEmail(String email) {
+        return accountJpaRepository.lockByEmail(email);
+    }
+
+    @Override
     public Account create(Account account) {
         try {
             // UNIQUE 제약 위반의 현재 Persistence 경계 내 판별을 위한 즉시 반영

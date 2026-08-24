@@ -9,6 +9,9 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
 
 auth:
+  login-protection:
+    maximum-failed-attempts: 5
+    lock-duration: PT10M
   frontend:
     username: frontend
     password: test-only-frontend-credential-password
