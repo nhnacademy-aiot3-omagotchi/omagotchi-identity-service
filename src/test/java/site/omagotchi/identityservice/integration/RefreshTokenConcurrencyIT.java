@@ -43,7 +43,7 @@ import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @Import({TestcontainersConfig.class, TestJwtConfig.class})
-class RefreshTokenConcurrencyIntegrationTest {
+class RefreshTokenConcurrencyIT {
 
     /*
      * 검증 흐름

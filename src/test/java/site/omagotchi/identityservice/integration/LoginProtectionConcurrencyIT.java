@@ -36,7 +36,7 @@ import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @Import({TestcontainersConfig.class, TestJwtConfig.class})
-class LoginProtectionConcurrencyIntegrationTest {
+class LoginProtectionConcurrencyIT {
 
     private static final int CONCURRENT_ATTEMPTS = 5;
     private static final Duration TEST_TIMEOUT = Duration.ofSeconds(10);

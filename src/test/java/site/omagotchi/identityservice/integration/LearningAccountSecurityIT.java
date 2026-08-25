@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @Import({TestcontainersConfig.class, TestJwtConfig.class})
-class LearningAccountSecurityIntegrationTest {
+class LearningAccountSecurityIT {
 
     private static final String LEARNING_USERNAME = "learning-service";
     private static final String LEARNING_PASSWORD = "test-only-learning-identity-password";

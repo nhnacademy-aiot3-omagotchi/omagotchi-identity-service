@@ -31,9 +31,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({
         TestcontainersConfig.class,
         TestJwtConfig.class,
-        LoginTransactionRollbackIntegrationTest.FailingAccessTokenConfig.class
+        LoginTransactionRollbackIT.FailingAccessTokenConfig.class
 })
-class LoginTransactionRollbackIntegrationTest {
+class LoginTransactionRollbackIT {
 
     @Autowired
     private MockMvc mockMvc;
