@@ -59,6 +59,9 @@ class IdentityApiDocumentationIT {
     private static final Pattern REFRESH_TOKEN_JSON = Pattern.compile(
             "\"refreshToken\"\\s*:\\s*\"[^\"]*\""
     );
+    private static final Pattern PASSWORD_JSON = Pattern.compile(
+            "\"password\"\\s*:\\s*\"[^\"]*\""
+    );
 
     @Autowired
     private MockMvc mockMvc;
@@ -509,6 +512,10 @@ class IdentityApiDocumentationIT {
                 ),
                 prettyPrint(),
                 replacePattern(
+                        PASSWORD_JSON,
+                        "\"password\" : \"<password>\""
+                ),
+                replacePattern(
                         REFRESH_TOKEN_JSON,
                         "\"refreshToken\" : \"<refresh-token>\""
                 )
@@ -536,7 +543,13 @@ class IdentityApiDocumentationIT {
     }
 
     private OperationRequestPreprocessor plainRequest() {
-        return preprocessRequest(prettyPrint());
+        return preprocessRequest(
+                prettyPrint(),
+                replacePattern(
+                        PASSWORD_JSON,
+                        "\"password\" : \"<password>\""
+                )
+        );
     }
 
     private OperationResponsePreprocessor documentedResponse() {

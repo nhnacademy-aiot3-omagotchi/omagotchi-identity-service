@@ -28,6 +28,7 @@ import site.omagotchi.identityservice.integration.TestJwtConfig;
 
 import java.time.Clock;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
@@ -39,6 +40,7 @@ import static org.springframework.restdocs.operation.preprocess.Preprocessors.mo
 import static org.springframework.restdocs.operation.preprocess.Preprocessors.preprocessRequest;
 import static org.springframework.restdocs.operation.preprocess.Preprocessors.preprocessResponse;
 import static org.springframework.restdocs.operation.preprocess.Preprocessors.prettyPrint;
+import static org.springframework.restdocs.operation.preprocess.Preprocessors.replacePattern;
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
 import static org.springframework.restdocs.payload.PayloadDocumentation.requestFields;
 import static org.springframework.restdocs.payload.PayloadDocumentation.responseFields;
@@ -65,6 +67,12 @@ class PasswordChangeControllerTest {
     );
     private static final String CURRENT_PASSWORD = "password-passphrase";
     private static final String NEW_PASSWORD = "new-password-passphrase";
+    private static final Pattern CURRENT_PASSWORD_JSON = Pattern.compile(
+            "\"currentPassword\"\\s*:\\s*\"[^\"]*\""
+    );
+    private static final Pattern NEW_PASSWORD_JSON = Pattern.compile(
+            "\"newPassword\"\\s*:\\s*\"[^\"]*\""
+    );
 
     @Autowired
     private MockMvc mockMvc;
@@ -249,7 +257,15 @@ class PasswordChangeControllerTest {
                         HttpHeaders.AUTHORIZATION,
                         "Bearer <access-token>"
                 ),
-                prettyPrint()
+                prettyPrint(),
+                replacePattern(
+                        CURRENT_PASSWORD_JSON,
+                        "\"currentPassword\" : \"<password>\""
+                ),
+                replacePattern(
+                        NEW_PASSWORD_JSON,
+                        "\"newPassword\" : \"<password>\""
+                )
         );
     }
 
@@ -258,6 +274,16 @@ class PasswordChangeControllerTest {
     }
 
     private OperationRequestPreprocessor plainRequest() {
-        return preprocessRequest(prettyPrint());
+        return preprocessRequest(
+                prettyPrint(),
+                replacePattern(
+                        CURRENT_PASSWORD_JSON,
+                        "\"currentPassword\" : \"<password>\""
+                ),
+                replacePattern(
+                        NEW_PASSWORD_JSON,
+                        "\"newPassword\" : \"<password>\""
+                )
+        );
     }
 }
