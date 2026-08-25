@@ -95,6 +95,44 @@ include::{snippets}/account/me/success/http-request.adoc[]
 include::{snippets}/account/me/success/http-response.adoc[]
 include::{snippets}/account/me/success/response-fields.adoc[]
 
+== 인증된 사용자 비밀번호 변경
+
+현재 비밀번호를 확인한 뒤 새 비밀번호 Hash로 교체하고, 사용자의 모든 Refresh Session을 폐기한다.
+이미 발급된 Access JWT는 별도 denylist가 없으므로 만료 시각까지 유효하다.
+
+=== 성공
+
+include::{snippets}/password-change/success/request-headers.adoc[]
+include::{snippets}/password-change/success/request-fields.adoc[]
+include::{snippets}/password-change/success/response-headers.adoc[]
+include::{snippets}/password-change/success/http-request.adoc[]
+include::{snippets}/password-change/success/http-response.adoc[]
+
+=== 인증 정보 없음
+
+include::{snippets}/password-change/authentication-required/http-response.adoc[]
+include::{snippets}/password-change/authentication-required/response-fields.adoc[]
+
+=== 현재 비밀번호 불일치
+
+include::{snippets}/password-change/current-password-mismatch/http-response.adoc[]
+include::{snippets}/password-change/current-password-mismatch/response-fields.adoc[]
+
+=== 새 비밀번호 정책 위반
+
+include::{snippets}/password-change/invalid-new-password/http-response.adoc[]
+include::{snippets}/password-change/invalid-new-password/response-fields.adoc[]
+
+=== 현재 비밀번호 재사용
+
+include::{snippets}/password-change/unchanged-password/http-response.adoc[]
+include::{snippets}/password-change/unchanged-password/response-fields.adoc[]
+
+=== 비밀번호 변경 불가 계정
+
+include::{snippets}/password-change/not-allowed/http-response.adoc[]
+include::{snippets}/password-change/not-allowed/response-fields.adoc[]
+
 == Learning 계정 단건 조회
 
 === 성공
