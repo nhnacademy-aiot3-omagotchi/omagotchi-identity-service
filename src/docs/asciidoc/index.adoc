@@ -1,0 +1,128 @@
+= Identity Service API 계약
+:toc: left
+:toclevels: 3
+:source-highlighter: highlight.js
+
+이 문서는 Controller 계약 테스트와 실제 Security Filter Chain·PostgreSQL 통합 테스트가 생성한 요청과 응답을 조합한다.
+`./mvnw verify`를 실행하면 `target/generated-docs/index.html`이 생성된다.
+
+== 인증 경계
+
+=== Frontend Service Credential
+
+`/api/v1/auth/**`는 Browser가 직접 호출하지 않는다. Frontend Service가 별도 HTTP Basic Credential로 호출한다.
+
+include::{snippets}/security/frontend-authentication-required/http-response.adoc[]
+include::{snippets}/security/frontend-authentication-required/response-fields.adoc[]
+
+=== 사용자 Access JWT
+
+`/api/v1/users/me/**`는 검증된 Access JWT의 `sub`를 사용자 식별자로 사용한다.
+
+include::{snippets}/account/me/authentication-required/http-response.adoc[]
+include::{snippets}/account/me/authentication-required/response-fields.adoc[]
+
+=== Learning Service Credential
+
+`/api/v1/internal/accounts/**`는 Learning Service 전용 HTTP Basic Credential을 사용한다.
+
+include::{snippets}/security/learning-authentication-required/http-response.adoc[]
+include::{snippets}/security/learning-authentication-required/response-fields.adoc[]
+
+== 회원가입
+
+=== 성공
+
+include::{snippets}/auth/signup/success/request-headers.adoc[]
+include::{snippets}/auth/signup/success/request-fields.adoc[]
+include::{snippets}/auth/signup/success/http-request.adoc[]
+include::{snippets}/auth/signup/success/http-response.adoc[]
+include::{snippets}/auth/signup/success/response-fields.adoc[]
+
+=== 중복 이메일
+
+include::{snippets}/auth/signup/duplicate-email/http-response.adoc[]
+include::{snippets}/auth/signup/duplicate-email/response-fields.adoc[]
+
+== 로그인
+
+=== 성공
+
+include::{snippets}/auth/login/success/request-headers.adoc[]
+include::{snippets}/auth/login/success/request-fields.adoc[]
+include::{snippets}/auth/login/success/response-headers.adoc[]
+include::{snippets}/auth/login/success/http-request.adoc[]
+include::{snippets}/auth/login/success/http-response.adoc[]
+include::{snippets}/auth/login/success/response-fields.adoc[]
+
+=== 잘못된 자격 증명
+
+계정 존재 여부, 비밀번호 불일치와 로그인 불가 상태를 같은 오류로 응답한다.
+
+include::{snippets}/auth/login/invalid-credentials/http-response.adoc[]
+include::{snippets}/auth/login/invalid-credentials/response-fields.adoc[]
+
+== Refresh Token 회전
+
+=== 성공
+
+include::{snippets}/auth/refresh/success/request-headers.adoc[]
+include::{snippets}/auth/refresh/success/request-fields.adoc[]
+include::{snippets}/auth/refresh/success/response-headers.adoc[]
+include::{snippets}/auth/refresh/success/http-request.adoc[]
+include::{snippets}/auth/refresh/success/http-response.adoc[]
+include::{snippets}/auth/refresh/success/response-fields.adoc[]
+
+=== 유효하지 않은 Refresh Token
+
+include::{snippets}/auth/refresh/invalid-token/http-response.adoc[]
+include::{snippets}/auth/refresh/invalid-token/response-fields.adoc[]
+
+== 로그아웃
+
+로그아웃은 요청 Refresh Token의 family를 폐기한다. Token이 없거나 이미 유효하지 않아도 멱등하게 성공한다.
+
+include::{snippets}/auth/logout/success/request-headers.adoc[]
+include::{snippets}/auth/logout/success/request-fields.adoc[]
+include::{snippets}/auth/logout/success/response-headers.adoc[]
+include::{snippets}/auth/logout/success/http-request.adoc[]
+include::{snippets}/auth/logout/success/http-response.adoc[]
+
+== 현재 계정 조회
+
+include::{snippets}/account/me/success/request-headers.adoc[]
+include::{snippets}/account/me/success/http-request.adoc[]
+include::{snippets}/account/me/success/http-response.adoc[]
+include::{snippets}/account/me/success/response-fields.adoc[]
+
+== Learning 계정 단건 조회
+
+=== 성공
+
+include::{snippets}/internal/accounts/get/success/request-headers.adoc[]
+include::{snippets}/internal/accounts/get/success/path-parameters.adoc[]
+include::{snippets}/internal/accounts/get/success/http-request.adoc[]
+include::{snippets}/internal/accounts/get/success/http-response.adoc[]
+include::{snippets}/internal/accounts/get/success/response-fields.adoc[]
+
+=== 존재하지 않는 계정
+
+include::{snippets}/internal/accounts/get/not-found/http-response.adoc[]
+include::{snippets}/internal/accounts/get/not-found/response-fields.adoc[]
+
+== Learning 계정 일괄 조회
+
+응답에는 요청한 UUID 중 실제로 존재하는 계정만 포함한다.
+
+=== 성공
+
+include::{snippets}/internal/accounts/batch/success/request-headers.adoc[]
+include::{snippets}/internal/accounts/batch/success/request-fields.adoc[]
+include::{snippets}/internal/accounts/batch/success/http-request.adoc[]
+include::{snippets}/internal/accounts/batch/success/http-response.adoc[]
+include::{snippets}/internal/accounts/batch/success/response-fields.adoc[]
+
+=== 잘못된 요청
+
+include::{snippets}/internal/accounts/batch/invalid-request/http-response.adoc[]
+include::{snippets}/internal/accounts/batch/invalid-request/response-fields.adoc[]

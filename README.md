@@ -30,6 +30,8 @@
 ./mvnw verify
 ```
 
+- 생성 API 문서: `target/generated-docs/index.html`
+
 ## 로컬 실행
 
 ### 환경 준비
