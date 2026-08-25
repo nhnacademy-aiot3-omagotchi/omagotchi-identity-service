@@ -31,7 +31,6 @@
 		<spring-cloud.version>2025.1.2</spring-cloud.version>
 		<sonar.projectKey>aiot3-team5-omagotchi-identity-service</sonar.projectKey>
 		<sonar.projectName>aiot3-team5-omagotchi-identity-service</sonar.projectName>
-		<argLine/>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -190,17 +189,6 @@
 				</executions>
 			</plugin>
 			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-dependency-plugin</artifactId>
-				<executions>
-					<execution>
-						<goals>
-							<goal>properties</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
-			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
@@ -251,13 +239,6 @@
 						</configuration>
 					</execution>
 				</executions>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-surefire-plugin</artifactId>
-				<configuration>
-					<argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
-				</configuration>
 			</plugin>
 		</plugins>
 	</build>
