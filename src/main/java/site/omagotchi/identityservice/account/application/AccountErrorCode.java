@@ -21,6 +21,21 @@ public enum AccountErrorCode implements ErrorCode {
             "ACCOUNT_INVALID_PASSWORD",
             "비밀번호는 15~64자이며 공백만으로 구성하거나 제어 문자를 포함할 수 없습니다. 한글 등 일부 문자는 더 짧게 입력해야 합니다."
     ),
+    CURRENT_PASSWORD_MISMATCH(
+            ErrorType.INVALID_INPUT,
+            "ACCOUNT_CURRENT_PASSWORD_MISMATCH",
+            "현재 비밀번호가 올바르지 않습니다."
+    ),
+    PASSWORD_UNCHANGED(
+            ErrorType.INVALID_INPUT,
+            "ACCOUNT_PASSWORD_UNCHANGED",
+            "새 비밀번호는 현재 비밀번호와 달라야 합니다."
+    ),
+    PASSWORD_CHANGE_NOT_ALLOWED(
+            ErrorType.AUTHORIZATION,
+            "ACCOUNT_PASSWORD_CHANGE_NOT_ALLOWED",
+            "현재 계정 상태에서는 비밀번호를 변경할 수 없습니다."
+    ),
     INVALID_NAME(
             ErrorType.INVALID_INPUT,
             "ACCOUNT_INVALID_NAME",
