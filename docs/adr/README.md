@@ -4,6 +4,7 @@ Identity Service 하나에서 결정하고 구현할 수 있는 인증·계정 �
 
 | ADR | 상태 |
 |---|---|
-| [0001 Refresh Token 회전 동시성 정책](0001-refresh-token-rotation-concurrency.md) | Proposed |
+| [0001 Refresh Token 회전 동시성 정책](0001-refresh-token-rotation-concurrency.md) | Accepted |
+| [0002 계정 인증·Refresh Session 직렬화](0002-account-authentication-refresh-session-serialization.md) | Accepted |
 
 상태는 `Proposed`, `Accepted`, `Superseded`, `Rejected` 중 하나를 사용합니다. 구현과 검증이 끝나지 않은 대안을 억지로 `Accepted`로 만들지 않습니다.

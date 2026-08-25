@@ -6,6 +6,10 @@ import site.omagotchi.identityservice.account.application.port.AccountRepository
 import site.omagotchi.identityservice.account.application.port.PasswordHasher;
 import site.omagotchi.identityservice.account.application.result.AccountAuthenticationResult;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import static org.assertj.core.api.BDDAssertions.then;
@@ -22,7 +26,7 @@ class AccountAuthenticationServiceTest {
         // Given
         AccountRepository accountRepository = mock(AccountRepository.class);
         PasswordHasher passwordHasher = mock(PasswordHasher.class);
-        given(accountRepository.findByEmail("missing@example.com"))
+        given(accountRepository.lockByEmail("missing@example.com"))
                 .willReturn(Optional.empty());
         given(passwordHasher.hash(anyString()))
                 .willReturn("fallback-password-hash");
@@ -31,7 +35,9 @@ class AccountAuthenticationServiceTest {
 
         AccountAuthenticationService accountAuthenticationService = new AccountAuthenticationService(
                 accountRepository,
-                passwordHasher
+                passwordHasher,
+                new LoginProtectionProperties(5, Duration.ofMinutes(10)),
+                Clock.fixed(Instant.parse("2026-08-24T00:00:00Z"), ZoneOffset.UTC)
         );
 
         // When

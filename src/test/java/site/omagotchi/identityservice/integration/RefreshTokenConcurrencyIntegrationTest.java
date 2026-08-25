@@ -15,8 +15,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
 import site.omagotchi.identityservice.auth.application.AuthErrorCode;
 import site.omagotchi.identityservice.auth.application.AuthenticationService;
-import site.omagotchi.identityservice.auth.application.RefreshTokenHasher;
 import site.omagotchi.identityservice.auth.application.result.TokenIssueResult;
+import site.omagotchi.identityservice.auth.application.RefreshSessionRevocationReason;
+import site.omagotchi.identityservice.auth.application.RefreshSessionRevocationService;
+import site.omagotchi.identityservice.auth.application.session.RefreshTokenHasher;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
@@ -69,6 +71,9 @@ class RefreshTokenConcurrencyIntegrationTest {
 
     @Autowired
     private AuthenticationService authenticationService;
+
+    @Autowired
+    private RefreshSessionRevocationService refreshSessionRevocationService;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -177,6 +182,69 @@ class RefreshTokenConcurrencyIntegrationTest {
                 .extracting(throwable ->
                         ((BusinessException) throwable).getErrorCode()
                 )
+                .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    @Test
+    @DisplayName("Refresh 회전과 사용자 전체 폐기 직렬화")
+    void serializesRefreshRotationAndAccountRevocation() throws Exception {
+        // Given
+        UUID accountId = api.signupSuccessfully("user@example.com");
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
+                "user@example.com",
+                "password-passphrase"
+        );
+        CountDownLatch rotationFinished = new CountDownLatch(1);
+        CountDownLatch allowRotationCommit = new CountDownLatch(1);
+        CountDownLatch revocationStarted = new CountDownLatch(1);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+
+        Future<TokenIssueResult> rotation = executor.submit(() ->
+                transaction.execute(status -> {
+                    TokenIssueResult result = authenticationService.refresh(login.refreshToken());
+                    rotationFinished.countDown();
+                    await(allowRotationCommit);
+                    return result;
+                })
+        );
+        await(rotationFinished);
+
+        // When
+        Future<Void> revocation = executor.submit(() -> {
+            revocationStarted.countDown();
+            refreshSessionRevocationService.revokeAllForAccount(
+                    accountId,
+                    RefreshSessionRevocationReason.PASSWORD_CHANGED
+            );
+            return null;
+        });
+        await(revocationStarted);
+
+        // 회전 Transaction의 계정 행 잠금 해제 전 전체 폐기 대기 검증
+        thenThrownBy(() -> revocation.get(
+                LOCK_CHECK_TIMEOUT.toMillis(),
+                TimeUnit.MILLISECONDS
+        )).isInstanceOf(java.util.concurrent.TimeoutException.class);
+
+        allowRotationCommit.countDown();
+        TokenIssueResult issuedToken = rotation.get(
+                TEST_TIMEOUT.toMillis(),
+                TimeUnit.MILLISECONDS
+        );
+        revocation.get(TEST_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        List<RefreshToken> accountTokens = refreshTokenJpaRepository.findAll().stream()
+                .filter(token -> token.getAccountId().equals(accountId))
+                .toList();
+
+        // Then
+        then(accountTokens).hasSize(2).allSatisfy(token -> {
+            then(token.isRevoked()).isTrue();
+            then(token.getRevocationReason())
+                    .isEqualTo(RefreshTokenRevocationReason.PASSWORD_CHANGED);
+        });
+        thenThrownBy(() -> authenticationService.refresh(issuedToken.refreshToken()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(throwable -> ((BusinessException) throwable).getErrorCode())
                 .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN);
     }
 

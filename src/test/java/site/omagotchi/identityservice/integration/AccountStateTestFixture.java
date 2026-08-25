@@ -38,4 +38,20 @@ final class AccountStateTestFixture {
             throw new IllegalStateException("Account Test Fixture 대상이 존재하지 않습니다.");
         }
     }
+
+    void expireLoginLock(UUID accountId) {
+        int updatedRows = jdbcTemplate.update(
+                """
+                        UPDATE identity_service.accounts
+                        SET locked_until = CURRENT_TIMESTAMP - INTERVAL '1 second'
+                        WHERE id = ?
+                          AND status = 'LOCKED'
+                        """,
+                accountId
+        );
+
+        if (updatedRows != 1) {
+            throw new IllegalStateException("잠금 만료 Test Fixture 대상이 존재하지 않습니다.");
+        }
+    }
 }
