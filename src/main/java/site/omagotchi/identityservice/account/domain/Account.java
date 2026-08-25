@@ -95,6 +95,21 @@ public class Account {
         return status == AccountStatus.ACTIVE;
     }
 
+    public boolean isPasswordChangeAllowed() {
+        return status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED;
+    }
+
+    public void changePasswordHash(String newPasswordHash) {
+        if (!isPasswordChangeAllowed()) {
+            throw new IllegalStateException("현재 계정 상태에서는 비밀번호를 변경할 수 없습니다.");
+        }
+        if (newPasswordHash == null || newPasswordHash.isBlank()) {
+            throw new IllegalArgumentException("비밀번호 Hash는 비어 있을 수 없습니다.");
+        }
+
+        passwordHash = newPasswordHash;
+    }
+
     public void recoverExpiredLoginLock(Instant now) {
         Instant checkedAt = Objects.requireNonNull(now, "now");
 

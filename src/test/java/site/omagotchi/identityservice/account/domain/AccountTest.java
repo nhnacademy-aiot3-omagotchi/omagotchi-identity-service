@@ -90,6 +90,41 @@ class AccountTest {
     }
 
     @Test
+    @DisplayName("허용된 계정의 비밀번호 Hash 변경")
+    void changesPasswordHashForAllowedAccount() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "old-password-hash",
+                "사용자"
+        );
+
+        // When
+        account.changePasswordHash("new-password-hash");
+
+        // Then
+        then(account.getPasswordHash()).isEqualTo("new-password-hash");
+    }
+
+    @Test
+    @DisplayName("빈 비밀번호 Hash 변경 거부")
+    void rejectsBlankPasswordHash() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "old-password-hash",
+                "사용자"
+        );
+
+        // When
+        Throwable thrown = catchThrowable(() -> account.changePasswordHash(" "));
+
+        // Then
+        then(thrown).isInstanceOf(IllegalArgumentException.class);
+        then(account.getPasswordHash()).isEqualTo("old-password-hash");
+    }
+
+    @Test
     @DisplayName("UTF-8 72바이트 초과 입력 거부")
     void rejectsPasswordOverMaximumUtf8Bytes() {
         // Given
