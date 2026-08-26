@@ -11,10 +11,12 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.restdocs.operation.preprocess.OperationRequestPreprocessor;
 import org.springframework.restdocs.operation.preprocess.OperationResponsePreprocessor;
+import org.springframework.restdocs.payload.ResponseFieldsSnippet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import site.omagotchi.identityservice.account.application.AccountErrorCode;
 import site.omagotchi.identityservice.auth.application.PasswordChangeService;
 import site.omagotchi.identityservice.auth.infrastructure.JwtAccessTokenIssuer;
@@ -214,14 +216,12 @@ class PasswordChangeControllerTest {
                 ));
     }
 
-    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
-    passwordChangeRequest() {
+    private MockHttpServletRequestBuilder passwordChangeRequest() {
         return passwordChangeRequestWithoutAuthentication()
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken());
     }
 
-    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
-    passwordChangeRequestWithoutAuthentication() {
+    private MockHttpServletRequestBuilder passwordChangeRequestWithoutAuthentication() {
         return patch("/api/v1/users/me/password")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -240,7 +240,7 @@ class PasswordChangeControllerTest {
         ).issue(ACCOUNT_ID, "USER").value();
     }
 
-    private org.springframework.restdocs.payload.ResponseFieldsSnippet errorResponseFields() {
+    private ResponseFieldsSnippet errorResponseFields() {
         return responseFields(
                 fieldWithPath("code").description("안정적인 오류 코드"),
                 fieldWithPath("message").description("사용자에게 공개 가능한 오류 메시지"),

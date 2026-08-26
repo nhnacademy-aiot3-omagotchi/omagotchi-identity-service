@@ -31,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.BDDAssertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
@@ -127,7 +128,7 @@ class PasswordChangeConcurrencyIT {
             thenThrownBy(() -> secondChange.get(
                     LOCK_CHECK_TIMEOUT.toMillis(),
                     TimeUnit.MILLISECONDS
-            )).isInstanceOf(java.util.concurrent.TimeoutException.class);
+            )).isInstanceOf(TimeoutException.class);
         } finally {
             allowFirstCommit.countDown();
         }

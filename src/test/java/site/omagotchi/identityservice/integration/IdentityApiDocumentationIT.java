@@ -10,10 +10,15 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.restdocs.headers.RequestHeadersSnippet;
+import org.springframework.restdocs.headers.ResponseHeadersSnippet;
 import org.springframework.restdocs.operation.preprocess.OperationRequestPreprocessor;
 import org.springframework.restdocs.operation.preprocess.OperationResponsePreprocessor;
+import org.springframework.restdocs.payload.RequestFieldsSnippet;
+import org.springframework.restdocs.payload.ResponseFieldsSnippet;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
@@ -414,47 +419,42 @@ class IdentityApiDocumentationIT {
                 ));
     }
 
-    private org.springframework.restdocs.headers.RequestHeadersSnippet
-    frontendCredentialHeader() {
+    private RequestHeadersSnippet frontendCredentialHeader() {
         return requestHeaders(
                 headerWithName(HttpHeaders.AUTHORIZATION)
                         .description("Frontend Service HTTP Basic Credential")
         );
     }
 
-    private org.springframework.restdocs.headers.RequestHeadersSnippet
-    learningCredentialHeader() {
+    private RequestHeadersSnippet learningCredentialHeader() {
         return requestHeaders(
                 headerWithName(HttpHeaders.AUTHORIZATION)
                         .description("Learning Service HTTP Basic Credential")
         );
     }
 
-    private org.springframework.restdocs.headers.RequestHeadersSnippet bearerTokenHeader() {
+    private RequestHeadersSnippet bearerTokenHeader() {
         return requestHeaders(
                 headerWithName(HttpHeaders.AUTHORIZATION)
                         .description("사용자의 Access JWT Bearer Token")
         );
     }
 
-    private org.springframework.restdocs.headers.ResponseHeadersSnippet
-    noStoreResponseHeader() {
+    private ResponseHeadersSnippet noStoreResponseHeader() {
         return responseHeaders(
                 headerWithName(HttpHeaders.CACHE_CONTROL)
                         .description("Token 수명주기 응답의 저장을 막는 no-store")
         );
     }
 
-    private org.springframework.restdocs.payload.RequestFieldsSnippet
-    refreshTokenRequestFields() {
+    private RequestFieldsSnippet refreshTokenRequestFields() {
         return requestFields(
                 fieldWithPath("refreshToken")
                         .description("Frontend Session에 저장한 불투명 Refresh Token")
         );
     }
 
-    private org.springframework.restdocs.payload.ResponseFieldsSnippet
-    accountResponseFields() {
+    private ResponseFieldsSnippet accountResponseFields() {
         return responseFields(
                 fieldWithPath("userId").description("계정 UUID"),
                 fieldWithPath("email").description("정규화된 이메일"),
@@ -466,8 +466,7 @@ class IdentityApiDocumentationIT {
         );
     }
 
-    private org.springframework.restdocs.payload.ResponseFieldsSnippet
-    tokenResponseFields() {
+    private ResponseFieldsSnippet tokenResponseFields() {
         return responseFields(
                 fieldWithPath("userId").description("계정 UUID"),
                 fieldWithPath("globalRole").description("전역 역할"),
@@ -478,8 +477,7 @@ class IdentityApiDocumentationIT {
         );
     }
 
-    private org.springframework.restdocs.payload.ResponseFieldsSnippet
-    internalAccountResponseFields() {
+    private ResponseFieldsSnippet internalAccountResponseFields() {
         return responseFields(
                 fieldWithPath("accountId").description("계정 UUID"),
                 fieldWithPath("displayName").description("표시 이름"),
@@ -487,8 +485,7 @@ class IdentityApiDocumentationIT {
         );
     }
 
-    private org.springframework.restdocs.payload.ResponseFieldsSnippet
-    errorResponseFields() {
+    private ResponseFieldsSnippet errorResponseFields() {
         return responseFields(
                 fieldWithPath("code").description("안정적인 오류 코드"),
                 fieldWithPath("message").description("외부 공개 가능한 오류 메시지"),
@@ -499,8 +496,7 @@ class IdentityApiDocumentationIT {
         );
     }
 
-    private org.springframework.test.web.servlet.request.RequestPostProcessor
-    learningCredential() {
+    private RequestPostProcessor learningCredential() {
         return httpBasic(LEARNING_USERNAME, LEARNING_PASSWORD);
     }
 
