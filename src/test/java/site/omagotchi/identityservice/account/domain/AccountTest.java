@@ -36,20 +36,55 @@ class AccountTest {
     }
 
     @Test
-    @DisplayName("가입 이름의 필수값·최대 길이 검증")
-    void validatesRegistrationName() {
+    @DisplayName("계정 이름의 필수값·최대 길이 검증")
+    void validatesName() {
         // Given
         String maximumLengthName = "가".repeat(30);
         String tooLongName = maximumLengthName + "가";
 
         // Then
         thenSoftly(softly -> {
-            softly.then(Account.isRegistrationNameValid("사용자")).isTrue();
-            softly.then(Account.isRegistrationNameValid(maximumLengthName)).isTrue();
-            softly.then(Account.isRegistrationNameValid(null)).isFalse();
-            softly.then(Account.isRegistrationNameValid(" ")).isFalse();
-            softly.then(Account.isRegistrationNameValid(tooLongName)).isFalse();
+            softly.then(Account.isNameValid("사용자")).isTrue();
+            softly.then(Account.isNameValid(maximumLengthName)).isTrue();
+            softly.then(Account.isNameValid(null)).isFalse();
+            softly.then(Account.isNameValid(" ")).isFalse();
+            softly.then(Account.isNameValid(tooLongName)).isFalse();
         });
+    }
+
+    @Test
+    @DisplayName("계정 이름 변경 시 앞뒤 공백 제거")
+    void changesAndNormalizesName() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "encoded-password",
+                "기존 이름"
+        );
+
+        // When
+        account.changeName("  새 이름  ");
+
+        // Then
+        then(account.getName()).isEqualTo("새 이름");
+    }
+
+    @Test
+    @DisplayName("잘못된 이름 변경은 기존 이름 유지")
+    void rejectsInvalidNameChange() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "encoded-password",
+                "기존 이름"
+        );
+
+        // When
+        Throwable thrown = catchThrowable(() -> account.changeName(" "));
+
+        // Then
+        then(thrown).isInstanceOf(IllegalArgumentException.class);
+        then(account.getName()).isEqualTo("기존 이름");
     }
 
     @Test

@@ -36,6 +36,11 @@ public enum AccountErrorCode implements ErrorCode {
             "ACCOUNT_PASSWORD_CHANGE_NOT_ALLOWED",
             "현재 계정 상태에서는 비밀번호를 변경할 수 없습니다."
     ),
+    NAME_CHANGE_NOT_ALLOWED(
+            ErrorType.AUTHORIZATION,
+            "ACCOUNT_NAME_CHANGE_NOT_ALLOWED",
+            "현재 계정 상태에서는 이름을 변경할 수 없습니다."
+    ),
     INVALID_NAME(
             ErrorType.INVALID_INPUT,
             "ACCOUNT_INVALID_NAME",
