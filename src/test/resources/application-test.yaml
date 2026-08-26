@@ -1,6 +1,17 @@
 server:
   port: 0
 
+spring:
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: localhost
+      port: 6379
+      database: 0
+      connect-timeout: 1s
+      timeout: 2s
+
 eureka:
   client:
     # Test의 외부 Discovery 연결 방지
@@ -9,6 +20,11 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
 
 auth:
+  email-verification:
+    code-ttl: PT10M
+    token-ttl: PT15M
+    resend-cooldown: PT1M
+    maximum-attempts: 5
   login-protection:
     maximum-failed-attempts: 5
     lock-duration: PT10M
@@ -26,3 +42,8 @@ auth:
     private-key-location: classpath:unused-jwt-private.pem
   refresh-token:
     ttl: P7D
+
+email:
+  resend:
+    api-key: test-only-resend-api-key
+    from-email: Omagotchi <no-reply@example.com>

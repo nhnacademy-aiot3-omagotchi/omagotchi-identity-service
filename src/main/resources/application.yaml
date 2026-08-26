@@ -4,6 +4,19 @@ server:
 spring:
   application:
     name: identity-service
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
+      username: ${REDIS_USERNAME:}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:1s}
+      timeout: ${REDIS_COMMAND_TIMEOUT:2s}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -50,6 +63,11 @@ management:
       show-details: never
 
 auth:
+  email-verification:
+    code-ttl: ${EMAIL_VERIFICATION_CODE_TTL:PT10M}
+    token-ttl: ${EMAIL_VERIFICATION_TOKEN_TTL:PT15M}
+    resend-cooldown: ${EMAIL_VERIFICATION_RESEND_COOLDOWN:PT1M}
+    maximum-attempts: ${EMAIL_VERIFICATION_MAXIMUM_ATTEMPTS:5}
   login-protection:
     maximum-failed-attempts: ${LOGIN_MAXIMUM_FAILED_ATTEMPTS}
     lock-duration: ${LOGIN_LOCK_DURATION}
@@ -69,3 +87,8 @@ auth:
     private-key-location: ${JWT_PRIVATE_KEY_LOCATION}
   refresh-token:
     ttl: ${REFRESH_TOKEN_TTL}
+
+email:
+  resend:
+    api-key: ${RESEND_API_KEY}
+    from-email: ${RESEND_FROM_EMAIL}
