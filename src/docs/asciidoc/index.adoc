@@ -95,6 +95,22 @@ include::{snippets}/account/me/success/http-request.adoc[]
 include::{snippets}/account/me/success/http-response.adoc[]
 include::{snippets}/account/me/success/response-fields.adoc[]
 
+== 현재 계정 이름 변경
+
+이름은 앞뒤 공백을 제거한 1~30자로 변경하며 이메일·역할·상태는 이 API에서 수정하지 않는다.
+
+=== 성공
+
+include::{snippets}/account/me/update-name/success/request-headers.adoc[]
+include::{snippets}/account/me/update-name/success/request-fields.adoc[]
+include::{snippets}/account/me/update-name/success/http-request.adoc[]
+include::{snippets}/account/me/update-name/success/http-response.adoc[]
+
+=== 이름 정책 위반
+
+include::{snippets}/account/me/update-name/invalid-name/http-response.adoc[]
+include::{snippets}/account/me/update-name/invalid-name/response-fields.adoc[]
+
 == 인증된 사용자 비밀번호 변경
 
 현재 비밀번호를 확인한 뒤 새 비밀번호 Hash로 교체하고, 사용자의 모든 Refresh Session을 폐기한다.

@@ -43,6 +43,7 @@ import static org.springframework.restdocs.request.RequestDocumentation.paramete
 import static org.springframework.restdocs.request.RequestDocumentation.pathParameters;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -293,6 +294,77 @@ class IdentityApiDocumentationIT {
                         ),
                         errorResponseFields()
                 ));
+    }
+
+    @Test
+    @DisplayName("본인 이름 변경 성공 계약")
+    void documentsCurrentAccountNameChange() throws Exception {
+        api.signupSuccessfully("user@example.com");
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
+                "user@example.com",
+                PASSWORD
+        );
+
+        api.changeName(login.accessToken(), "  새 이름  ")
+                .andExpect(status().isNoContent())
+                .andDo(document(
+                        "account/me/update-name/success",
+                        bearerRequest(),
+                        documentedResponse(),
+                        bearerTokenHeader(),
+                        requestFields(
+                                fieldWithPath("name")
+                                        .description("앞뒤 공백을 제외한 1~30자 이름")
+                        )
+                ));
+
+        mockMvc.perform(get("/api/v1/users/me")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + login.accessToken()
+                        ))
+                .andExpectAll(
+                        status().isOk(),
+                        jsonPath("$.name").value("새 이름")
+                );
+    }
+
+    @Test
+    @DisplayName("본인 이름 정책 위반 오류 계약")
+    void documentsInvalidCurrentAccountName() throws Exception {
+        api.signupSuccessfully("user@example.com");
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
+                "user@example.com",
+                PASSWORD
+        );
+
+        api.changeName(login.accessToken(), "가".repeat(31))
+                .andExpectAll(
+                        status().isBadRequest(),
+                        jsonPath("$.code").value("ACCOUNT_INVALID_NAME")
+                )
+                .andDo(document(
+                        "account/me/update-name/invalid-name",
+                        bearerRequest(),
+                        documentedResponse(),
+                        errorResponseFields()
+                ));
+    }
+
+    @Test
+    @DisplayName("본인 이름 변경의 Access JWT 누락 오류 계약")
+    void documentsMissingAccessTokenForNameChange() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "새 이름"
+                                }
+                                """))
+                .andExpectAll(
+                        status().isUnauthorized(),
+                        jsonPath("$.code").value("AUTH_AUTHENTICATION_REQUIRED")
+                );
     }
 
     @Test

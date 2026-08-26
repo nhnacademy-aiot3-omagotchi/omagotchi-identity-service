@@ -73,6 +73,13 @@ final class AuthApiTestClient {
                 .content(passwordChangeBody(currentPassword, newPassword)));
     }
 
+    ResultActions changeName(String accessToken, String name) throws Exception {
+        return mockMvc.perform(patch("/api/v1/users/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(nameChangeBody(name)));
+    }
+
     UUID signupSuccessfully(String email) throws Exception {
         String response = signUp(email)
                 .andExpectAll(
@@ -163,6 +170,14 @@ final class AuthApiTestClient {
                   "newPassword": "%s"
                 }
                 """.formatted(currentPassword, newPassword);
+    }
+
+    private String nameChangeBody(String name) {
+        return """
+                {
+                  "name": "%s"
+                }
+                """.formatted(name);
     }
 
     record TokenBundle(
