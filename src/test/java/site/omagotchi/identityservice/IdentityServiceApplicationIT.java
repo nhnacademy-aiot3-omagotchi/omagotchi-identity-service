@@ -1,10 +1,12 @@
 package site.omagotchi.identityservice;
 
+import com.resend.Resend;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import site.omagotchi.identityservice.integration.TestJwtConfig;
@@ -12,6 +14,7 @@ import site.omagotchi.identityservice.integration.TestcontainersConfig;
 
 import java.util.List;
 
+import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 
 @DisplayName("Identity Service 설정")
@@ -22,6 +25,19 @@ class IdentityServiceApplicationIT {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    private Resend resendClient;
+
+    @Test
+    @DisplayName("redis & resend bean Test")
+    void registersEmailInfrastructureBeans() {
+        then(stringRedisTemplate).isNotNull();
+        then(resendClient).isNotNull();
+    }
 
     @Test
     @DisplayName("PostgreSQL 18.1 Flyway V1·V2")
