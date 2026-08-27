@@ -31,6 +31,8 @@ import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaReposit
 import site.omagotchi.identityservice.global.exception.BusinessException;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.BDDAssertions.catchThrowable;
@@ -50,7 +52,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @Import({TestcontainersConfig.class, TestJwtConfig.class})
-class AuthApiIntegrationTest {
+class AuthApiIT {
 
     @Autowired
     private MockMvc mockMvc;
@@ -171,12 +173,123 @@ class AuthApiIntegrationTest {
                 "user@example.com",
                 "password-passphrase"
         );
+        Account account = accountJpaRepository.findById(accountId).orElseThrow();
 
         // Then
         response.andExpectAll(
                 status().isUnauthorized(),
                 jsonPath("$.code").value("AUTH_INVALID_CREDENTIALS")
         );
+        thenSoftly(softly -> {
+            softly.then(account.getStatus()).isEqualTo(accountStatus);
+            softly.then(account.getFailedLoginAttempts()).isZero();
+        });
+    }
+
+    @Test
+    @DisplayName("연속 로그인 실패 5회 잠금과 기존 Refresh 유지")
+    void locksAfterConfiguredFailuresWithoutRevokingExistingRefresh() throws Exception {
+        // Given
+        UUID accountId = api.signupSuccessfully("user@example.com");
+        AuthApiTestClient.TokenBundle existingLogin = api.loginSuccessfully(
+                "user@example.com",
+                "password-passphrase"
+        );
+
+        // When
+        for (int attempt = 1; attempt < 5; attempt++) {
+            api.login("user@example.com", "wrong-password1")
+                    .andExpect(status().isUnauthorized());
+        }
+        Account beforeLock = accountJpaRepository.findById(accountId).orElseThrow();
+        Instant fifthAttemptStartedAt = Instant.now();
+        ResultActions fifthFailure = api.login("user@example.com", "wrong-password1");
+        Instant fifthAttemptFinishedAt = Instant.now();
+        Account lockedAccount = accountJpaRepository.findById(accountId).orElseThrow();
+        ResultActions correctPasswordWhileLocked = api.login(
+                "user@example.com",
+                "password-passphrase"
+        );
+        Account stillLockedAccount = accountJpaRepository.findById(accountId).orElseThrow();
+        AuthApiTestClient.TokenBundle refreshed = api.refreshSuccessfully(
+                existingLogin.refreshToken()
+        );
+
+        // Then
+        fifthFailure.andExpectAll(
+                status().isUnauthorized(),
+                jsonPath("$.code").value("AUTH_INVALID_CREDENTIALS")
+        );
+        correctPasswordWhileLocked.andExpectAll(
+                status().isUnauthorized(),
+                jsonPath("$.code").value("AUTH_INVALID_CREDENTIALS")
+        );
+        thenSoftly(softly -> {
+            softly.then(beforeLock.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(beforeLock.getFailedLoginAttempts()).isEqualTo((short) 4);
+            softly.then(lockedAccount.getStatus()).isEqualTo(AccountStatus.LOCKED);
+            softly.then(lockedAccount.getFailedLoginAttempts()).isEqualTo((short) 5);
+            softly.then(lockedAccount.getLockedUntil()).isBetween(
+                    fifthAttemptStartedAt.plus(Duration.ofMinutes(10)),
+                    fifthAttemptFinishedAt.plus(Duration.ofMinutes(10))
+            );
+            softly.then(stillLockedAccount.getStatus()).isEqualTo(AccountStatus.LOCKED);
+            softly.then(stillLockedAccount.getFailedLoginAttempts()).isEqualTo((short) 5);
+            softly.then(stillLockedAccount.getLockedUntil())
+                    .isEqualTo(lockedAccount.getLockedUntil());
+            softly.then(refreshed.userId()).isEqualTo(accountId);
+        });
+    }
+
+    @Test
+    @DisplayName("성공 로그인 후 연속 실패 횟수 초기화")
+    void resetsFailuresAfterSuccessfulLogin() throws Exception {
+        // Given
+        UUID accountId = api.signupSuccessfully("user@example.com");
+        api.login("user@example.com", "wrong-password1")
+                .andExpect(status().isUnauthorized());
+        api.login("user@example.com", "wrong-password1")
+                .andExpect(status().isUnauthorized());
+
+        // When
+        api.loginSuccessfully("user@example.com", "password-passphrase");
+        Account account = accountJpaRepository.findById(accountId).orElseThrow();
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(account.getFailedLoginAttempts()).isZero();
+            softly.then(account.getLockedUntil()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("잠금 만료 뒤 다음 로그인 시도 전에 활성 상태 복구")
+    void recoversExpiredLockBeforeEvaluatingNextAttempt() throws Exception {
+        // Given
+        UUID accountId = api.signupSuccessfully("user@example.com");
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            api.login("user@example.com", "wrong-password1")
+                    .andExpect(status().isUnauthorized());
+        }
+        accountStateFixture.expireLoginLock(accountId);
+
+        // When
+        api.login("user@example.com", "wrong-password1")
+                .andExpect(status().isUnauthorized());
+        Account recoveredAfterFailure = accountJpaRepository.findById(accountId).orElseThrow();
+        api.loginSuccessfully("user@example.com", "password-passphrase");
+        Account recoveredAfterSuccess = accountJpaRepository.findById(accountId).orElseThrow();
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(recoveredAfterFailure.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(recoveredAfterFailure.getFailedLoginAttempts()).isEqualTo((short) 1);
+            softly.then(recoveredAfterFailure.getLockedUntil()).isNull();
+            softly.then(recoveredAfterSuccess.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(recoveredAfterSuccess.getFailedLoginAttempts()).isZero();
+            softly.then(recoveredAfterSuccess.getLockedUntil()).isNull();
+        });
     }
 
     @Test

@@ -12,9 +12,13 @@ public interface AccountRepository {
 
     Optional<Account> findById(UUID accountId);
 
+    Optional<Account> lockById(UUID accountId);
+
     List<Account> findAllById(Collection<UUID> accountIds);
 
     Optional<Account> findByEmail(String email);
+
+    Optional<Account> lockByEmail(String email);
 
     /**
      * @throws BusinessException 이미 저장된 이메일과 충돌해 {@code DUPLICATE_EMAIL}이 발생한 경우

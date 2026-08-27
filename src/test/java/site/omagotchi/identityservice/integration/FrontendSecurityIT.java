@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @Import({TestcontainersConfig.class, TestJwtConfig.class})
-class FrontendSecurityIntegrationTest {
+class FrontendSecurityIT {
 
     private static final String WRONG_FRONTEND_PASSWORD =
             "wrong-test-only-frontend-credential-password";

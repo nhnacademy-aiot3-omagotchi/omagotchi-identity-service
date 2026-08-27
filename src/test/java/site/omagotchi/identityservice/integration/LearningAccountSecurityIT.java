@@ -19,6 +19,7 @@ import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepositor
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
 
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -34,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @Import({TestcontainersConfig.class, TestJwtConfig.class})
-class LearningAccountSecurityIntegrationTest {
+class LearningAccountSecurityIT {
 
     private static final String LEARNING_USERNAME = "learning-service";
     private static final String LEARNING_PASSWORD = "test-only-learning-identity-password";
@@ -182,7 +183,7 @@ class LearningAccountSecurityIntegrationTest {
         String accountIds = IntStream
                 .rangeClosed(1, 100)
                 .mapToObj(ignored -> "\"" + UUID.randomUUID() + "\"")
-                .collect(java.util.stream.Collectors.joining(","));
+                .collect(Collectors.joining(","));
 
         // When & Then
         mockMvc.perform(
@@ -204,7 +205,7 @@ class LearningAccountSecurityIntegrationTest {
         String accountIds = IntStream
                 .rangeClosed(1, 101)
                 .mapToObj(ignored -> "\"" + UUID.randomUUID() + "\"")
-                .collect(java.util.stream.Collectors.joining(","));
+                .collect(Collectors.joining(","));
 
         // When & Then
         mockMvc.perform(

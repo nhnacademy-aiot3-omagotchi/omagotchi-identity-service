@@ -30,6 +30,8 @@
 ./mvnw verify
 ```
 
+- 생성 API 문서: `target/generated-docs/index.html`
+
 ## 로컬 실행
 
 ### 환경 준비
@@ -79,6 +81,13 @@ chmod 644 secrets/jwt-public.pem
 - 형식: URL-safe 문자 32~72자
 - 공유 환경 생성 예시: `openssl rand -hex 32`
 
+### 로그인 보호 설정
+
+- `LOGIN_MAXIMUM_FAILED_ATTEMPTS`: 계정 잠금까지 허용할 연속 로그인 실패 횟수
+- `LOGIN_LOCK_DURATION`: 잠금 유지 기간의 ISO-8601 Duration
+- 로컬·개발 예제 정책: `5`, `PT10M`
+- 두 값 모두 필수이며 누락·범위 오류 시 애플리케이션 시작 실패
+
 ### 실행
 
 ```bash
@@ -103,6 +112,8 @@ chmod 644 secrets/jwt-public.pem
 | `POST` | `/api/v1/auth/refresh` | Frontend Credential | Refresh Token 회전 |
 | `POST` | `/api/v1/auth/logout` | Frontend Credential | Token Family 폐기 |
 | `GET` | `/api/v1/users/me` | Access JWT | 본인 정보 조회 |
+| `PATCH` | `/api/v1/users/me` | Access JWT | 본인 이름 변경 |
+| `PATCH` | `/api/v1/users/me/password` | Access JWT | 현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
 | `GET` | `/api/v1/internal/accounts/{accountId}` | Learning Credential | 계정 상태·표시 이름 단건 조회 |
 | `POST` | `/api/v1/internal/accounts/batch` | Learning Credential | 계정 상태·표시 이름 일괄 조회 |
 
@@ -138,8 +149,9 @@ chmod 644 secrets/jwt-public.pem
 - 갱신: Token 회전, Family 만료 시각 연장 없음
 - 재사용 탐지·로그아웃: 동일 Family 일괄 폐기
 - Access JWT: 별도 폐기 목록 없이 `exp`까지 유효
-- 현재 동시성 경계: 요청 Token 행 잠금
-- 후속 과제: 서로 다른 세대의 동시 처리 시 후속 Token 폐기 보장
+- 동시성 경계: 계정 행을 먼저 잠근 뒤 요청 Token 행 잠금
+- 사용자 전체 폐기: 계정 행 잠금 뒤 모든 미폐기 Token 일괄 폐기
+- 로그인 실패 잠금: 새 비밀번호 로그인만 차단하며 기존 Refresh Token은 유지
 
 ## Database·코드 구조
 
@@ -170,3 +182,4 @@ chmod 644 secrets/jwt-public.pem
 - [공통 예외 처리](https://github.com/nhnacademy-aiot3-omagotchi/docs/blob/main/50-guides/04-error-handling.md)
 - [HTTP Request ID](https://github.com/nhnacademy-aiot3-omagotchi/docs/blob/main/50-guides/08-http-request-id.md)
 - [Refresh Token 회전 동시성 정책](docs/adr/0001-refresh-token-rotation-concurrency.md)
+- [계정 인증·Refresh Session 직렬화](docs/adr/0002-account-authentication-refresh-session-serialization.md)

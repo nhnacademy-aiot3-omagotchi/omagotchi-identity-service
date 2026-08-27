@@ -4,6 +4,10 @@
 - 작성일: 2026-07-27
 - 결정일: 2026-07-27
 
+> 후속 결정: 사용자 전체 Refresh Session 폐기와 서로 다른 Token 세대의 경합은
+> [ADR 0002](0002-account-authentication-refresh-session-serialization.md)의 계정 행 공통 잠금으로 보완합니다.
+> 이 문서의 엄격한 재사용 감지와 Token family 폐기 정책은 유지합니다.
+
 ## 배경
 
 Identity Service는 로그인할 때 불투명한 Refresh Token을 발급하고 DB에는 해시만 저장합니다. 갱신할 때 기존 Token을 사용 처리하고 같은 `familyId`로 다음 Token을 발급합니다. 이미 사용한 Token이 다시 들어오면 탈취 후 재사용일 수 있으므로 같은 family를 모두 폐기합니다.
@@ -19,7 +23,9 @@ Login
   → DB에는 SHA-256 해시를 가진 Token 행 저장
 
 Refresh
-  → token_hash로 현재 행 SELECT FOR UPDATE
+  → token_hash로 account_id 값만 조회
+  → Account SELECT FOR UPDATE
+  → 같은 token_hash를 RefreshToken SELECT FOR UPDATE로 다시 조회·검증
   → 미사용 Token이면 used_at 기록
   → 같은 familyId와 만료 시각으로 다음 Token 행 생성
   → 사용된 Token이면 family 전체 폐기
@@ -28,7 +34,7 @@ Refresh
 - Refresh Token을 발급할 때마다 새 행을 저장합니다.
 - `familyId`는 한 번의 로그인을 시작으로 이어진 Token 계열을 식별합니다.
 - family 만료 시각은 최초 로그인으로부터 기본 7일이며, 회전해도 연장하지 않습니다.
-- 현재 Token 행을 비관적 쓰기 잠금으로 조회하므로 같은 DB를 사용하는 여러 Identity 인스턴스에서도 같은 Token의 사용 처리가 직렬화됩니다.
+- 계정 행을 먼저 비관적 쓰기 잠금으로 조회한 뒤 현재 Token 행을 잠그므로 같은 DB를 사용하는 여러 Identity 인스턴스에서도 같은 계정의 인증과 Refresh Session 변경이 직렬화됩니다.
 - `replacedByTokenId`는 저장하지 않습니다. 현재 보안 판단은 다음 Token의 정확한 행보다 family 전체를 대상으로 하기 때문입니다.
 - 로그인 세션을 대표하는 별도 고정 행은 없습니다.
 
@@ -36,8 +42,8 @@ Refresh
 
 같은 Refresh Token으로 두 요청 A와 B가 동시에 들어오면 다음 순서가 가능합니다.
 
-1. A가 Token 행을 잠그고 사용 처리한 뒤 다음 Token을 발급합니다.
-2. B는 잠금이 풀릴 때까지 기다립니다.
+1. A가 Account 행과 Token 행을 순서대로 잠그고 사용 처리한 뒤 다음 Token을 발급합니다.
+2. B는 같은 Account 행의 잠금이 풀릴 때까지 기다립니다.
 3. B는 이미 사용된 Token을 확인하고 재사용으로 판단하여 family 전체를 폐기합니다.
 4. A가 받은 새 Refresh Token도 폐기되어 다음 갱신에는 사용할 수 없습니다.
 5. A가 함께 받은 Access JWT는 별도 denylist가 없으므로 만료 시각까지 유효합니다.
@@ -112,7 +118,7 @@ refresh_tokens
 MVP에서는 **대안 1: 현재 구조와 엄격한 재사용 폐기 유지**를 선택합니다.
 
 - 현재 요구사항은 로그인, 갱신과 로그아웃이며 계정별 세션 목록이나 기기별 로그아웃은 포함하지 않습니다.
-- 실제 PostgreSQL 동시성 테스트에서 동일 Token의 행 잠금, 단일 갱신과 family 전체 폐기를 확인했습니다.
+- 실제 PostgreSQL 동시성 테스트에서 Account와 동일 Token의 행 잠금, 단일 갱신과 family 전체 폐기를 확인했습니다.
 - 고정 세션 행을 추가해도 정상 중복 요청과 탈취자의 재사용을 구분할 수는 없습니다.
 - `refresh_sessions`를 도입하면 스키마, Entity, 조회와 잠금 경로가 늘어나며 현재 팀이 감당할 유지보수 비용이 커집니다.
 
@@ -120,7 +126,7 @@ MVP에서는 다음 결과와 한계를 수용합니다.
 
 - 동일 Refresh Token의 동시 요청 중 하나가 갱신된 뒤 다른 요청이 재사용으로 판단되면 해당 family를 폐기합니다.
 - 브라우저 중복 요청이나 네트워크 재시도도 다시 로그인을 요구할 수 있습니다.
-- 서로 다른 세대의 Token이 동시에 사용되는 경우에는 하나의 고정 세션 행을 기준으로 직렬화하지 않습니다.
+- 별도 고정 Session 행은 사용하지 않지만, 서로 다른 세대의 Token 요청도 Account 행을 공통 기준으로 직렬화합니다.
 - 폐기된 family에서 이미 발급한 Access JWT는 별도 denylist가 없으므로 만료 시각까지 유효합니다.
 - 회전할 때마다 Token 행이 쌓이므로 보존·삭제 정책은 운영 단계에서 별도로 정합니다.
 
@@ -128,7 +134,6 @@ MVP에서는 `refresh_sessions`, Redis와 BFF를 추가하지 않습니다. 다�
 
 - 계정별 또는 기기별 세션 조회와 개별 로그아웃
 - 실제 운영에서 반복되는 갱신 충돌
-- 복수 Token 세대의 동시 요청을 하나의 세션 기준으로 직렬화할 필요
 - BFF와 서버 세션 도입 결정
 - Refresh Token 보존·삭제 정책 수립
 

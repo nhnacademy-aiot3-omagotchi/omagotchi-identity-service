@@ -4,31 +4,23 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import site.omagotchi.identityservice.account.application.AccountQueryService;
 import site.omagotchi.identityservice.account.application.AccountRegistrationService;
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.presentation.request.SignupRequest;
 import site.omagotchi.identityservice.account.presentation.response.AccountResponse;
 
-import java.util.Objects;
-import java.util.UUID;
-
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/auth/signup")
 @RequiredArgsConstructor
-public class AccountController {
+public class AccountRegistrationController {
 
     private final AccountRegistrationService accountRegistrationService;
-    private final AccountQueryService accountQueryService;
 
-    @PostMapping("/auth/signup")
+    @PostMapping
     public ResponseEntity<AccountResponse> signUp(@Valid @RequestBody SignupRequest request) {
         Account account = accountRegistrationService.signUp(
                 request.email(),
@@ -40,14 +32,5 @@ public class AccountController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(AccountResponse.from(account));
-    }
-
-    @GetMapping("/users/me")
-    public ResponseEntity<AccountResponse> me(@AuthenticationPrincipal Jwt jwt) {
-        // JwtDecoder의 UUID 형식 sub 검증 이후 nullable API 경계의 명시적 방어
-        Account account = accountQueryService.getById(
-                UUID.fromString(Objects.requireNonNull(jwt.getSubject()))
-        );
-        return ResponseEntity.ok(AccountResponse.from(account));
     }
 }

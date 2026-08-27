@@ -3,6 +3,9 @@ package site.omagotchi.identityservice.account.domain;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+import java.time.Instant;
+
 import static org.assertj.core.api.BDDAssertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
@@ -33,36 +36,63 @@ class AccountTest {
     }
 
     @Test
-    @DisplayName("가입 이름의 필수값·최대 길이 검증")
-    void validatesRegistrationName() {
+    @DisplayName("계정 이름의 필수값·최대 길이 검증")
+    void validatesName() {
         // Given
         String maximumLengthName = "가".repeat(30);
         String tooLongName = maximumLengthName + "가";
 
         // Then
         thenSoftly(softly -> {
-            softly.then(Account.isRegistrationNameValid("사용자")).isTrue();
-            softly.then(Account.isRegistrationNameValid(maximumLengthName)).isTrue();
-            softly.then(Account.isRegistrationNameValid(null)).isFalse();
-            softly.then(Account.isRegistrationNameValid(" ")).isFalse();
-            softly.then(Account.isRegistrationNameValid(tooLongName)).isFalse();
+            softly.then(Account.isNameValid("사용자")).isTrue();
+            softly.then(Account.isNameValid(maximumLengthName)).isTrue();
+            softly.then(Account.isNameValid(null)).isFalse();
+            softly.then(Account.isNameValid(" ")).isFalse();
+            softly.then(Account.isNameValid(tooLongName)).isFalse();
         });
     }
 
     @Test
-    @DisplayName("이메일 최소 구조와 최종 생성 방어")
-    void validatesEmailStructure() {
+    @DisplayName("계정 이름 변경 시 앞뒤 공백 제거")
+    void changesAndNormalizesName() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "encoded-password",
+                "기존 이름"
+        );
+
+        // When
+        account.changeName("  새 이름  ");
+
+        // Then
+        then(account.getName()).isEqualTo("새 이름");
+    }
+
+    @Test
+    @DisplayName("잘못된 이름 변경은 기존 이름 유지")
+    void rejectsInvalidNameChange() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "encoded-password",
+                "기존 이름"
+        );
+
+        // When
+        Throwable thrown = catchThrowable(() -> account.changeName(" "));
+
+        // Then
+        then(thrown).isInstanceOf(IllegalArgumentException.class);
+        then(account.getName()).isEqualTo("기존 이름");
+    }
+
+    @Test
+    @DisplayName("올바르지 않은 이메일의 최종 생성 거부")
+    void rejectsInvalidEmail() {
         // Given
         String passwordHash = "encoded-password";
         String name = "사용자";
-        String maximumLengthEmail = "a".repeat(64)
-                + "@"
-                + "b".repeat(63)
-                + "."
-                + "c".repeat(63)
-                + "."
-                + "d".repeat(61);
-        String tooLongEmail = maximumLengthEmail + "d";
 
         // When
         Throwable thrown = catchThrowable(() -> Account.register(
@@ -72,19 +102,7 @@ class AccountTest {
         ));
 
         // Then
-        thenSoftly(softly -> {
-            softly.then(Account.isRegistrationEmailValid("user+tag@example.co.kr")).isTrue();
-            softly.then(Account.isRegistrationEmailValid(null)).isFalse();
-            softly.then(Account.isRegistrationEmailValid("user @example.com")).isFalse();
-            softly.then(Account.isRegistrationEmailValid("@example.com")).isFalse();
-            softly.then(Account.isRegistrationEmailValid("user@")).isFalse();
-            softly.then(Account.isRegistrationEmailValid("user@@example.com")).isFalse();
-            softly.then(Account.isRegistrationEmailValid(".user@example.com")).isFalse();
-            softly.then(Account.isRegistrationEmailValid("user@.")).isFalse();
-            softly.then(Account.isRegistrationEmailValid(maximumLengthEmail)).isTrue();
-            softly.then(Account.isRegistrationEmailValid(tooLongEmail)).isFalse();
-            softly.then(thrown).isInstanceOf(IllegalArgumentException.class);
-        });
+        then(thrown).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -107,6 +125,41 @@ class AccountTest {
     }
 
     @Test
+    @DisplayName("허용된 계정의 비밀번호 Hash 변경")
+    void changesPasswordHashForAllowedAccount() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "old-password-hash",
+                "사용자"
+        );
+
+        // When
+        account.changePasswordHash("new-password-hash");
+
+        // Then
+        then(account.getPasswordHash()).isEqualTo("new-password-hash");
+    }
+
+    @Test
+    @DisplayName("빈 비밀번호 Hash 변경 거부")
+    void rejectsBlankPasswordHash() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "old-password-hash",
+                "사용자"
+        );
+
+        // When
+        Throwable thrown = catchThrowable(() -> account.changePasswordHash(" "));
+
+        // Then
+        then(thrown).isInstanceOf(IllegalArgumentException.class);
+        then(account.getPasswordHash()).isEqualTo("old-password-hash");
+    }
+
+    @Test
     @DisplayName("UTF-8 72바이트 초과 입력 거부")
     void rejectsPasswordOverMaximumUtf8Bytes() {
         // Given
@@ -114,5 +167,107 @@ class AccountTest {
 
         // Then
         then(PasswordPolicy.isSatisfiedBy(password)).isFalse();
+    }
+
+    @Test
+    @DisplayName("설정된 연속 실패 횟수에 도달하면 계정 잠금")
+    void locksAccountAtMaximumFailedAttempts() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "encoded-password",
+                "사용자"
+        );
+        Instant failedAt = Instant.parse("2026-08-24T00:00:00Z");
+        Duration lockDuration = Duration.ofMinutes(10);
+
+        // When
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            account.recordLoginFailure(failedAt, 5, lockDuration);
+        }
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(account.getFailedLoginAttempts()).isEqualTo((short) 5);
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.LOCKED);
+            softly.then(account.getLockedUntil()).isEqualTo(failedAt.plus(lockDuration));
+            softly.then(account.isLoginAllowed()).isFalse();
+        });
+    }
+
+    @Test
+    @DisplayName("성공한 로그인은 연속 실패 횟수 초기화")
+    void resetsFailedAttemptsOnLoginSuccess() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "encoded-password",
+                "사용자"
+        );
+        Instant now = Instant.parse("2026-08-24T00:00:00Z");
+        account.recordLoginFailure(now, 5, Duration.ofMinutes(10));
+        account.recordLoginFailure(now, 5, Duration.ofMinutes(10));
+
+        // When
+        account.recordLoginSuccess();
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(account.getFailedLoginAttempts()).isZero();
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(account.getLockedUntil()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("잠금 종료 시각부터 활성 상태와 실패 횟수 복구")
+    void recoversExpiredLoginLock() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "encoded-password",
+                "사용자"
+        );
+        Instant failedAt = Instant.parse("2026-08-24T00:00:00Z");
+        Duration lockDuration = Duration.ofMinutes(10);
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            account.recordLoginFailure(failedAt, 5, lockDuration);
+        }
+
+        // When
+        account.recoverExpiredLoginLock(failedAt.plus(lockDuration));
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(account.getFailedLoginAttempts()).isZero();
+            softly.then(account.getLockedUntil()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("잠금 종료 전에는 잠금 상태 유지")
+    void keepsUnexpiredLoginLock() {
+        // Given
+        Account account = Account.register(
+                "user@example.com",
+                "encoded-password",
+                "사용자"
+        );
+        Instant failedAt = Instant.parse("2026-08-24T00:00:00Z");
+        Duration lockDuration = Duration.ofMinutes(10);
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            account.recordLoginFailure(failedAt, 5, lockDuration);
+        }
+
+        // When
+        account.recoverExpiredLoginLock(failedAt.plus(lockDuration).minusNanos(1));
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.LOCKED);
+            softly.then(account.getFailedLoginAttempts()).isEqualTo((short) 5);
+            softly.then(account.getLockedUntil()).isEqualTo(failedAt.plus(lockDuration));
+        });
     }
 }

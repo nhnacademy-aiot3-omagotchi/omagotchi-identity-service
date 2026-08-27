@@ -14,9 +14,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
 
+import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -72,8 +72,8 @@ public class Account {
     }
 
     public static Account register(String email, String passwordHash, String name) {
-        String normalizedEmail = normalizeEmail(email);
-        String normalizedName = normalize(name);
+        String normalizedEmail = EmailPolicy.normalize(email);
+        String normalizedName = normalizeName(name);
 
         if (!isNormalizedRegistrationInputValid(
                 normalizedEmail,
@@ -87,28 +87,109 @@ public class Account {
         return new Account(normalizedEmail, passwordHash, normalizedName);
     }
 
-    public static boolean isRegistrationEmailValid(String email) {
-        return isNormalizedRegistrationEmailValid(normalizeEmail(email));
-    }
-
-    public static boolean isRegistrationNameValid(String name) {
-        return isNormalizedRegistrationNameValid(normalize(name));
+    public static boolean isNameValid(String name) {
+        return isNormalizedNameValid(normalizeName(name));
     }
 
     public boolean isLoginAllowed() {
         return status == AccountStatus.ACTIVE;
     }
 
-    public static String normalizeEmail(String email) {
-        return normalizeLowercase(email);
+    public boolean isPasswordChangeAllowed() {
+        return status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED;
     }
 
-    private static String normalizeLowercase(String value) {
-        return normalize(value).toLowerCase(Locale.ROOT);
+    public boolean isNameChangeAllowed() {
+        return status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED;
     }
 
-    private static String normalize(String value) {
+    public void changeName(String newName) {
+        if (!isNameChangeAllowed()) {
+            throw new IllegalStateException("현재 계정 상태에서는 이름을 변경할 수 없습니다.");
+        }
+
+        String normalizedName = normalizeName(newName);
+        if (!isNormalizedNameValid(normalizedName)) {
+            throw new IllegalArgumentException("이름은 앞뒤 공백을 제외하고 1~30자여야 합니다.");
+        }
+
+        name = normalizedName;
+    }
+
+    public void changePasswordHash(String newPasswordHash) {
+        if (!isPasswordChangeAllowed()) {
+            throw new IllegalStateException("현재 계정 상태에서는 비밀번호를 변경할 수 없습니다.");
+        }
+        if (newPasswordHash == null || newPasswordHash.isBlank()) {
+            throw new IllegalArgumentException("비밀번호 Hash는 비어 있을 수 없습니다.");
+        }
+
+        passwordHash = newPasswordHash;
+    }
+
+    public void recoverExpiredLoginLock(Instant now) {
+        Instant checkedAt = Objects.requireNonNull(now, "now");
+
+        if (status != AccountStatus.LOCKED) {
+            return;
+        }
+        if (lockedUntil == null) {
+            throw new IllegalStateException("잠긴 계정에는 잠금 종료 시각이 필요합니다.");
+        }
+        if (checkedAt.isBefore(lockedUntil)) {
+            return;
+        }
+
+        status = AccountStatus.ACTIVE;
+        failedLoginAttempts = 0;
+        lockedUntil = null;
+    }
+
+    public void recordLoginFailure(
+            Instant now,
+            int maximumFailedAttempts,
+            Duration lockDuration
+    ) {
+        Instant failedAt = Objects.requireNonNull(now, "now");
+        Duration duration = requireLockDuration(lockDuration);
+
+        if (maximumFailedAttempts < 1 || maximumFailedAttempts > Short.MAX_VALUE) {
+            throw new IllegalArgumentException("최대 로그인 실패 횟수 범위가 올바르지 않습니다.");
+        }
+        if (status != AccountStatus.ACTIVE) {
+            throw new IllegalStateException("활성 계정에만 로그인 실패를 기록할 수 있습니다.");
+        }
+
+        int nextFailedAttempts = failedLoginAttempts + 1;
+        if (nextFailedAttempts >= maximumFailedAttempts) {
+            failedLoginAttempts = (short) maximumFailedAttempts;
+            status = AccountStatus.LOCKED;
+            lockedUntil = failedAt.plus(duration);
+            return;
+        }
+
+        failedLoginAttempts = (short) nextFailedAttempts;
+    }
+
+    public void recordLoginSuccess() {
+        if (status != AccountStatus.ACTIVE) {
+            throw new IllegalStateException("활성 계정에만 로그인 성공을 기록할 수 있습니다.");
+        }
+
+        failedLoginAttempts = 0;
+        lockedUntil = null;
+    }
+
+    private static String normalizeName(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static Duration requireLockDuration(Duration lockDuration) {
+        Duration duration = Objects.requireNonNull(lockDuration, "lockDuration");
+        if (duration.isZero() || duration.isNegative()) {
+            throw new IllegalArgumentException("로그인 잠금 기간은 0보다 커야 합니다.");
+        }
+        return duration;
     }
 
     private static boolean isNormalizedRegistrationInputValid(
@@ -116,67 +197,15 @@ public class Account {
             String passwordHash,
             String normalizedName
     ) {
-        return isNormalizedRegistrationDetailsValid(normalizedEmail, normalizedName)
+        return EmailPolicy.isSatisfiedBy(normalizedEmail)
+                && isNormalizedNameValid(normalizedName)
                 && passwordHash != null
                 && !passwordHash.isBlank();
     }
 
-    private static boolean isNormalizedRegistrationDetailsValid(
-            String normalizedEmail,
-            String normalizedName
-    ) {
-        return isNormalizedRegistrationEmailValid(normalizedEmail)
-                && isNormalizedRegistrationNameValid(normalizedName);
-    }
-
-    private static boolean isNormalizedRegistrationEmailValid(String normalizedEmail) {
-        return isEmailFormatValid(normalizedEmail)
-                && normalizedEmail.length() <= 254;
-    }
-
-    private static boolean isNormalizedRegistrationNameValid(String normalizedName) {
+    private static boolean isNormalizedNameValid(String normalizedName) {
         return !normalizedName.isEmpty()
                 && normalizedName.length() <= 30;
-    }
-
-    // RFC 전체 검증이 아닌 서비스 허용 이메일의 최소 구조 검증
-    private static boolean isEmailFormatValid(String email) {
-        int separatorIndex = email.indexOf('@');
-        if (separatorIndex <= 0
-                || separatorIndex != email.lastIndexOf('@')
-                || separatorIndex == email.length() - 1) {
-            return false;
-        }
-
-        String localPart = email.substring(0, separatorIndex);
-        String domainPart = email.substring(separatorIndex + 1);
-        return isEmailLocalPartValid(localPart)
-                && Arrays.stream(domainPart.split("\\.", -1)).allMatch(
-                Account::isEmailDomainLabelValid
-        );
-    }
-
-    private static boolean isEmailLocalPartValid(String localPart) {
-        return localPart.length() <= 64
-                && localPart.charAt(0) != '.'
-                && localPart.charAt(localPart.length() - 1) != '.'
-                && !localPart.contains("..")
-                && localPart.chars().allMatch(Account::isEmailLocalCharacter);
-    }
-
-    private static boolean isEmailLocalCharacter(int character) {
-        return Character.isLetterOrDigit(character)
-                || "!#$%&'*+-/=?^_`{|}~.".indexOf(character) >= 0;
-    }
-
-    private static boolean isEmailDomainLabelValid(String label) {
-        return !label.isEmpty()
-                && label.length() <= 63
-                && Character.isLetterOrDigit(label.charAt(0))
-                && Character.isLetterOrDigit(label.charAt(label.length() - 1))
-                && label.chars().allMatch(
-                character -> Character.isLetterOrDigit(character) || character == '-'
-        );
     }
 
     @PrePersist

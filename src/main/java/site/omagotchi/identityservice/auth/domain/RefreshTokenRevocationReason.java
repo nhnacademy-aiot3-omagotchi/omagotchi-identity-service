@@ -8,6 +8,12 @@ public enum RefreshTokenRevocationReason {
     // 재사용 감지
     REUSE_DETECTED,
 
+    // 비밀번호 변경
+    PASSWORD_CHANGED,
+
+    // 비밀번호 재설정
+    PASSWORD_RESET,
+
     // 계정 비활성화됨
     ACCOUNT_DISABLED,
 

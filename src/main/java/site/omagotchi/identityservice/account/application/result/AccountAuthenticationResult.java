@@ -6,15 +6,13 @@ import java.util.UUID;
 
 public record AccountAuthenticationResult(
         UUID accountId,
-        String globalRole,
-        AccountRefreshAccess refreshAccess
+        String globalRole
 ) {
 
     public static AccountAuthenticationResult from(Account account) {
         return new AccountAuthenticationResult(
                 account.getId(),
-                account.getGlobalRole().name(),
-                AccountRefreshAccess.from(account.getStatus())
+                account.getGlobalRole().name()
         );
     }
 }

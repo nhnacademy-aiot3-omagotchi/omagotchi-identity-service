@@ -3,6 +3,7 @@ package site.omagotchi.identityservice.auth.presentation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import site.omagotchi.identityservice.auth.application.result.TokenIssueResult;
+import site.omagotchi.identityservice.auth.presentation.request.PasswordChangeRequest;
 import site.omagotchi.identityservice.auth.presentation.request.RefreshTokenRequest;
 import site.omagotchi.identityservice.auth.presentation.response.TokenResponse;
 
@@ -30,11 +31,16 @@ class AuthSensitiveValueTest {
                 refreshExpiresAt
         );
         RefreshTokenRequest request = new RefreshTokenRequest(refreshToken);
+        PasswordChangeRequest passwordChangeRequest = new PasswordChangeRequest(
+                "current-password-passphrase",
+                "new-password-passphrase"
+        );
         TokenResponse response = TokenResponse.from(result);
 
         // When
         String resultText = result.toString();
         String requestText = request.toString();
+        String passwordChangeRequestText = passwordChangeRequest.toString();
         String responseText = response.toString();
 
         // Then
@@ -42,6 +48,12 @@ class AuthSensitiveValueTest {
                 .contains("[REDACTED]")
                 .doesNotContain(accessToken, refreshToken);
         then(requestText).contains("[REDACTED]").doesNotContain(refreshToken);
+        then(passwordChangeRequestText)
+                .contains("[REDACTED]")
+                .doesNotContain(
+                        passwordChangeRequest.currentPassword(),
+                        passwordChangeRequest.newPassword()
+                );
         then(responseText)
                 .contains("[REDACTED]")
                 .doesNotContain(accessToken, refreshToken);

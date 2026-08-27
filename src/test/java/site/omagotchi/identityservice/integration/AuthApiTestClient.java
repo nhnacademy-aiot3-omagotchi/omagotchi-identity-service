@@ -1,5 +1,6 @@
 package site.omagotchi.identityservice.integration;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -14,11 +15,13 @@ import java.util.UUID;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@RequiredArgsConstructor
 final class AuthApiTestClient {
 
     static final String FRONTEND_USERNAME = "frontend";
@@ -26,11 +29,6 @@ final class AuthApiTestClient {
 
     private final MockMvc mockMvc;
     private final ObjectMapper objectMapper;
-
-    AuthApiTestClient(MockMvc mockMvc, ObjectMapper objectMapper) {
-        this.mockMvc = mockMvc;
-        this.objectMapper = objectMapper;
-    }
 
     ResultActions signUp(String email) throws Exception {
         return signUp(email, "password-passphrase", "홍길동");
@@ -62,6 +60,24 @@ final class AuthApiTestClient {
                 .with(httpBasic(FRONTEND_USERNAME, FRONTEND_PASSWORD))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(refreshBody(refreshToken)));
+    }
+
+    ResultActions changePassword(
+            String accessToken,
+            String currentPassword,
+            String newPassword
+    ) throws Exception {
+        return mockMvc.perform(patch("/api/v1/users/me/password")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(passwordChangeBody(currentPassword, newPassword)));
+    }
+
+    ResultActions changeName(String accessToken, String name) throws Exception {
+        return mockMvc.perform(patch("/api/v1/users/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(nameChangeBody(name)));
     }
 
     UUID signupSuccessfully(String email) throws Exception {
@@ -145,6 +161,23 @@ final class AuthApiTestClient {
                   "refreshToken": "%s"
                 }
                 """.formatted(refreshToken);
+    }
+
+    private String passwordChangeBody(String currentPassword, String newPassword) {
+        return """
+                {
+                  "currentPassword": "%s",
+                  "newPassword": "%s"
+                }
+                """.formatted(currentPassword, newPassword);
+    }
+
+    private String nameChangeBody(String name) {
+        return """
+                {
+                  "name": "%s"
+                }
+                """.formatted(name);
     }
 
     record TokenBundle(
