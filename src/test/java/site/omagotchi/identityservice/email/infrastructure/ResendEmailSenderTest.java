@@ -105,6 +105,7 @@ class ResendEmailSenderTest {
                     softly.then(exception.providerErrorName())
                             .isEqualTo("internal_server_error");
                     softly.then(exception.retryable()).isTrue();
+                    softly.then(exception.getCause()).isInstanceOf(ResendException.class);
                 })
         );
     }
@@ -124,6 +125,9 @@ class ResendEmailSenderTest {
                     softly.then(exception.providerStatusCode()).isNull();
                     softly.then(exception.providerErrorName()).isEqualTo("network_error");
                     softly.then(exception.retryable()).isTrue();
+                    softly.then(exception.getCause()).isInstanceOf(RuntimeException.class);
+                    softly.then(exception.getCause().getCause())
+                            .isInstanceOf(SocketTimeoutException.class);
                 })
         );
     }
@@ -144,6 +148,7 @@ class ResendEmailSenderTest {
                     softly.then(exception.providerStatusCode()).isEqualTo(400);
                     softly.then(exception.providerErrorName()).isEqualTo("validation_error");
                     softly.then(exception.retryable()).isFalse();
+                    softly.then(exception.getCause()).isInstanceOf(ResendException.class);
                 })
         );
     }

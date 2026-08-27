@@ -19,7 +19,7 @@ public class VerificationMailDispatchService {
     // 최대 재시도 횟수
     private static final int MAX_TECHNICAL_RETRIES = 2;
 
-    // TODO(email-mvp): 전달 보장이 필요해지면 webhook, outbox, MQ 또는 DLQ를 검토한다.
+    // email-mvp: 전달 보장이 필요해지면 webhook, outbox, MQ 또는 DLQ를 검토한다.
 
     private final VerificationMailSender mailSender;
     private final EmailVerificationRepository emailVerificationRepository;
@@ -64,7 +64,8 @@ public class VerificationMailDispatchService {
                         retries,
                         exception.providerStatusCode(),
                         exception.providerErrorName(),
-                        deleted
+                        deleted,
+                        exception
                 );
                 return;
             }

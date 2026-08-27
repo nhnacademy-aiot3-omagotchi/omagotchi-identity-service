@@ -53,11 +53,12 @@ public class ResendEmailSender implements VerificationMailSender {
             throw new EmailDeliveryException(
                     exception.getStatusCode(),
                     exception.getErrorName(),
-                    isServerError(exception.getStatusCode())
+                    isServerError(exception.getStatusCode()),
+                    exception
             );
         } catch (RuntimeException exception) {
             if (hasIoCause(exception)) {
-                throw new EmailDeliveryException(null, "network_error", true);
+                throw new EmailDeliveryException(null, "network_error", true, exception);
             }
             throw exception;
         }

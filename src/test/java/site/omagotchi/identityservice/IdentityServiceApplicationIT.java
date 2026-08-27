@@ -33,7 +33,7 @@ class IdentityServiceApplicationIT {
     private Resend resendClient;
 
     @Test
-    @DisplayName("redis & resend bean Test")
+    @DisplayName("Redis & Resend 이메일 인프라 빈 등록")
     void registersEmailInfrastructureBeans() {
         then(stringRedisTemplate).isNotNull();
         then(resendClient).isNotNull();
