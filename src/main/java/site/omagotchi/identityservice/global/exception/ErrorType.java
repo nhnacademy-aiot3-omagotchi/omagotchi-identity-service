@@ -4,6 +4,7 @@ public enum ErrorType {
     INVALID_INPUT,
     NOT_FOUND,
     CONFLICT,
+    RATE_LIMIT,
     AUTHENTICATION,
     AUTHORIZATION,
     INTERNAL

@@ -13,6 +13,7 @@ public final class ErrorHttpStatusMapper {
             case INVALID_INPUT -> HttpStatus.BAD_REQUEST;
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
             case CONFLICT -> HttpStatus.CONFLICT;
+            case RATE_LIMIT -> HttpStatus.TOO_MANY_REQUESTS;
             case AUTHENTICATION -> HttpStatus.UNAUTHORIZED;
             case AUTHORIZATION -> HttpStatus.FORBIDDEN;
             case INTERNAL -> HttpStatus.INTERNAL_SERVER_ERROR;

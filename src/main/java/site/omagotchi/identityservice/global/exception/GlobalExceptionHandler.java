@@ -4,7 +4,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
-import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -16,6 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import site.omagotchi.identityservice.email.application.EmailVerificationCooldownException;
 
 // Controller 내부의 업무·MVC·예상하지 못한 실패를 공통 JSON 오류로 변환하는 경계
 @Slf4j
@@ -31,6 +31,26 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return response(exception.getErrorCode(), request);
     }
 
+    @ExceptionHandler(EmailVerificationCooldownException.class)
+    public ResponseEntity<ApiErrorResponse> handleEmailVerificationCooldown(
+            EmailVerificationCooldownException exception,
+            HttpServletRequest request
+    ) {
+        ErrorCode errorCode = exception.getErrorCode();
+        return ResponseEntity
+                .status(ErrorHttpStatusMapper.map(errorCode.type()))
+                .header(
+                        HttpHeaders.RETRY_AFTER,
+                        Long.toString(exception.retryAfterSeconds())
+                )
+                .body(new ApiErrorResponse(
+                        errorCode.code(),
+                        errorCode.message(),
+                        request.getRequestURI(),
+                        null
+                ));
+    }
+
     @Override
     protected @Nullable ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException exception,
@@ -38,11 +58,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpStatusCode statusCode,
             WebRequest request
     ) {
+        String fallbackMessage = "요청값이 올바르지 않습니다.";
         String message = exception.getBindingResult().getFieldErrors().stream()
                 .findFirst()
-                .filter(error -> error.getDefaultMessage() != null)
-                .map(DefaultMessageSourceResolvable::getDefaultMessage)
-                .orElse("요청값이 올바르지 않습니다.");
+                .map(error -> {
+                    String defaultMessage = error.getDefaultMessage();
+                    return defaultMessage == null ? fallbackMessage : defaultMessage;
+                })
+                .orElse(fallbackMessage);
 
         return frameworkResponse(
                 exception,
