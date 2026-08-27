@@ -3,10 +3,8 @@ package site.omagotchi.identityservice.email.application.port;
 import site.omagotchi.identityservice.email.domain.OtpChallenge;
 import site.omagotchi.identityservice.email.domain.OtpVerificationStatus;
 import site.omagotchi.identityservice.email.domain.VerificationPurpose;
-import site.omagotchi.identityservice.email.domain.VerifiedEmail;
 
 import java.time.Duration;
-import java.util.Optional;
 
 public interface EmailVerificationRepository {
 
@@ -39,11 +37,4 @@ public interface EmailVerificationRepository {
             String challengeId
     );
 
-    void saveVerifiedToken(
-            String verificationToken,
-            VerifiedEmail verifiedEmail,
-            Duration ttl
-    );
-
-    Optional<VerifiedEmail> consumeVerifiedToken(String verificationToken);
 }

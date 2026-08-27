@@ -65,7 +65,6 @@ management:
 auth:
   email-verification:
     code-ttl: ${EMAIL_VERIFICATION_CODE_TTL:PT10M}
-    token-ttl: ${EMAIL_VERIFICATION_TOKEN_TTL:PT15M}
     resend-cooldown: ${EMAIL_VERIFICATION_RESEND_COOLDOWN:PT1M}
     maximum-attempts: ${EMAIL_VERIFICATION_MAXIMUM_ATTEMPTS:5}
   login-protection:

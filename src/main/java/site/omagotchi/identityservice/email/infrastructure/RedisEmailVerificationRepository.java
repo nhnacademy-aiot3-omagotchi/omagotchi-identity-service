@@ -8,14 +8,10 @@ import site.omagotchi.identityservice.email.application.port.EmailVerificationRe
 import site.omagotchi.identityservice.email.domain.OtpChallenge;
 import site.omagotchi.identityservice.email.domain.OtpVerificationStatus;
 import site.omagotchi.identityservice.email.domain.VerificationPurpose;
-import site.omagotchi.identityservice.email.domain.VerifiedEmail;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 @Repository
@@ -92,7 +88,6 @@ public class RedisEmailVerificationRepository implements EmailVerificationReposi
                     """, Long.class);
 
     private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
 
     @Override
     public boolean acquireCooldown(
@@ -194,78 +189,11 @@ public class RedisEmailVerificationRepository implements EmailVerificationReposi
         return Objects.equals(deleted, 1L);
     }
 
-    @Override
-    public void saveVerifiedToken(
-            String verificationToken,
-            VerifiedEmail verifiedEmail,
-            Duration ttl
-    ) {
-        String payload = serializeVerifiedToken(verifiedEmail);
-        redisTemplate.opsForValue().set(verifiedTokenKey(verificationToken), payload, ttl);
-    }
-
-    @Override
-    public Optional<VerifiedEmail> consumeVerifiedToken(String verificationToken) {
-        String payload = redisTemplate.opsForValue()
-                .getAndDelete(verifiedTokenKey(verificationToken));
-        if (payload == null) {
-            return Optional.empty();
-        }
-        return Optional.of(deserializeVerifiedToken(payload));
-    }
-
-    private String serializeVerifiedToken(VerifiedEmail verifiedEmail) {
-        Objects.requireNonNull(verifiedEmail, "verifiedEmail");
-        try {
-            return objectMapper.writeValueAsString(new VerifiedTokenPayload(
-                    verifiedEmail.email(),
-                    verifiedEmail.purpose()
-            ));
-        } catch (JacksonException exception) {
-            throw new IllegalStateException(
-                    "Redis 이메일 인증 Token 직렬화에 실패했습니다.",
-                    exception
-            );
-        }
-    }
-
-    private VerifiedEmail deserializeVerifiedToken(String payload) {
-        try {
-            VerifiedTokenPayload tokenPayload = objectMapper.readValue(
-                    payload,
-                    VerifiedTokenPayload.class
-            );
-            if (tokenPayload.email() == null
-                    || tokenPayload.email().isBlank()
-                    || tokenPayload.purpose() == null) {
-                throw new IllegalStateException(
-                        "Redis 이메일 인증 Token 상태가 올바르지 않습니다."
-                );
-            }
-            return new VerifiedEmail(tokenPayload.email(), tokenPayload.purpose());
-        } catch (JacksonException exception) {
-            throw new IllegalStateException(
-                    "Redis 이메일 인증 Token 역직렬화에 실패했습니다.",
-                    exception
-            );
-        }
-    }
-
     private String cooldownKey(VerificationPurpose purpose, String email) {
         return KEY_PREFIX + "cooldown:" + purpose.name() + ":" + email;
     }
 
     private String codeKey(VerificationPurpose purpose, String email) {
         return KEY_PREFIX + "code:" + purpose.name() + ":" + email;
-    }
-
-    private String verifiedTokenKey(String verificationToken) {
-        return KEY_PREFIX + "verified:" + verificationToken;
-    }
-
-    private record VerifiedTokenPayload(
-            String email,
-            VerificationPurpose purpose
-    ) {
     }
 }

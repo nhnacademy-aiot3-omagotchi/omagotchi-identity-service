@@ -11,14 +11,10 @@ import org.springframework.test.context.ActiveProfiles;
 import site.omagotchi.identityservice.email.domain.OtpChallenge;
 import site.omagotchi.identityservice.email.domain.OtpVerificationStatus;
 import site.omagotchi.identityservice.email.domain.VerificationPurpose;
-import site.omagotchi.identityservice.email.domain.VerifiedEmail;
 import site.omagotchi.identityservice.integration.TestJwtConfig;
 import site.omagotchi.identityservice.integration.TestcontainersConfig;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -39,9 +35,6 @@ class RedisEmailVerificationRepositoryIntegrationTest {
 
     @Autowired
     private StringRedisTemplate redisTemplate;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @AfterEach
     void tearDown() {
@@ -200,28 +193,4 @@ class RedisEmailVerificationRepositoryIntegrationTest {
         });
     }
 
-    @Test
-    @DisplayName("인증 완료 Token은 TTL로 저장하고 최초 사용에서 원자적으로 소비")
-    void consumesVerifiedTokenOnlyOnce() {
-        String token = "test-verification-token";
-        VerifiedEmail verifiedEmail = new VerifiedEmail(
-                EMAIL,
-                VerificationPurpose.SIGN_UP
-        );
-        repository.saveVerifiedToken(token, verifiedEmail, Duration.ofMinutes(15));
-
-        String storedPayload = redisTemplate.opsForValue().get(
-                "auth:email:verified:" + token
-        );
-        JsonNode storedJson = objectMapper.readTree(storedPayload);
-        Optional<VerifiedEmail> first = repository.consumeVerifiedToken(token);
-        Optional<VerifiedEmail> second = repository.consumeVerifiedToken(token);
-
-        thenSoftly(softly -> {
-            softly.then(storedJson.get("email").asString()).isEqualTo(EMAIL);
-            softly.then(storedJson.get("purpose").asString()).isEqualTo("SIGN_UP");
-            softly.then(first).contains(verifiedEmail);
-            softly.then(second).isEmpty();
-        });
-    }
 }

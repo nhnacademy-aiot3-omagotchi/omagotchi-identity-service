@@ -22,7 +22,6 @@ eureka:
 auth:
   email-verification:
     code-ttl: PT10M
-    token-ttl: PT15M
     resend-cooldown: PT1M
     maximum-attempts: 5
   login-protection:

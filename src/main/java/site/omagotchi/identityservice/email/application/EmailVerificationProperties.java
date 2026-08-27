@@ -19,13 +19,6 @@ public record EmailVerificationProperties(
         )
         Duration codeTtl,
 
-        @NotNull(message = "auth.email-verification.token-ttl은 필수입니다.")
-        @DurationMin(
-                seconds = 1,
-                message = "auth.email-verification.token-ttl은 1초 이상이어야 합니다."
-        )
-        Duration tokenTtl,
-
         @NotNull(message = "auth.email-verification.resend-cooldown은 필수입니다.")
         @DurationMin(
                 seconds = 1,

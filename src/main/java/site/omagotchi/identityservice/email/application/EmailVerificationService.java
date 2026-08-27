@@ -3,14 +3,11 @@ package site.omagotchi.identityservice.email.application;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import site.omagotchi.identityservice.account.application.AccountErrorCode;
-import site.omagotchi.identityservice.account.application.port.AccountRepository;
-import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.domain.EmailPolicy;
 import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
 import site.omagotchi.identityservice.email.domain.OtpChallenge;
 import site.omagotchi.identityservice.email.domain.OtpVerificationStatus;
 import site.omagotchi.identityservice.email.domain.VerificationPurpose;
-import site.omagotchi.identityservice.email.domain.VerifiedEmail;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
 import java.util.Objects;
@@ -22,7 +19,6 @@ public class EmailVerificationService {
 
     private static final String CODE_PATTERN = "\\d{6}";
 
-    private final AccountRepository accountRepository;
     private final EmailVerificationRepository emailVerificationRepository;
     private final VerificationCodeGenerator codeGenerator;
     private final VerificationMailDispatchService mailDispatchService;
@@ -51,10 +47,6 @@ public class EmailVerificationService {
 
         String challengeId = UUID.randomUUID().toString();
         long expiresInSeconds = Math.max(1, properties.codeTtl().toSeconds());
-        if (!shouldSendCode(normalizedEmail, requiredPurpose)) {
-            return new EmailVerificationChallengeResult(challengeId, expiresInSeconds);
-        }
-
         String verificationCode = codeGenerator.generate();
         emailVerificationRepository.replaceChallenge(
                 requiredPurpose,
@@ -82,7 +74,7 @@ public class EmailVerificationService {
         return new EmailVerificationChallengeResult(challengeId, expiresInSeconds);
     }
 
-    public EmailVerificationResult verifyCode(
+    public void verifyAndConsumeCode(
             String email,
             VerificationPurpose purpose,
             String challengeId,
@@ -90,6 +82,7 @@ public class EmailVerificationService {
     ) {
         String normalizedEmail = requireValidEmail(email);
         VerificationPurpose requiredPurpose = Objects.requireNonNull(purpose, "purpose");
+
         if (challengeId == null || challengeId.isBlank()
                 || verificationCode == null
                 || !verificationCode.matches(CODE_PATTERN)) {
@@ -106,32 +99,6 @@ public class EmailVerificationService {
         if (status != OtpVerificationStatus.VERIFIED) {
             throw invalidVerification();
         }
-
-        String verificationToken = UUID.randomUUID().toString();
-        emailVerificationRepository.saveVerifiedToken(
-                verificationToken,
-                new VerifiedEmail(normalizedEmail, requiredPurpose),
-                properties.tokenTtl()
-        );
-        return new EmailVerificationResult(
-                verificationToken,
-                Math.max(1, properties.tokenTtl().toSeconds())
-        );
-    }
-
-    private boolean shouldSendCode(String email, VerificationPurpose purpose) {
-        return switch (purpose) {
-            case SIGN_UP -> accountRepository.findByEmail(email).isEmpty();
-
-            case PASSWORD_RESET -> accountRepository.findByEmail(email)
-                    .map(account -> account.getStatus() == AccountStatus.ACTIVE
-                            || account.getStatus() == AccountStatus.LOCKED)
-                    .orElse(false);
-
-            case PASSWORD_CHANGE -> accountRepository.findByEmail(email)
-                    .map(account -> account.getStatus() == AccountStatus.ACTIVE)
-                    .orElse(false);
-        };
     }
 
     private String requireValidEmail(String email) {
