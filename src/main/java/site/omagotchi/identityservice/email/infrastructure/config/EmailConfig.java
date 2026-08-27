@@ -8,6 +8,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.security.SecureRandom;
 import java.util.concurrent.Executor;
 
 @EnableAsync
@@ -18,6 +19,11 @@ public class EmailConfig {
     @Bean
     Resend resendClient(ResendProperties properties) {
         return new Resend(properties.apiKey());
+    }
+
+    @Bean
+    SecureRandom verificationCodeSecureRandom() {
+        return new SecureRandom();
     }
 
     // 이메일 인증 코드·재발송 쿨다운·인증 완료 토큰 수명 관리용 RedisTemplate
