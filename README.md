@@ -30,6 +30,8 @@
 ./mvnw verify
 ```
 
+- 생성 API 문서: `target/generated-docs/index.html`
+
 ## 로컬 실행
 
 ### 환경 준비
@@ -110,6 +112,8 @@ chmod 644 secrets/jwt-public.pem
 | `POST` | `/api/v1/auth/refresh` | Frontend Credential | Refresh Token 회전 |
 | `POST` | `/api/v1/auth/logout` | Frontend Credential | Token Family 폐기 |
 | `GET` | `/api/v1/users/me` | Access JWT | 본인 정보 조회 |
+| `PATCH` | `/api/v1/users/me` | Access JWT | 본인 이름 변경 |
+| `PATCH` | `/api/v1/users/me/password` | Access JWT | 현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
 | `GET` | `/api/v1/internal/accounts/{accountId}` | Learning Credential | 계정 상태·표시 이름 단건 조회 |
 | `POST` | `/api/v1/internal/accounts/batch` | Learning Credential | 계정 상태·표시 이름 일괄 조회 |
 

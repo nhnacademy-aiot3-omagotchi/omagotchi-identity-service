@@ -26,7 +26,7 @@ public class AccountRegistrationService {
         if (!PasswordPolicy.isSatisfiedBy(rawPassword)) {
             throw new BusinessException(AccountErrorCode.INVALID_PASSWORD);
         }
-        if (!Account.isRegistrationNameValid(name)) {
+        if (!Account.isNameValid(name)) {
             throw new BusinessException(AccountErrorCode.INVALID_NAME);
         }
 

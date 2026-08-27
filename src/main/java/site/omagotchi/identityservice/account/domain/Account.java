@@ -73,7 +73,7 @@ public class Account {
 
     public static Account register(String email, String passwordHash, String name) {
         String normalizedEmail = EmailPolicy.normalize(email);
-        String normalizedName = normalize(name);
+        String normalizedName = normalizeName(name);
 
         if (!isNormalizedRegistrationInputValid(
                 normalizedEmail,
@@ -87,12 +87,44 @@ public class Account {
         return new Account(normalizedEmail, passwordHash, normalizedName);
     }
 
-    public static boolean isRegistrationNameValid(String name) {
-        return isNormalizedRegistrationNameValid(normalize(name));
+    public static boolean isNameValid(String name) {
+        return isNormalizedNameValid(normalizeName(name));
     }
 
     public boolean isLoginAllowed() {
         return status == AccountStatus.ACTIVE;
+    }
+
+    public boolean isPasswordChangeAllowed() {
+        return status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED;
+    }
+
+    public boolean isNameChangeAllowed() {
+        return status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED;
+    }
+
+    public void changeName(String newName) {
+        if (!isNameChangeAllowed()) {
+            throw new IllegalStateException("현재 계정 상태에서는 이름을 변경할 수 없습니다.");
+        }
+
+        String normalizedName = normalizeName(newName);
+        if (!isNormalizedNameValid(normalizedName)) {
+            throw new IllegalArgumentException("이름은 앞뒤 공백을 제외하고 1~30자여야 합니다.");
+        }
+
+        name = normalizedName;
+    }
+
+    public void changePasswordHash(String newPasswordHash) {
+        if (!isPasswordChangeAllowed()) {
+            throw new IllegalStateException("현재 계정 상태에서는 비밀번호를 변경할 수 없습니다.");
+        }
+        if (newPasswordHash == null || newPasswordHash.isBlank()) {
+            throw new IllegalArgumentException("비밀번호 Hash는 비어 있을 수 없습니다.");
+        }
+
+        passwordHash = newPasswordHash;
     }
 
     public void recoverExpiredLoginLock(Instant now) {
@@ -148,7 +180,7 @@ public class Account {
         lockedUntil = null;
     }
 
-    private static String normalize(String value) {
+    private static String normalizeName(String value) {
         return value == null ? "" : value.trim();
     }
 
@@ -166,12 +198,12 @@ public class Account {
             String normalizedName
     ) {
         return EmailPolicy.isSatisfiedBy(normalizedEmail)
-                && isNormalizedRegistrationNameValid(normalizedName)
+                && isNormalizedNameValid(normalizedName)
                 && passwordHash != null
                 && !passwordHash.isBlank();
     }
 
-    private static boolean isNormalizedRegistrationNameValid(String normalizedName) {
+    private static boolean isNormalizedNameValid(String normalizedName) {
         return !normalizedName.isEmpty()
                 && normalizedName.length() <= 30;
     }

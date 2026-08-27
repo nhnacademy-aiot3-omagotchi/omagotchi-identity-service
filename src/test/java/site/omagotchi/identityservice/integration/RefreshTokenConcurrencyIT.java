@@ -33,6 +33,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.BDDAssertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
@@ -43,7 +44,7 @@ import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @Import({TestcontainersConfig.class, TestJwtConfig.class})
-class RefreshTokenConcurrencyIntegrationTest {
+class RefreshTokenConcurrencyIT {
 
     /*
      * 검증 흐름
@@ -141,7 +142,7 @@ class RefreshTokenConcurrencyIntegrationTest {
         thenThrownBy(() -> secondRotation.get(
                 LOCK_CHECK_TIMEOUT.toMillis(),
                 TimeUnit.MILLISECONDS
-        )).isInstanceOf(java.util.concurrent.TimeoutException.class);
+        )).isInstanceOf(TimeoutException.class);
 
         // A 커밋과 행 잠금 해제
         allowFirstCommit.countDown();
@@ -224,7 +225,7 @@ class RefreshTokenConcurrencyIntegrationTest {
         thenThrownBy(() -> revocation.get(
                 LOCK_CHECK_TIMEOUT.toMillis(),
                 TimeUnit.MILLISECONDS
-        )).isInstanceOf(java.util.concurrent.TimeoutException.class);
+        )).isInstanceOf(TimeoutException.class);
 
         allowRotationCommit.countDown();
         TokenIssueResult issuedToken = rotation.get(

@@ -18,7 +18,7 @@ import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 @Import({TestcontainersConfig.class, TestJwtConfig.class})
 @ActiveProfiles("test")
 @SpringBootTest
-class IdentityServiceApplicationTests {
+class IdentityServiceApplicationIT {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
