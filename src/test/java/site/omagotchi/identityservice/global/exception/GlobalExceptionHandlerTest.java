@@ -2,11 +2,15 @@ package site.omagotchi.identityservice.global.exception;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import site.omagotchi.identityservice.email.application.EmailVerificationCooldownException;
+import site.omagotchi.identityservice.email.application.EmailVerificationErrorCode;
 
 import static org.assertj.core.api.BDDAssertions.then;
+import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 
 class GlobalExceptionHandlerTest {
 
@@ -65,6 +69,32 @@ class GlobalExceptionHandlerTest {
         // Then
         then(response.getBody().message())
                 .isEqualTo(CommonErrorCode.INVALID_REQUEST.message());
+    }
+
+    @Test
+    @DisplayName("이메일 인증 재요청 쿨다운을 429와 Retry-After Header로 반환")
+    void returnsRetryAfterHeaderForEmailVerificationCooldown() {
+        // Given
+        MockHttpServletRequest request = requestForTest();
+        EmailVerificationCooldownException exception =
+                new EmailVerificationCooldownException(42);
+
+        // When
+        ResponseEntity<ApiErrorResponse> response =
+                handler.handleEmailVerificationCooldown(exception, request);
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+            softly.then(response.getHeaders().getFirst(HttpHeaders.RETRY_AFTER))
+                    .isEqualTo("42");
+            softly.then(response.getBody()).isEqualTo(new ApiErrorResponse(
+                    EmailVerificationErrorCode.COOLDOWN_ACTIVE.code(),
+                    EmailVerificationErrorCode.COOLDOWN_ACTIVE.message(),
+                    REQUEST_URI,
+                    null
+            ));
+        });
     }
 
     private MockHttpServletRequest requestForTest() {
