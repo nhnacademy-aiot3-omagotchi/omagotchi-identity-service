@@ -86,7 +86,9 @@ class PasswordChangeRollbackIT {
         Throwable thrown = catchThrowable(() -> passwordChangeService.changePassword(
                 account.getId(),
                 CURRENT_PASSWORD,
-                NEW_PASSWORD
+                NEW_PASSWORD,
+                "unused-challenge",
+                "000000"
         ));
 
         // Then

@@ -33,7 +33,9 @@ class AuthSensitiveValueTest {
         RefreshTokenRequest request = new RefreshTokenRequest(refreshToken);
         PasswordChangeRequest passwordChangeRequest = new PasswordChangeRequest(
                 "current-password-passphrase",
-                "new-password-passphrase"
+                "new-password-passphrase",
+                "challenge-id",
+                "123456"
         );
         TokenResponse response = TokenResponse.from(result);
 
@@ -52,7 +54,8 @@ class AuthSensitiveValueTest {
                 .contains("[REDACTED]")
                 .doesNotContain(
                         passwordChangeRequest.currentPassword(),
-                        passwordChangeRequest.newPassword()
+                        passwordChangeRequest.newPassword(),
+                        passwordChangeRequest.code()
                 );
         then(responseText)
                 .contains("[REDACTED]")

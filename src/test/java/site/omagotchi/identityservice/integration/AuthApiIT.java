@@ -28,6 +28,7 @@ import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
+import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -61,6 +62,9 @@ class AuthApiIT {
     private ObjectMapper objectMapper;
 
     @Autowired
+    private EmailVerificationRepository emailVerificationRepository;
+
+    @Autowired
     private AccountJpaRepository accountJpaRepository;
 
     @Autowired
@@ -83,7 +87,7 @@ class AuthApiIT {
 
     @BeforeEach
     void setUp() {
-        api = new AuthApiTestClient(mockMvc, objectMapper);
+        api = new AuthApiTestClient(mockMvc, objectMapper, emailVerificationRepository);
         accountStateFixture = new AccountStateTestFixture(jdbcTemplate);
         refreshTokenJpaRepository.deleteAll();
         accountJpaRepository.deleteAll();
@@ -402,6 +406,24 @@ class AuthApiIT {
                         "이메일은 올바른 주소 형식의 254자 이하여야 합니다."
                 )
         );
+    }
+
+    @Test
+    @DisplayName("OTP 오류 시 회원가입 Transaction Rollback")
+    void rollsBackSignupWhenVerificationCodeIsInvalid() throws Exception {
+        ResultActions response = api.signUpWithCode(
+                "user@example.com",
+                "password-passphrase",
+                "홍길동",
+                "missing-challenge",
+                "000000"
+        );
+
+        response.andExpectAll(
+                status().isBadRequest(),
+                jsonPath("$.code").value("EMAIL_VERIFICATION_INVALID")
+        );
+        then(accountJpaRepository.findByEmail("user@example.com")).isEmpty();
     }
 
     @Test

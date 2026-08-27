@@ -23,7 +23,7 @@ public class AccountPasswordService {
     private final PasswordHasher passwordHasher;
 
     @Transactional
-    public void verifyAndReplacePasswordHash(
+    public String verifyAndReplacePasswordHash(
             UUID accountId,
             String currentRawPassword,
             String newRawPassword
@@ -48,5 +48,6 @@ public class AccountPasswordService {
         }
 
         account.changePasswordHash(passwordHasher.hash(newRawPassword));
+        return account.getEmail();
     }
 }

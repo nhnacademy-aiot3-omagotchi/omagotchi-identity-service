@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import site.omagotchi.identityservice.account.application.AccountErrorCode;
 import site.omagotchi.identityservice.auth.application.PasswordChangeService;
 import site.omagotchi.identityservice.auth.infrastructure.JwtAccessTokenIssuer;
+import site.omagotchi.identityservice.email.application.EmailVerificationChallengeResult;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 import site.omagotchi.identityservice.global.security.error.SecurityErrorResponseHandler;
 import site.omagotchi.identityservice.global.security.jwt.JwtAuthorityConfig;
@@ -33,6 +34,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.restdocs.headers.HeaderDocumentation.headerWithName;
 import static org.springframework.restdocs.headers.HeaderDocumentation.requestHeaders;
@@ -47,6 +49,8 @@ import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWit
 import static org.springframework.restdocs.payload.PayloadDocumentation.requestFields;
 import static org.springframework.restdocs.payload.PayloadDocumentation.responseFields;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -69,11 +73,16 @@ class PasswordChangeControllerTest {
     );
     private static final String CURRENT_PASSWORD = "password-passphrase";
     private static final String NEW_PASSWORD = "new-password-passphrase";
+    private static final String CHALLENGE_ID = "challenge-id";
+    private static final String CODE = "123456";
     private static final Pattern CURRENT_PASSWORD_JSON = Pattern.compile(
             "\"currentPassword\"\\s*:\\s*\"[^\"]*\""
     );
     private static final Pattern NEW_PASSWORD_JSON = Pattern.compile(
             "\"newPassword\"\\s*:\\s*\"[^\"]*\""
+    );
+    private static final Pattern CODE_JSON = Pattern.compile(
+            "\"code\"\\s*:\\s*\"[^\"]*\""
     );
 
     @Autowired
@@ -109,15 +118,40 @@ class PasswordChangeControllerTest {
                                 fieldWithPath("currentPassword")
                                         .description("현재 비밀번호"),
                                 fieldWithPath("newPassword")
-                                        .description("현재 비밀번호와 다른 15~64자 새 비밀번호. 공백-only·제어 문자·UTF-8 72바이트 초과 입력은 허용하지 않음")
+                                        .description("현재 비밀번호와 다른 15~64자 새 비밀번호. 공백-only·제어 문자·UTF-8 72바이트 초과 입력은 허용하지 않음"),
+                                fieldWithPath("challengeId")
+                                        .description("PASSWORD_CHANGE OTP Challenge ID"),
+                                fieldWithPath("code")
+                                        .description("이메일로 받은 6자리 OTP")
                         )
                 ));
 
         verify(passwordChangeService).changePassword(
                 ACCOUNT_ID,
                 CURRENT_PASSWORD,
-                NEW_PASSWORD
+                NEW_PASSWORD,
+                CHALLENGE_ID,
+                CODE
         );
+    }
+
+    @Test
+    @DisplayName("JWT 계정으로 비밀번호 변경 OTP Challenge 요청")
+    void requestsPasswordChangeEmailChallenge() throws Exception {
+        given(passwordChangeService.requestEmailVerification(ACCOUNT_ID))
+                .willReturn(new EmailVerificationChallengeResult("challenge-id", 600L));
+
+        mockMvc.perform(post(
+                        "/api/v1/users/me/password/email-verification/challenges"
+                ).header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken()))
+                .andExpectAll(
+                        status().isAccepted(),
+                        header().string(HttpHeaders.CACHE_CONTROL, "no-store"),
+                        jsonPath("$.challengeId").value("challenge-id"),
+                        jsonPath("$.expiresInSeconds").value(600L)
+                );
+
+        verify(passwordChangeService).requestEmailVerification(ACCOUNT_ID);
     }
 
     @Test
@@ -141,7 +175,13 @@ class PasswordChangeControllerTest {
     void documentsCurrentPasswordMismatch() throws Exception {
         willThrow(new BusinessException(AccountErrorCode.CURRENT_PASSWORD_MISMATCH))
                 .given(passwordChangeService)
-                .changePassword(ACCOUNT_ID, CURRENT_PASSWORD, NEW_PASSWORD);
+                .changePassword(
+                        ACCOUNT_ID,
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD,
+                        CHALLENGE_ID,
+                        CODE
+                );
 
         mockMvc.perform(passwordChangeRequest())
                 .andExpectAll(
@@ -161,7 +201,13 @@ class PasswordChangeControllerTest {
     void documentsInvalidNewPassword() throws Exception {
         willThrow(new BusinessException(AccountErrorCode.INVALID_PASSWORD))
                 .given(passwordChangeService)
-                .changePassword(ACCOUNT_ID, CURRENT_PASSWORD, NEW_PASSWORD);
+                .changePassword(
+                        ACCOUNT_ID,
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD,
+                        CHALLENGE_ID,
+                        CODE
+                );
 
         mockMvc.perform(passwordChangeRequest())
                 .andExpectAll(
@@ -181,7 +227,13 @@ class PasswordChangeControllerTest {
     void documentsUnchangedPassword() throws Exception {
         willThrow(new BusinessException(AccountErrorCode.PASSWORD_UNCHANGED))
                 .given(passwordChangeService)
-                .changePassword(ACCOUNT_ID, CURRENT_PASSWORD, NEW_PASSWORD);
+                .changePassword(
+                        ACCOUNT_ID,
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD,
+                        CHALLENGE_ID,
+                        CODE
+                );
 
         mockMvc.perform(passwordChangeRequest())
                 .andExpectAll(
@@ -201,7 +253,13 @@ class PasswordChangeControllerTest {
     void documentsUnavailableAccount() throws Exception {
         willThrow(new BusinessException(AccountErrorCode.PASSWORD_CHANGE_NOT_ALLOWED))
                 .given(passwordChangeService)
-                .changePassword(ACCOUNT_ID, CURRENT_PASSWORD, NEW_PASSWORD);
+                .changePassword(
+                        ACCOUNT_ID,
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD,
+                        CHALLENGE_ID,
+                        CODE
+                );
 
         mockMvc.perform(passwordChangeRequest())
                 .andExpectAll(
@@ -227,7 +285,9 @@ class PasswordChangeControllerTest {
                 .content("""
                         {
                           "currentPassword": "password-passphrase",
-                          "newPassword": "new-password-passphrase"
+                          "newPassword": "new-password-passphrase",
+                          "challengeId": "challenge-id",
+                          "code": "123456"
                         }
                         """);
     }
@@ -265,6 +325,10 @@ class PasswordChangeControllerTest {
                 replacePattern(
                         NEW_PASSWORD_JSON,
                         "\"newPassword\" : \"<password>\""
+                ),
+                replacePattern(
+                        CODE_JSON,
+                        "\"code\" : \"<verification-code>\""
                 )
         );
     }
@@ -283,6 +347,10 @@ class PasswordChangeControllerTest {
                 replacePattern(
                         NEW_PASSWORD_JSON,
                         "\"newPassword\" : \"<password>\""
+                ),
+                replacePattern(
+                        CODE_JSON,
+                        "\"code\" : \"<verification-code>\""
                 )
         );
     }

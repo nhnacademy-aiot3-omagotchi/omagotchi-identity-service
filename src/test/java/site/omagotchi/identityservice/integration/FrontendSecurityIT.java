@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
+import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.UUID;
@@ -46,6 +47,9 @@ class FrontendSecurityIT {
     private ObjectMapper objectMapper;
 
     @Autowired
+    private EmailVerificationRepository emailVerificationRepository;
+
+    @Autowired
     private AccountJpaRepository accountJpaRepository;
 
     @Autowired
@@ -58,7 +62,11 @@ class FrontendSecurityIT {
 
     @BeforeEach
     void setUp() {
-        authApi = new AuthApiTestClient(mockMvc, objectMapper);
+        authApi = new AuthApiTestClient(
+                mockMvc,
+                objectMapper,
+                emailVerificationRepository
+        );
         refreshTokenJpaRepository.deleteAll();
         accountJpaRepository.deleteAll();
     }

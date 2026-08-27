@@ -21,6 +21,7 @@ import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepositor
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
+import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
@@ -51,6 +52,9 @@ class PasswordChangeIT {
     private ObjectMapper objectMapper;
 
     @Autowired
+    private EmailVerificationRepository emailVerificationRepository;
+
+    @Autowired
     private AccountJpaRepository accountJpaRepository;
 
     @Autowired
@@ -67,7 +71,7 @@ class PasswordChangeIT {
 
     @BeforeEach
     void setUp() {
-        api = new AuthApiTestClient(mockMvc, objectMapper);
+        api = new AuthApiTestClient(mockMvc, objectMapper, emailVerificationRepository);
         accountStateFixture = new AccountStateTestFixture(jdbcTemplate);
         refreshTokenJpaRepository.deleteAll();
         accountJpaRepository.deleteAll();
@@ -297,6 +301,39 @@ class PasswordChangeIT {
                 softly.then(token.getRevocationReason())
                         .isEqualTo(RefreshTokenRevocationReason.PASSWORD_CHANGED);
             });
+        });
+    }
+
+    @Test
+    @DisplayName("OTP 오류 시 비밀번호와 Refresh Session Rollback")
+    void rollsBackPasswordAndSessionsWhenVerificationCodeIsInvalid() throws Exception {
+        UUID accountId = api.signupSuccessfully("user@example.com");
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
+                "user@example.com",
+                CURRENT_PASSWORD
+        );
+        String originalHash = accountJpaRepository.findById(accountId)
+                .orElseThrow()
+                .getPasswordHash();
+
+        ResultActions response = api.changePasswordWithCode(
+                login.accessToken(),
+                CURRENT_PASSWORD,
+                NEW_PASSWORD,
+                "missing-challenge",
+                "000000"
+        );
+
+        response.andExpectAll(
+                status().isBadRequest(),
+                jsonPath("$.code").value("EMAIL_VERIFICATION_INVALID")
+        );
+        Account rolledBackAccount = accountJpaRepository.findById(accountId).orElseThrow();
+        thenSoftly(softly -> {
+            softly.then(rolledBackAccount.getPasswordHash()).isEqualTo(originalHash);
+            softly.then(tokensFor(accountId)).hasSize(1).allSatisfy(token ->
+                    softly.then(token.isRevoked()).isFalse()
+            );
         });
     }
 

@@ -20,6 +20,8 @@ import site.omagotchi.identityservice.auth.application.PasswordChangeService;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
+import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
+import site.omagotchi.identityservice.email.domain.VerificationPurpose;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -57,6 +59,9 @@ class PasswordChangeConcurrencyIT {
     private ObjectMapper objectMapper;
 
     @Autowired
+    private EmailVerificationRepository emailVerificationRepository;
+
+    @Autowired
     private AccountJpaRepository accountJpaRepository;
 
     @Autowired
@@ -77,7 +82,7 @@ class PasswordChangeConcurrencyIT {
 
     @BeforeEach
     void setUp() {
-        api = new AuthApiTestClient(mockMvc, objectMapper);
+        api = new AuthApiTestClient(mockMvc, objectMapper, emailVerificationRepository);
         refreshTokenJpaRepository.deleteAll();
         accountJpaRepository.deleteAll();
     }
@@ -94,6 +99,10 @@ class PasswordChangeConcurrencyIT {
         UUID accountId = api.signupSuccessfully("user@example.com");
         api.loginSuccessfully("user@example.com", CURRENT_PASSWORD);
         api.loginSuccessfully("user@example.com", CURRENT_PASSWORD);
+        AuthApiTestClient.OtpProof proof = api.otp(
+                "user@example.com",
+                VerificationPurpose.PASSWORD_CHANGE
+        );
 
         CountDownLatch firstChangeFinished = new CountDownLatch(1);
         CountDownLatch allowFirstCommit = new CountDownLatch(1);
@@ -105,7 +114,9 @@ class PasswordChangeConcurrencyIT {
             passwordChangeService.changePassword(
                     accountId,
                     CURRENT_PASSWORD,
-                    FIRST_NEW_PASSWORD
+                    FIRST_NEW_PASSWORD,
+                    proof.challengeId(),
+                    proof.code()
             );
             firstChangeFinished.countDown();
             await(allowFirstCommit);
@@ -118,7 +129,9 @@ class PasswordChangeConcurrencyIT {
             return catchThrowable(() -> passwordChangeService.changePassword(
                     accountId,
                     CURRENT_PASSWORD,
-                    SECOND_NEW_PASSWORD
+                    SECOND_NEW_PASSWORD,
+                    proof.challengeId(),
+                    proof.code()
             ));
         });
         await(secondChangeStarted);

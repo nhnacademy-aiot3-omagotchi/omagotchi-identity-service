@@ -15,6 +15,7 @@ import site.omagotchi.identityservice.auth.application.RefreshSessionRevocationS
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
+import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
@@ -40,6 +41,9 @@ class RefreshSessionRevocationIT {
     private ObjectMapper objectMapper;
 
     @Autowired
+    private EmailVerificationRepository emailVerificationRepository;
+
+    @Autowired
     private AccountJpaRepository accountJpaRepository;
 
     @Autowired
@@ -52,7 +56,7 @@ class RefreshSessionRevocationIT {
 
     @BeforeEach
     void setUp() {
-        api = new AuthApiTestClient(mockMvc, objectMapper);
+        api = new AuthApiTestClient(mockMvc, objectMapper, emailVerificationRepository);
         refreshTokenJpaRepository.deleteAll();
         accountJpaRepository.deleteAll();
     }

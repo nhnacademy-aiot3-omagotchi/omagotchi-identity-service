@@ -17,6 +17,7 @@ import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
 import site.omagotchi.identityservice.auth.application.port.AccessTokenIssuer;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
+import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.UUID;
@@ -42,6 +43,9 @@ class LoginTransactionRollbackIT {
     private ObjectMapper objectMapper;
 
     @Autowired
+    private EmailVerificationRepository emailVerificationRepository;
+
+    @Autowired
     private AccountJpaRepository accountJpaRepository;
 
     @Autowired
@@ -51,7 +55,7 @@ class LoginTransactionRollbackIT {
 
     @BeforeEach
     void setUp() {
-        api = new AuthApiTestClient(mockMvc, objectMapper);
+        api = new AuthApiTestClient(mockMvc, objectMapper, emailVerificationRepository);
         refreshTokenJpaRepository.deleteAll();
         accountJpaRepository.deleteAll();
     }

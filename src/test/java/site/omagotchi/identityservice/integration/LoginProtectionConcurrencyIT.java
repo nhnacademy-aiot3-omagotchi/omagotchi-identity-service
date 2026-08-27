@@ -16,6 +16,7 @@ import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepositor
 import site.omagotchi.identityservice.auth.application.AuthErrorCode;
 import site.omagotchi.identityservice.auth.application.AuthenticationService;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
+import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -48,6 +49,9 @@ class LoginProtectionConcurrencyIT {
     private ObjectMapper objectMapper;
 
     @Autowired
+    private EmailVerificationRepository emailVerificationRepository;
+
+    @Autowired
     private AccountJpaRepository accountJpaRepository;
 
     @Autowired
@@ -62,7 +66,7 @@ class LoginProtectionConcurrencyIT {
 
     @BeforeEach
     void setUp() {
-        api = new AuthApiTestClient(mockMvc, objectMapper);
+        api = new AuthApiTestClient(mockMvc, objectMapper, emailVerificationRepository);
         refreshTokenJpaRepository.deleteAll();
         accountJpaRepository.deleteAll();
     }
