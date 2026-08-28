@@ -6,8 +6,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
-import site.omagotchi.identityservice.email.application.EmailVerificationCooldownException;
-import site.omagotchi.identityservice.email.application.EmailVerificationErrorCode;
 
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
@@ -72,16 +70,16 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    @DisplayName("이메일 인증 재요청 쿨다운을 429와 Retry-After Header로 반환")
-    void returnsRetryAfterHeaderForEmailVerificationCooldown() {
+    @DisplayName("RetryAfterException 구현 예외는 429와 Retry-After Header를 함께 반환")
+    void returnsRetryAfterHeaderForRetryAfterException() {
         // Given
         MockHttpServletRequest request = requestForTest();
-        EmailVerificationCooldownException exception =
-                new EmailVerificationCooldownException(42);
+        TestRetryAfterException exception =
+                new TestRetryAfterException(TestErrorCode.RATE_LIMITED, 42);
 
         // When
         ResponseEntity<ApiErrorResponse> response =
-                handler.handleEmailVerificationCooldown(exception, request);
+                handler.handleBusinessException(exception, request);
 
         // Then
         thenSoftly(softly -> {
@@ -89,8 +87,8 @@ class GlobalExceptionHandlerTest {
             softly.then(response.getHeaders().getFirst(HttpHeaders.RETRY_AFTER))
                     .isEqualTo("42");
             softly.then(response.getBody()).isEqualTo(new ApiErrorResponse(
-                    EmailVerificationErrorCode.COOLDOWN_ACTIVE.code(),
-                    EmailVerificationErrorCode.COOLDOWN_ACTIVE.message(),
+                    TestErrorCode.RATE_LIMITED.code(),
+                    TestErrorCode.RATE_LIMITED.message(),
                     REQUEST_URI,
                     null
             ));
@@ -112,5 +110,49 @@ class GlobalExceptionHandlerTest {
                 REQUEST_URI,
                 null
         ));
+    }
+
+    private static final class TestRetryAfterException extends BusinessException implements RetryAfterException {
+
+        private final long retryAfterSeconds;
+
+        private TestRetryAfterException(ErrorCode errorCode, long retryAfterSeconds) {
+            super(errorCode);
+            this.retryAfterSeconds = retryAfterSeconds;
+        }
+
+        @Override
+        public long retryAfterSeconds() {
+            return retryAfterSeconds;
+        }
+    }
+
+    private enum TestErrorCode implements ErrorCode {
+        RATE_LIMITED(ErrorType.RATE_LIMIT, "TEST_RATE_LIMITED", "요청 제한");
+
+        private final ErrorType type;
+        private final String code;
+        private final String message;
+
+        TestErrorCode(ErrorType type, String code, String message) {
+            this.type = type;
+            this.code = code;
+            this.message = message;
+        }
+
+        @Override
+        public ErrorType type() {
+            return type;
+        }
+
+        @Override
+        public String code() {
+            return code;
+        }
+
+        @Override
+        public String message() {
+            return message;
+        }
     }
 }

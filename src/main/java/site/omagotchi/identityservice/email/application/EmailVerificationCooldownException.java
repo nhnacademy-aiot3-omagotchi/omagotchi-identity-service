@@ -1,8 +1,9 @@
 package site.omagotchi.identityservice.email.application;
 
 import site.omagotchi.identityservice.global.exception.BusinessException;
+import site.omagotchi.identityservice.global.exception.RetryAfterException;
 
-public final class EmailVerificationCooldownException extends BusinessException {
+public final class EmailVerificationCooldownException extends BusinessException implements RetryAfterException {
 
     private final long retryAfterSeconds;
 
@@ -11,6 +12,7 @@ public final class EmailVerificationCooldownException extends BusinessException 
         this.retryAfterSeconds = Math.max(1, retryAfterSeconds);
     }
 
+    @Override
     public long retryAfterSeconds() {
         return retryAfterSeconds;
     }

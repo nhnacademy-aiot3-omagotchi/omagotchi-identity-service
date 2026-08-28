@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
-import site.omagotchi.identityservice.email.application.EmailVerificationCooldownException;
 
 // Controller 내부의 업무·MVC·예상하지 못한 실패를 공통 JSON 오류로 변환하는 경계
 @Slf4j
@@ -28,27 +27,23 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             BusinessException exception,
             HttpServletRequest request
     ) {
-        return response(exception.getErrorCode(), request);
-    }
-
-    @ExceptionHandler(EmailVerificationCooldownException.class)
-    public ResponseEntity<ApiErrorResponse> handleEmailVerificationCooldown(
-            EmailVerificationCooldownException exception,
-            HttpServletRequest request
-    ) {
         ErrorCode errorCode = exception.getErrorCode();
-        return ResponseEntity
-                .status(ErrorHttpStatusMapper.map(errorCode.type()))
-                .header(
-                        HttpHeaders.RETRY_AFTER,
-                        Long.toString(exception.retryAfterSeconds())
-                )
-                .body(new ApiErrorResponse(
-                        errorCode.code(),
-                        errorCode.message(),
-                        request.getRequestURI(),
-                        null
-                ));
+        HttpStatus status = ErrorHttpStatusMapper.map(errorCode.type());
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(status);
+
+        if (exception instanceof RetryAfterException retryAfter) {
+            builder.header(
+                    HttpHeaders.RETRY_AFTER,
+                    Long.toString(retryAfter.retryAfterSeconds())
+            );
+        }
+
+        return builder.body(new ApiErrorResponse(
+                errorCode.code(),
+                errorCode.message(),
+                request.getRequestURI(),
+                null
+        ));
     }
 
     @Override
