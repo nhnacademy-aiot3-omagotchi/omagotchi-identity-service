@@ -67,7 +67,7 @@ chmod 644 secrets/jwt-public.pem
 
 ### Frontend Credential
 
-- 용도: Frontend 프로세스의 `/api/v1/auth/**` 호출 인증
+- 용도: Frontend 프로세스의 `/api/v1/auth/**`, `/api/v2/auth/**` 호출 인증
 - 설정: Frontend와 Identity에 동일 값 주입
 - Browser 사용자 Credential과의 분리
 - 형식: URL-safe 문자 32~72자
@@ -107,22 +107,34 @@ chmod 644 secrets/jwt-public.pem
 
 | Method | Path | 인증 | 용도 |
 |---|---|---|---|
-| `POST` | `/api/v1/auth/signup/email-otp` | Frontend Credential | 가입 입력 사전 검사·이메일 OTP 발급 및 발송 요청 |
-| `POST` | `/api/v1/auth/signup` | Frontend Credential | OTP 검증·소비 후 회원가입 확정 |
+| `POST` | `/api/v1/auth/signup` | Frontend Credential | 기존 회원가입, 이메일 OTP 미사용 |
+| `POST` | `/api/v2/auth/signup/email-otp` | Frontend Credential | 가입 입력 사전 검사·이메일 OTP 발급 및 발송 요청 |
+| `POST` | `/api/v2/auth/signup` | Frontend Credential | OTP 검증·소비 후 회원가입 확정 |
 | `POST` | `/api/v1/auth/login` | Frontend Credential | 로그인·Token 발급 |
 | `POST` | `/api/v1/auth/refresh` | Frontend Credential | Refresh Token 회전 |
 | `POST` | `/api/v1/auth/logout` | Frontend Credential | Token Family 폐기 |
 | `GET` | `/api/v1/users/me` | Access JWT | 본인 정보 조회 |
 | `PATCH` | `/api/v1/users/me` | Access JWT | 본인 이름 변경 |
-| `POST` | `/api/v1/users/me/password/email-otp` | Access JWT | 인증된 계정 이메일로 OTP 발급 및 발송 요청 |
-| `PATCH` | `/api/v1/users/me/password` | Access JWT | 현재 비밀번호·OTP 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
+| `PATCH` | `/api/v1/users/me/password` | Access JWT | 기존 현재 비밀번호 확인·비밀번호 변경·전체 Refresh Session 폐기 |
+| `POST` | `/api/v2/users/me/password/email-otp` | Access JWT | 인증된 계정 이메일로 OTP 발급 및 발송 요청 |
+| `PATCH` | `/api/v2/users/me/password` | Access JWT | 현재 비밀번호·OTP 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
 | `GET` | `/api/v1/internal/accounts/{accountId}` | Learning Credential | 계정 상태·표시 이름 단건 조회 |
 | `POST` | `/api/v1/internal/accounts/batch` | Learning Credential | 계정 상태·표시 이름 일괄 조회 |
 
 - 일괄 조회: 특정 계정 ID 묶음의 단순 목록 응답, 요청당 최대 100개
 - 페이지 응답 제외: 전체 계정 목록 검색이 아닌 요청 ID 집합 조회
 
-### 이메일 OTP 요청
+### 가입·비밀번호 변경 버전 전환
+
+- v1 복원 기준: OTP 연결 커밋 `71104ae`의 직전 커밋 `53d9d96`
+- v1 가입 요청: `email`, `password`, `name`. v1 비밀번호 변경 요청: `currentPassword`, `newPassword`
+- v1 Controller·서비스·요청 DTO는 위 Git 원본을 복원하며 이메일 인증을 수행하지 않음
+- v2는 별도 Controller·서비스·요청 DTO로 분리하고 최종 요청에 `challengeId`, `code`를 추가
+- 로그인·Refresh Token·로그아웃·본인 정보 등 다른 API의 버전은 변경하지 않음
+- 전환 순서: Identity에 v1·v2 병행 배포 → 호출 측 OTP 흐름 및 v2 주소 반영 → v1 가입·비밀번호 변경 호출 종료 확인 → 해당 v1 API 제거
+- 병행 기간에는 v1을 통한 이메일 인증 없는 가입·비밀번호 변경이 가능하므로 OTP 필수화는 v1 제거 후 완료
+
+### v2 이메일 OTP 요청
 
 - `POST .../email-otp`: OTP 발급·발송 요청을 표현하며 재발급에도 같은 주소 사용
 - 가입 요청 본문: `email`, `password`, `name`. 기존 가입 정책 사전 검사 유지
@@ -131,11 +143,11 @@ chmod 644 secrets/jwt-public.pem
 - 최종 회원가입·비밀번호 변경 요청에서 `challengeId`와 `code`를 제출하고 OTP를 한 번만 검증·소비
 - 별도 OTP 검증 API나 `verificationToken` 발급 단계 없음
 - 재발급 쿨다운: `429 Too Many Requests`, `Retry-After` 응답 유지
-- 이전 `.../email-verification/challenges` 경로는 제거하며 호환 별칭은 제공하지 않음. 호출 측은 새 주소로 변경 필요
+- 이메일 OTP 요청은 v2에만 제공하며 v1의 `/email-otp` 는 제공하지 않음.
 
 ### 호출 경계
 
-- `/api/v1/auth/**`: Gateway Route 미등록
+- `/api/v1/auth/**`, `/api/v2/auth/**`: Frontend → Identity 직접 호출 대상
 - `/api/v1/internal/**`: Gateway Route 미등록
 - 인증 API: Frontend → Identity 직접 호출
 - 계정 조회 API: Learning → Identity 직접 호출
