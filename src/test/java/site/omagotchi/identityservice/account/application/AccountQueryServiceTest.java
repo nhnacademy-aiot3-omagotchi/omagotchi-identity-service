@@ -3,6 +3,7 @@ package site.omagotchi.identityservice.account.application;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import site.omagotchi.identityservice.account.application.port.AccountRepository;
+import site.omagotchi.identityservice.account.domain.Account;
 
 import java.util.List;
 import java.util.UUID;
@@ -35,5 +36,26 @@ class AccountQueryServiceTest {
         // Then
         then(accounts).isEmpty();
         verify(accountRepository).findAllById(distinctIds);
+    }
+
+    @Test
+    @DisplayName("계정 검색어 앞뒤 공백 제거와 결과 상한 적용")
+    void normalizesAccountSearchQuery() {
+        // Given
+        Account account = mock(Account.class);
+        given(accountRepository.searchByNameOrEmail(
+                "사용자@example.com",
+                AccountQueryService.ACCOUNT_SEARCH_LIMIT
+        )).willReturn(List.of(account));
+
+        // When
+        var accounts = accountQueryService.searchByNameOrEmail("  사용자@example.com  ");
+
+        // Then
+        then(accounts).containsExactly(account);
+        verify(accountRepository).searchByNameOrEmail(
+                "사용자@example.com",
+                AccountQueryService.ACCOUNT_SEARCH_LIMIT
+        );
     }
 }

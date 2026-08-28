@@ -3,6 +3,7 @@ package site.omagotchi.identityservice.account.infrastructure;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import site.omagotchi.identityservice.account.application.AccountErrorCode;
 import site.omagotchi.identityservice.account.application.port.AccountRepository;
@@ -35,6 +36,11 @@ public class AccountJpaPersistence implements AccountRepository {
     @Override
     public List<Account> findAllById(Collection<UUID> accountIds) {
         return accountJpaRepository.findAllById(accountIds);
+    }
+
+    @Override
+    public List<Account> searchByNameOrEmail(String query, int limit) {
+        return accountJpaRepository.searchByNameOrEmail(query, PageRequest.of(0, limit));
     }
 
     @Override
