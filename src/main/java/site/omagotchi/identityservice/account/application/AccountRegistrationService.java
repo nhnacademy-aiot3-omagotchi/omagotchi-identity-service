@@ -21,7 +21,7 @@ public class AccountRegistrationService {
     private final PasswordHasher passwordHasher;
     private final EmailVerificationService emailVerificationService;
 
-    public EmailVerificationChallengeResult requestEmailVerification(
+    public EmailVerificationChallengeResult requestEmailOtp(
             String email,
             String rawPassword,
             String name

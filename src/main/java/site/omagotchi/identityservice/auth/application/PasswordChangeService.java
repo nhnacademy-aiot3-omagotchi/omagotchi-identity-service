@@ -26,8 +26,7 @@ public class PasswordChangeService {
     private final AccountQueryService accountQueryService;
     private final EmailVerificationService emailVerificationService;
 
-    // challengeId 발급, 이메일 인증 OTP 전송
-    public EmailVerificationChallengeResult requestEmailVerification(UUID accountId) {
+    public EmailVerificationChallengeResult requestEmailOtp(UUID accountId) {
         Account account = accountQueryService.getById(accountId);
         if (!account.isPasswordChangeAllowed()) {
             throw new BusinessException(AccountErrorCode.PASSWORD_CHANGE_NOT_ALLOWED);

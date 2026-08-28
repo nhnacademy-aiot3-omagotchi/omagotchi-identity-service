@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import site.omagotchi.identityservice.account.application.AccountRegistrationService;
 import site.omagotchi.identityservice.account.domain.Account;
+import site.omagotchi.identityservice.account.presentation.request.SignupEmailOtpRequest;
 import site.omagotchi.identityservice.account.presentation.request.SignupRequest;
-import site.omagotchi.identityservice.account.presentation.request.SignupEmailChallengeRequest;
 import site.omagotchi.identityservice.account.presentation.response.AccountResponse;
 import site.omagotchi.identityservice.email.application.EmailVerificationChallengeResult;
 import site.omagotchi.identityservice.email.presentation.response.EmailVerificationChallengeResponse;
@@ -24,13 +24,12 @@ public class AccountRegistrationController {
 
     private final AccountRegistrationService accountRegistrationService;
 
-    // challengeId 발급, 이메일 인증 OTP 전송
-    @PostMapping("/email-verification/challenges")
-    public ResponseEntity<EmailVerificationChallengeResponse> requestEmailVerification(
-            @Valid @RequestBody SignupEmailChallengeRequest request
+    @PostMapping("/email-otp")
+    public ResponseEntity<EmailVerificationChallengeResponse> requestEmailOtp(
+            @Valid @RequestBody SignupEmailOtpRequest request
     ) {
         EmailVerificationChallengeResult result = accountRegistrationService
-                .requestEmailVerification(
+                .requestEmailOtp(
                         request.email(),
                         request.password(),
                         request.name()

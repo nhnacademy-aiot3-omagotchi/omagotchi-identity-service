@@ -26,12 +26,12 @@ public class PasswordChangeController {
 
     private final PasswordChangeService passwordChangeService;
 
-    @PostMapping("/email-verification/challenges")
-    public ResponseEntity<EmailVerificationChallengeResponse> requestEmailVerification(
+    @PostMapping("/email-otp")
+    public ResponseEntity<EmailVerificationChallengeResponse> requestEmailOtp(
             @AuthenticationPrincipal Jwt jwt
     ) {
         EmailVerificationChallengeResult result = passwordChangeService
-                .requestEmailVerification(accountId(jwt));
+                .requestEmailOtp(accountId(jwt));
         return ResponseEntity.accepted()
                 .cacheControl(CacheControl.noStore())
                 .body(EmailVerificationChallengeResponse.from(result));

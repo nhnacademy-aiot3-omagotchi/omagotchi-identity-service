@@ -32,7 +32,7 @@ class AccountRegistrationServiceTest {
 
     @Test
     @DisplayName("가입 입력과 이메일 중복 확인 후 SIGN_UP OTP 발급")
-    void requestsSignUpEmailVerificationAfterPrecheck() {
+    void requestsSignUpEmailOtpAfterPrecheck() {
         Fixture fixture = fixture();
         EmailVerificationChallengeResult expected =
                 new EmailVerificationChallengeResult(CHALLENGE_ID, 600L);
@@ -44,7 +44,7 @@ class AccountRegistrationServiceTest {
         )).willReturn(expected);
 
         EmailVerificationChallengeResult result = fixture.service()
-                .requestEmailVerification("  USER@Example.com  ", PASSWORD, NAME);
+                .requestEmailOtp("  USER@Example.com  ", PASSWORD, NAME);
 
         then(result).isSameAs(expected);
         verify(fixture.accountRepository()).findByEmail(EMAIL);
@@ -67,7 +67,7 @@ class AccountRegistrationServiceTest {
                 )));
 
         Throwable thrown = catchThrowable(() -> fixture.service()
-                .requestEmailVerification(EMAIL, PASSWORD, NAME));
+                .requestEmailOtp(EMAIL, PASSWORD, NAME));
 
         then(thrown).isInstanceOfSatisfying(
                 BusinessException.class,

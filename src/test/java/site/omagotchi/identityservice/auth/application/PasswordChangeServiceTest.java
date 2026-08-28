@@ -113,8 +113,8 @@ class PasswordChangeServiceTest {
     }
 
     @Test
-    @DisplayName("비밀번호 변경 가능 계정의 이메일로 OTP Challenge 요청")
-    void requestsEmailForAuthenticatedAccount() {
+    @DisplayName("비밀번호 변경 가능 계정의 이메일로 OTP 발급·발송 요청")
+    void requestsEmailOtpForAuthenticatedAccount() {
         Fixture fixture = fixture();
         Account account = Account.register(EMAIL, "password-hash", "사용자");
         EmailVerificationChallengeResult expected =
@@ -125,7 +125,7 @@ class PasswordChangeServiceTest {
                 VerificationPurpose.PASSWORD_CHANGE
         )).willReturn(expected);
 
-        then(fixture.service().requestEmailVerification(ACCOUNT_ID))
+        then(fixture.service().requestEmailOtp(ACCOUNT_ID))
                 .isSameAs(expected);
 
         verify(fixture.accountQueryService()).getById(ACCOUNT_ID);
@@ -148,7 +148,7 @@ class PasswordChangeServiceTest {
         given(account.isPasswordChangeAllowed()).willReturn(false);
 
         Throwable thrown = catchThrowable(() -> fixture.service()
-                .requestEmailVerification(ACCOUNT_ID));
+                .requestEmailOtp(ACCOUNT_ID));
 
         then(thrown).isInstanceOfSatisfying(
                 BusinessException.class,
