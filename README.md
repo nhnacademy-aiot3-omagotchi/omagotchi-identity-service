@@ -107,18 +107,31 @@ chmod 644 secrets/jwt-public.pem
 
 | Method | Path | 인증 | 용도 |
 |---|---|---|---|
-| `POST` | `/api/v1/auth/signup` | Frontend Credential | 회원가입 |
+| `POST` | `/api/v1/auth/signup/email-otp` | Frontend Credential | 가입 입력 사전 검사·이메일 OTP 발급 및 발송 요청 |
+| `POST` | `/api/v1/auth/signup` | Frontend Credential | OTP 검증·소비 후 회원가입 확정 |
 | `POST` | `/api/v1/auth/login` | Frontend Credential | 로그인·Token 발급 |
 | `POST` | `/api/v1/auth/refresh` | Frontend Credential | Refresh Token 회전 |
 | `POST` | `/api/v1/auth/logout` | Frontend Credential | Token Family 폐기 |
 | `GET` | `/api/v1/users/me` | Access JWT | 본인 정보 조회 |
 | `PATCH` | `/api/v1/users/me` | Access JWT | 본인 이름 변경 |
-| `PATCH` | `/api/v1/users/me/password` | Access JWT | 현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
+| `POST` | `/api/v1/users/me/password/email-otp` | Access JWT | 인증된 계정 이메일로 OTP 발급 및 발송 요청 |
+| `PATCH` | `/api/v1/users/me/password` | Access JWT | 현재 비밀번호·OTP 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
 | `GET` | `/api/v1/internal/accounts/{accountId}` | Learning Credential | 계정 상태·표시 이름 단건 조회 |
 | `POST` | `/api/v1/internal/accounts/batch` | Learning Credential | 계정 상태·표시 이름 일괄 조회 |
 
 - 일괄 조회: 특정 계정 ID 묶음의 단순 목록 응답, 요청당 최대 100개
 - 페이지 응답 제외: 전체 계정 목록 검색이 아닌 요청 ID 집합 조회
+
+### 이메일 OTP 요청
+
+- `POST .../email-otp`: OTP 발급·발송 요청을 표현하며 재발급에도 같은 주소 사용
+- 가입 요청 본문: `email`, `password`, `name`. 기존 가입 정책 사전 검사 유지
+- 비밀번호 변경 OTP 요청: 본문 없이 JWT `sub`로 계정과 수신 이메일 결정
+- 접수 응답: `202 Accepted`, `Cache-Control: no-store`, `challengeId`, `expiresInSeconds`. 실제 메일 수신을 보장하지 않음
+- 최종 회원가입·비밀번호 변경 요청에서 `challengeId`와 `code`를 제출하고 OTP를 한 번만 검증·소비
+- 별도 OTP 검증 API나 `verificationToken` 발급 단계 없음
+- 재발급 쿨다운: `429 Too Many Requests`, `Retry-After` 응답 유지
+- 이전 `.../email-verification/challenges` 경로는 제거하며 호환 별칭은 제공하지 않음. 호출 측은 새 주소로 변경 필요
 
 ### 호출 경계
 
