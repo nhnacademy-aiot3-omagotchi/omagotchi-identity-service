@@ -2,9 +2,8 @@ package site.omagotchi.identityservice.email.application;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import site.omagotchi.identityservice.account.application.AccountErrorCode;
-import site.omagotchi.identityservice.account.domain.EmailPolicy;
 import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
+import site.omagotchi.identityservice.email.domain.EmailPolicy;
 import site.omagotchi.identityservice.email.domain.OtpChallenge;
 import site.omagotchi.identityservice.email.domain.OtpVerificationStatus;
 import site.omagotchi.identityservice.email.domain.VerificationPurpose;
@@ -103,7 +102,7 @@ public class EmailVerificationService {
 
     private String requireValidEmail(String email) {
         if (!EmailPolicy.isSatisfiedBy(email)) {
-            throw new BusinessException(AccountErrorCode.INVALID_EMAIL);
+            throw new BusinessException(EmailVerificationErrorCode.INVALID_EMAIL);
         }
         return EmailPolicy.normalize(email);
     }

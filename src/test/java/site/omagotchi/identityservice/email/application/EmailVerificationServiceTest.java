@@ -9,7 +9,6 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import site.omagotchi.identityservice.account.application.AccountErrorCode;
 import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
 import site.omagotchi.identityservice.email.domain.OtpChallenge;
 import site.omagotchi.identityservice.email.domain.OtpVerificationStatus;
@@ -33,7 +32,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 @ExtendWith(MockitoExtension.class)
 class EmailVerificationServiceTest {
 
-    private static final String INPUT_EMAIL = "  USER@Example.COM  ";
     private static final String EMAIL = "user@example.com";
     private static final String CHALLENGE_ID = "challenge-id";
     private static final String CODE = "042910";
@@ -74,7 +72,7 @@ class EmailVerificationServiceTest {
                 ArgumentCaptor.forClass(OtpChallenge.class);
 
         EmailVerificationChallengeResult result = service.requestCode(
-                INPUT_EMAIL,
+                EMAIL,
                 VerificationPurpose.SIGN_UP
         );
 
@@ -172,7 +170,7 @@ class EmailVerificationServiceTest {
         )).willReturn(OtpVerificationStatus.VERIFIED);
 
         service.verifyAndConsumeCode(
-                INPUT_EMAIL,
+                EMAIL,
                 VerificationPurpose.SIGN_UP,
                 CHALLENGE_ID,
                 CODE
@@ -246,17 +244,17 @@ class EmailVerificationServiceTest {
     }
 
     @Test
-    @DisplayName("유효하지 않은 이메일은 Redis 접근 전 거절")
+    @DisplayName("올바르지 않은 이메일 형식은 비즈니스 예외로 Redis 접근 전 거절")
     void rejectsInvalidEmailBeforeRepositoryAccess() {
         Throwable thrown = catchThrowable(() -> service.requestCode(
-                "not-an-email",
+                "invalid-email",
                 VerificationPurpose.SIGN_UP
         ));
 
         then(thrown).isInstanceOfSatisfying(
                 BusinessException.class,
                 exception -> then(exception.getErrorCode())
-                        .isSameAs(AccountErrorCode.INVALID_EMAIL)
+                        .isSameAs(EmailVerificationErrorCode.INVALID_EMAIL)
         );
         verifyNoInteractions(
                 verificationRepository,

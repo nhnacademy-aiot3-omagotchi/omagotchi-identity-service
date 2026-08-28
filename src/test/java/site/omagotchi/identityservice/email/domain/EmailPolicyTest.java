@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.account.domain;
+package site.omagotchi.identityservice.email.domain;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

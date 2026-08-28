@@ -13,6 +13,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
+import site.omagotchi.identityservice.email.domain.EmailPolicy;
 
 import java.time.Duration;
 import java.time.Instant;
