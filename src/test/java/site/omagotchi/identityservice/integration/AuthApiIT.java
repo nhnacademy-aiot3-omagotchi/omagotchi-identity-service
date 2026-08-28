@@ -29,6 +29,8 @@ import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
 import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
+import site.omagotchi.identityservice.email.domain.OtpVerificationStatus;
+import site.omagotchi.identityservice.email.domain.VerificationPurpose;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -409,7 +411,27 @@ class AuthApiIT {
     }
 
     @Test
-    @DisplayName("OTP 오류 시 회원가입 Transaction Rollback")
+    @DisplayName("v2 가입 성공 시 OTP 소비와 기존 계정 응답 유지")
+    void signsUpOnV2AndConsumesEmailOtp() throws Exception {
+        AuthApiTestClient.OtpProof proof = api.otp("user@example.com", VerificationPurpose.SIGN_UP);
+
+        api.signUpWithCode(
+                "user@example.com", "password-passphrase", "홍길동", proof.challengeId(), proof.code()
+        ).andExpectAll(
+                status().isCreated(),
+                jsonPath("$.email").value("user@example.com"),
+                jsonPath("$.role").value("USER")
+        );
+
+        then(accountJpaRepository.findByEmail("user@example.com")).isPresent();
+        then(emailVerificationRepository.verifyAndConsume(
+                VerificationPurpose.SIGN_UP, "user@example.com", proof.challengeId(), proof.code(), 5
+        )).isEqualTo(OtpVerificationStatus.INVALID);
+        api.loginSuccessfully("user@example.com", "password-passphrase");
+    }
+
+    @Test
+    @DisplayName("v2 OTP 오류 시 회원가입 Transaction Rollback")
     void rollsBackSignupWhenVerificationCodeIsInvalid() throws Exception {
         ResultActions response = api.signUpWithCode(
                 "user@example.com",
@@ -421,7 +443,8 @@ class AuthApiIT {
 
         response.andExpectAll(
                 status().isBadRequest(),
-                jsonPath("$.code").value("EMAIL_VERIFICATION_INVALID")
+                jsonPath("$.code").value("EMAIL_VERIFICATION_INVALID"),
+                jsonPath("$.path").value("/api/v2/auth/signup")
         );
         then(accountJpaRepository.findByEmail("user@example.com")).isEmpty();
     }

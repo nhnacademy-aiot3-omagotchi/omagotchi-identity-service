@@ -2,6 +2,8 @@ package site.omagotchi.identityservice.account.presentation;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.restdocs.test.autoconfigure.AutoConfigureRestDocs;
@@ -12,25 +14,27 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import site.omagotchi.identityservice.account.application.AccountRegistrationService;
-import site.omagotchi.identityservice.email.application.EmailVerificationChallengeResult;
-import site.omagotchi.identityservice.email.application.EmailVerificationCooldownException;
+import site.omagotchi.identityservice.account.application.AccountRegistrationV2Service;
+import site.omagotchi.identityservice.account.domain.Account;
+import site.omagotchi.identityservice.account.domain.AccountStatus;
+import site.omagotchi.identityservice.account.domain.GlobalRole;
 import site.omagotchi.identityservice.global.config.PasswordEncoderConfig;
 import site.omagotchi.identityservice.global.security.basic.ServiceCredentialAuthenticationProviderFactory;
 import site.omagotchi.identityservice.global.security.error.SecurityErrorResponseHandler;
 import site.omagotchi.identityservice.global.security.frontend.FrontendCredentialProperties;
 import site.omagotchi.identityservice.global.security.frontend.FrontendSecurityConfig;
 
+import java.time.Instant;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
-import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.restdocs.headers.HeaderDocumentation.headerWithName;
 import static org.springframework.restdocs.headers.HeaderDocumentation.requestHeaders;
-import static org.springframework.restdocs.headers.HeaderDocumentation.responseHeaders;
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
 import static org.springframework.restdocs.operation.preprocess.Preprocessors.modifyHeaders;
 import static org.springframework.restdocs.operation.preprocess.Preprocessors.preprocessRequest;
@@ -39,14 +43,12 @@ import static org.springframework.restdocs.operation.preprocess.Preprocessors.pr
 import static org.springframework.restdocs.operation.preprocess.Preprocessors.replacePattern;
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
 import static org.springframework.restdocs.payload.PayloadDocumentation.requestFields;
-import static org.springframework.restdocs.payload.PayloadDocumentation.responseFields;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = AccountRegistrationController.class)
+@WebMvcTest(controllers = {AccountRegistrationController.class, AccountRegistrationV2Controller.class})
 @Import({
         FrontendSecurityConfig.class,
         ServiceCredentialAuthenticationProviderFactory.class,
@@ -56,13 +58,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @EnableConfigurationProperties(FrontendCredentialProperties.class)
 @ActiveProfiles("test")
 @AutoConfigureRestDocs(outputDir = "target/generated-snippets")
-@DisplayName("회원가입 이메일 OTP 요청 API")
+@DisplayName("v1 회원가입 호환 계약")
 class AccountRegistrationControllerTest {
 
-    private static final String EMAIL_OTP_PATH = "/api/v1/auth/signup/email-otp";
-    private static final Pattern PASSWORD_JSON = Pattern.compile(
-            "\"password\"\\s*:\\s*\"[^\"]*\""
-    );
+    private static final String SIGNUP_BODY = """
+            {
+              "email": "user@example.com",
+              "password": "password-passphrase",
+              "name": "사용자"
+            }
+            """;
 
     @Autowired
     private MockMvc mockMvc;
@@ -73,143 +78,85 @@ class AccountRegistrationControllerTest {
     @MockitoBean
     private AccountRegistrationService accountRegistrationService;
 
-    @Test
-    @DisplayName("Frontend 인증 후 SIGN_UP 이메일 OTP 발급·발송 요청")
-    void requestsSignUpEmailOtp() throws Exception {
-        given(accountRegistrationService.requestEmailOtp(
-                "user@example.com",
-                "password-passphrase",
-                "사용자"
-        )).willReturn(new EmailVerificationChallengeResult("challenge-id", 600L));
+    @MockitoBean
+    private AccountRegistrationV2Service accountRegistrationV2Service;
 
-        mockMvc.perform(authenticatedEmailOtpRequest())
+    @Test
+    @DisplayName("v1은 기존 세 필드만으로 가입하고 OTP 흐름을 호출하지 않음")
+    void signsUpWithoutEmailOtp() throws Exception {
+        Account account = mock(Account.class);
+        given(account.getId()).willReturn(UUID.fromString("00000000-0000-0000-0000-000000000635"));
+        given(account.getEmail()).willReturn("user@example.com");
+        given(account.getName()).willReturn("사용자");
+        given(account.getGlobalRole()).willReturn(GlobalRole.USER);
+        given(account.getStatus()).willReturn(AccountStatus.ACTIVE);
+        given(account.getCreatedAt()).willReturn(Instant.parse("2026-08-28T00:00:00Z"));
+        given(account.getUpdatedAt()).willReturn(Instant.parse("2026-08-28T00:00:00Z"));
+        given(accountRegistrationService.signUp(
+                "user@example.com", "password-passphrase", "사용자"
+        )).willReturn(account);
+
+        mockMvc.perform(post("/api/v1/auth/signup")
+                        .with(httpBasic(frontendProperties.username(), frontendProperties.password()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(SIGNUP_BODY))
                 .andExpectAll(
-                        status().isAccepted(),
-                        header().string(HttpHeaders.CACHE_CONTROL, "no-store"),
-                        jsonPath("$.challengeId").value("challenge-id"),
-                        jsonPath("$.expiresInSeconds").value(600L)
+                        status().isCreated(),
+                        jsonPath("$.email").value("user@example.com"),
+                        jsonPath("$.role").value("USER")
                 )
                 .andDo(document(
-                        "auth/signup/email-otp/success",
+                        "auth/signup/success",
                         preprocessRequest(
-                                modifyHeaders().set(
-                                        HttpHeaders.AUTHORIZATION,
-                                        "Basic cmVkYWN0ZWQ6cmVkYWN0ZWQ="
-                                ),
+                                modifyHeaders().set(HttpHeaders.AUTHORIZATION, "Basic cmVkYWN0ZWQ6cmVkYWN0ZWQ="),
                                 prettyPrint(),
-                                replacePattern(PASSWORD_JSON, "\"password\" : \"<password>\"")
+                                replacePattern(
+                                        Pattern.compile("\"password\"\\s*:\\s*\"[^\"]*\""),
+                                        "\"password\" : \"<password>\""
+                                )
                         ),
                         preprocessResponse(prettyPrint()),
-                        requestHeaders(
-                                headerWithName(HttpHeaders.AUTHORIZATION)
-                                        .description("Frontend Service HTTP Basic Credential")
-                        ),
+                        requestHeaders(headerWithName(HttpHeaders.AUTHORIZATION)
+                                .description("Frontend Service HTTP Basic Credential")),
                         requestFields(
                                 fieldWithPath("email").description("가입할 이메일"),
-                                fieldWithPath("password").description("가입 정책 사전 검사용 비밀번호"),
-                                fieldWithPath("name").description("가입 정책 사전 검사용 이름")
-                        ),
-                        responseHeaders(
-                                headerWithName(HttpHeaders.CACHE_CONTROL)
-                                        .description("OTP 요청 응답의 저장을 막는 no-store")
-                        ),
-                        responseFields(
-                                fieldWithPath("challengeId")
-                                        .description("최종 회원가입 요청에 OTP와 함께 제출할 식별자"),
-                                fieldWithPath("expiresInSeconds").description("OTP 유효 시간(초)")
+                                fieldWithPath("password").description("가입 비밀번호"),
+                                fieldWithPath("name").description("표시 이름")
                         )
                 ));
 
-        verify(accountRegistrationService).requestEmailOtp(
-                "user@example.com",
-                "password-passphrase",
-                "사용자"
-        );
+        verify(accountRegistrationService).signUp("user@example.com", "password-passphrase", "사용자");
+        verifyNoInteractions(accountRegistrationV2Service);
     }
 
     @Test
-    @DisplayName("Frontend 인증 없는 OTP 요청 거부")
-    void rejectsEmailOtpRequestWithoutFrontendAuthentication() throws Exception {
-        mockMvc.perform(emailOtpRequest())
-                .andExpectAll(
-                        status().isUnauthorized(),
-                        header().string(HttpHeaders.WWW_AUTHENTICATE, startsWith("Basic")),
-                        jsonPath("$.code").value("AUTH_AUTHENTICATION_REQUIRED")
-                );
-
-        verifyNoInteractions(accountRegistrationService);
-    }
-
-    @Test
-    @DisplayName("사용자 Bearer 인증으로 가입 OTP를 요청할 수 없음")
-    void rejectsBearerAuthenticationForEmailOtpRequest() throws Exception {
-        mockMvc.perform(emailOtpRequest()
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer not-a-frontend-credential"))
-                .andExpectAll(
-                        status().isUnauthorized(),
-                        header().string(HttpHeaders.WWW_AUTHENTICATE, startsWith("Basic"))
-                );
-
-        verifyNoInteractions(accountRegistrationService);
-    }
-
-    @Test
-    @DisplayName("이전 이메일 인증 Challenge 경로는 더 이상 매핑하지 않음")
-    void rejectsLegacyEmailChallengePath() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/signup/email-verification/challenges")
-                        .with(httpBasic(frontendProperties.username(), frontendProperties.password())))
-                .andExpect(status().isNotFound());
-
-        verifyNoInteractions(accountRegistrationService);
-    }
-
-    @Test
-    @DisplayName("가입 입력이 누락된 OTP 요청 거부")
-    void rejectsEmailOtpRequestWithoutSignupFields() throws Exception {
-        mockMvc.perform(authenticatedEmailOtpRequest()
-                        .content("""
-                                {"email": "user@example.com"}
-                                """))
+    @DisplayName("v1 요청을 v2에 보내면 OTP 필수값 누락으로 거부")
+    void rejectsV1PayloadOnV2Signup() throws Exception {
+        mockMvc.perform(post("/api/v2/auth/signup")
+                        .with(httpBasic(frontendProperties.username(), frontendProperties.password()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(SIGNUP_BODY))
                 .andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.code").value("COMMON_INVALID_REQUEST")
                 );
 
-        verifyNoInteractions(accountRegistrationService);
+        verifyNoInteractions(accountRegistrationService, accountRegistrationV2Service);
     }
 
-    @Test
-    @DisplayName("OTP 재발급 쿨다운의 Retry-After 계약 유지")
-    void preservesEmailOtpCooldownResponse() throws Exception {
-        given(accountRegistrationService.requestEmailOtp(
-                "user@example.com",
-                "password-passphrase",
-                "사용자"
-        )).willThrow(new EmailVerificationCooldownException(30L));
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/api/v1/auth/signup/email-otp",
+            "/api/v1/auth/signup/email-verification/challenges"
+    })
+    @DisplayName("v1에는 이메일 OTP 요청 경로를 제공하지 않음")
+    void doesNotExposeEmailOtpOnV1(String path) throws Exception {
+        mockMvc.perform(post(path)
+                        .with(httpBasic(frontendProperties.username(), frontendProperties.password()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(SIGNUP_BODY))
+                .andExpect(status().isNotFound());
 
-        mockMvc.perform(authenticatedEmailOtpRequest())
-                .andExpectAll(
-                        status().isTooManyRequests(),
-                        header().string(HttpHeaders.RETRY_AFTER, "30"),
-                        jsonPath("$.code").value("EMAIL_VERIFICATION_COOLDOWN_ACTIVE"),
-                        jsonPath("$.path").value(EMAIL_OTP_PATH)
-                );
-    }
-
-    private MockHttpServletRequestBuilder authenticatedEmailOtpRequest() {
-        return emailOtpRequest()
-                .with(httpBasic(frontendProperties.username(), frontendProperties.password()));
-    }
-
-    private MockHttpServletRequestBuilder emailOtpRequest() {
-        return post(EMAIL_OTP_PATH)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                        {
-                          "email": "user@example.com",
-                          "password": "password-passphrase",
-                          "name": "사용자"
-                        }
-                        """);
+        verifyNoInteractions(accountRegistrationService, accountRegistrationV2Service);
     }
 }

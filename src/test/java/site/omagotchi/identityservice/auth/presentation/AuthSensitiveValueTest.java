@@ -2,8 +2,11 @@ package site.omagotchi.identityservice.auth.presentation;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import site.omagotchi.identityservice.account.presentation.request.SignupRequest;
+import site.omagotchi.identityservice.account.presentation.request.SignupV2Request;
 import site.omagotchi.identityservice.auth.application.result.TokenIssueResult;
 import site.omagotchi.identityservice.auth.presentation.request.PasswordChangeRequest;
+import site.omagotchi.identityservice.auth.presentation.request.PasswordChangeV2Request;
 import site.omagotchi.identityservice.auth.presentation.request.RefreshTokenRequest;
 import site.omagotchi.identityservice.auth.presentation.response.TokenResponse;
 
@@ -33,9 +36,7 @@ class AuthSensitiveValueTest {
         RefreshTokenRequest request = new RefreshTokenRequest(refreshToken);
         PasswordChangeRequest passwordChangeRequest = new PasswordChangeRequest(
                 "current-password-passphrase",
-                "new-password-passphrase",
-                "challenge-id",
-                "123456"
+                "new-password-passphrase"
         );
         TokenResponse response = TokenResponse.from(result);
 
@@ -54,11 +55,28 @@ class AuthSensitiveValueTest {
                 .contains("[REDACTED]")
                 .doesNotContain(
                         passwordChangeRequest.currentPassword(),
-                        passwordChangeRequest.newPassword(),
-                        passwordChangeRequest.code()
+                        passwordChangeRequest.newPassword()
                 );
         then(responseText)
                 .contains("[REDACTED]")
                 .doesNotContain(accessToken, refreshToken);
+    }
+
+    @Test
+    @DisplayName("버전별 가입·비밀번호 변경 요청의 비밀번호와 OTP 마스킹")
+    void redactsSensitiveFieldsAcrossApiVersions() {
+        String password = "password-passphrase";
+        String code = "123456";
+        SignupRequest signup = new SignupRequest("user@example.com", password, "사용자");
+        SignupV2Request signupV2 = new SignupV2Request(
+                "user@example.com", password, "사용자", "challenge-id", code
+        );
+        PasswordChangeV2Request passwordChangeV2 = new PasswordChangeV2Request(
+                password, "new-password-passphrase", "challenge-id", code
+        );
+
+        then(signup.toString()).doesNotContain(password);
+        then(signupV2.toString()).doesNotContain(password, code);
+        then(passwordChangeV2.toString()).doesNotContain(password, "new-password-passphrase", code);
     }
 }

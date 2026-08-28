@@ -22,11 +22,14 @@ import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
 import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
+import site.omagotchi.identityservice.email.domain.OtpVerificationStatus;
+import site.omagotchi.identityservice.email.domain.VerificationPurpose;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -305,7 +308,31 @@ class PasswordChangeIT {
     }
 
     @Test
-    @DisplayName("OTP 오류 시 비밀번호와 Refresh Session Rollback")
+    @DisplayName("v2 비밀번호 변경 시 OTP 소비·Refresh Session 폐기·새 비밀번호 로그인")
+    void changesPasswordOnV2AndConsumesEmailOtp() throws Exception {
+        UUID accountId = api.signupSuccessfully("user@example.com");
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully("user@example.com", CURRENT_PASSWORD);
+        AuthApiTestClient.OtpProof proof = api.otp("user@example.com", VerificationPurpose.PASSWORD_CHANGE);
+
+        api.changePasswordWithCode(
+                login.accessToken(), CURRENT_PASSWORD, NEW_PASSWORD, proof.challengeId(), proof.code()
+        ).andExpectAll(
+                status().isNoContent(),
+                header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store"))
+        );
+
+        then(tokensFor(accountId)).hasSize(1).allSatisfy(token -> {
+            then(token.isRevoked()).isTrue();
+            then(token.getRevocationReason()).isEqualTo(RefreshTokenRevocationReason.PASSWORD_CHANGED);
+        });
+        then(emailVerificationRepository.verifyAndConsume(
+                VerificationPurpose.PASSWORD_CHANGE, "user@example.com", proof.challengeId(), proof.code(), 5
+        )).isEqualTo(OtpVerificationStatus.INVALID);
+        api.loginSuccessfully("user@example.com", NEW_PASSWORD);
+    }
+
+    @Test
+    @DisplayName("v2 OTP 오류 시 비밀번호와 Refresh Session Rollback")
     void rollsBackPasswordAndSessionsWhenVerificationCodeIsInvalid() throws Exception {
         UUID accountId = api.signupSuccessfully("user@example.com");
         AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
@@ -326,7 +353,8 @@ class PasswordChangeIT {
 
         response.andExpectAll(
                 status().isBadRequest(),
-                jsonPath("$.code").value("EMAIL_VERIFICATION_INVALID")
+                jsonPath("$.code").value("EMAIL_VERIFICATION_INVALID"),
+                jsonPath("$.path").value("/api/v2/users/me/password")
         );
         Account rolledBackAccount = accountJpaRepository.findById(accountId).orElseThrow();
         thenSoftly(softly -> {

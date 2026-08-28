@@ -3,7 +3,8 @@ package site.omagotchi.identityservice.integration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -17,6 +18,7 @@ import site.omagotchi.identityservice.account.application.port.PasswordHasher;
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
 import site.omagotchi.identityservice.auth.application.PasswordChangeService;
+import site.omagotchi.identityservice.auth.application.PasswordChangeV2Service;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
@@ -74,6 +76,9 @@ class PasswordChangeConcurrencyIT {
     private PasswordChangeService passwordChangeService;
 
     @Autowired
+    private PasswordChangeV2Service passwordChangeV2Service;
+
+    @Autowired
     private PlatformTransactionManager transactionManager;
 
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -92,14 +97,15 @@ class PasswordChangeConcurrencyIT {
         executor.shutdownNow();
     }
 
-    @Test
-    @DisplayName("같은 현재 비밀번호를 사용한 동시 변경 직렬화")
-    void serializesConcurrentPasswordChanges() throws Exception {
+    @ParameterizedTest(name = "first=v{0}, second=v{1}")
+    @CsvSource({"1, 1", "1, 2", "2, 1", "2, 2"})
+    @DisplayName("v1·v2의 같은 현재 비밀번호를 사용한 동시 변경 직렬화")
+    void serializesConcurrentPasswordChanges(int firstVersion, int secondVersion) throws Exception {
         // Given
         UUID accountId = api.signupSuccessfully("user@example.com");
         api.loginSuccessfully("user@example.com", CURRENT_PASSWORD);
         api.loginSuccessfully("user@example.com", CURRENT_PASSWORD);
-        AuthApiTestClient.OtpProof proof = api.otp(
+        AuthApiTestClient.OtpProof proof = firstVersion == 1 && secondVersion == 1 ? null : api.otp(
                 "user@example.com",
                 VerificationPurpose.PASSWORD_CHANGE
         );
@@ -111,12 +117,11 @@ class PasswordChangeConcurrencyIT {
 
         // 첫 변경이 계정 행 잠금을 유지한 채 커밋 직전 대기
         Future<?> firstChange = executor.submit(() -> transaction.executeWithoutResult(status -> {
-            passwordChangeService.changePassword(
+            changePassword(
+                    firstVersion,
                     accountId,
-                    CURRENT_PASSWORD,
                     FIRST_NEW_PASSWORD,
-                    proof.challengeId(),
-                    proof.code()
+                    proof
             );
             firstChangeFinished.countDown();
             await(allowFirstCommit);
@@ -126,12 +131,11 @@ class PasswordChangeConcurrencyIT {
         // When
         Future<Throwable> secondChange = executor.submit(() -> {
             secondChangeStarted.countDown();
-            return catchThrowable(() -> passwordChangeService.changePassword(
+            return catchThrowable(() -> changePassword(
+                    secondVersion,
                     accountId,
-                    CURRENT_PASSWORD,
                     SECOND_NEW_PASSWORD,
-                    proof.challengeId(),
-                    proof.code()
+                    proof
             ));
         });
         await(secondChangeStarted);
@@ -175,6 +179,16 @@ class PasswordChangeConcurrencyIT {
                         .isEqualTo(RefreshTokenRevocationReason.PASSWORD_CHANGED);
             });
         });
+    }
+
+    private void changePassword(int version, UUID accountId, String newPassword, AuthApiTestClient.OtpProof proof) {
+        if (version == 1) {
+            passwordChangeService.changePassword(accountId, CURRENT_PASSWORD, newPassword);
+        } else {
+            passwordChangeV2Service.changePassword(
+                    accountId, CURRENT_PASSWORD, newPassword, proof.challengeId(), proof.code()
+            );
+        }
     }
 
     private List<RefreshToken> tokensFor(UUID accountId) {

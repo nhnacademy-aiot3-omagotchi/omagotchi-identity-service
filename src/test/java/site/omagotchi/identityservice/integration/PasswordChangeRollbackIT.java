@@ -2,7 +2,8 @@ package site.omagotchi.identityservice.integration;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,6 +16,7 @@ import site.omagotchi.identityservice.account.application.port.PasswordHasher;
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
 import site.omagotchi.identityservice.auth.application.PasswordChangeService;
+import site.omagotchi.identityservice.auth.application.PasswordChangeV2Service;
 import site.omagotchi.identityservice.auth.application.port.RefreshTokenRepository;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
@@ -53,6 +55,9 @@ class PasswordChangeRollbackIT {
     private PasswordChangeService passwordChangeService;
 
     @Autowired
+    private PasswordChangeV2Service passwordChangeV2Service;
+
+    @Autowired
     private FailingRefreshTokenRepository failingRefreshTokenRepository;
 
     @BeforeEach
@@ -62,9 +67,10 @@ class PasswordChangeRollbackIT {
         failingRefreshTokenRepository.reset();
     }
 
-    @Test
-    @DisplayName("Session 폐기 단계 실패 시 비밀번호 Hash와 폐기 상태 모두 Rollback")
-    void rollsBackPasswordAndRevocationWhenRevocationFails() {
+    @ParameterizedTest(name = "v{0}")
+    @ValueSource(ints = {1, 2})
+    @DisplayName("버전별 Session 폐기 실패 시 비밀번호 Hash와 폐기 상태 모두 Rollback")
+    void rollsBackPasswordAndRevocationWhenRevocationFails(int version) {
         // Given
         Account account = accountJpaRepository.saveAndFlush(Account.register(
                 "user@example.com",
@@ -83,13 +89,15 @@ class PasswordChangeRollbackIT {
         );
 
         // When
-        Throwable thrown = catchThrowable(() -> passwordChangeService.changePassword(
-                account.getId(),
-                CURRENT_PASSWORD,
-                NEW_PASSWORD,
-                "unused-challenge",
-                "000000"
-        ));
+        Throwable thrown = catchThrowable(() -> {
+            if (version == 1) {
+                passwordChangeService.changePassword(account.getId(), CURRENT_PASSWORD, NEW_PASSWORD);
+            } else {
+                passwordChangeV2Service.changePassword(
+                        account.getId(), CURRENT_PASSWORD, NEW_PASSWORD, "unused-challenge", "000000"
+                );
+            }
+        });
 
         // Then
         Account rolledBackAccount = accountJpaRepository.findById(account.getId()).orElseThrow();

@@ -110,11 +110,7 @@ class IdentityApiDocumentationIT {
                         requestFields(
                                 fieldWithPath("email").description("가입할 이메일"),
                                 fieldWithPath("password").description("15~64자 비밀번호. UTF-8 기준 최대 72바이트"),
-                                fieldWithPath("name").description("앞뒤 공백을 제외한 1~30자 이름"),
-                                fieldWithPath("challengeId")
-                                        .description("SIGN_UP OTP Challenge ID"),
-                                fieldWithPath("code")
-                                        .description("이메일로 받은 6자리 OTP")
+                                fieldWithPath("name").description("앞뒤 공백을 제외한 1~30자 이름")
                         ),
                         accountResponseFields()
                 ));

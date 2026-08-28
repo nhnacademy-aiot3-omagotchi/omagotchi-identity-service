@@ -15,8 +15,6 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.BDDAssertions.then;
@@ -37,21 +35,16 @@ final class AuthApiTestClient {
     private final MockMvc mockMvc;
     private final ObjectMapper objectMapper;
     private final EmailVerificationRepository emailVerificationRepository;
-    private final Map<String, String> emailByAccessToken = new HashMap<>();
 
     ResultActions signUp(String email) throws Exception {
         return signUp(email, "password-passphrase", "홍길동");
     }
 
     ResultActions signUp(String email, String password, String name) throws Exception {
-        OtpProof proof = otp(email, VerificationPurpose.SIGN_UP);
-        return signUpWithCode(
-                email,
-                password,
-                name,
-                proof.challengeId(),
-                proof.code()
-        );
+        return mockMvc.perform(post("/api/v1/auth/signup")
+                .with(httpBasic(FRONTEND_USERNAME, FRONTEND_PASSWORD))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(signupBody(email, password, name)));
     }
 
     ResultActions signUpWithCode(
@@ -61,7 +54,7 @@ final class AuthApiTestClient {
             String challengeId,
             String code
     ) throws Exception {
-        return mockMvc.perform(post("/api/v1/auth/signup")
+        return mockMvc.perform(post("/api/v2/auth/signup")
                 .with(httpBasic(FRONTEND_USERNAME, FRONTEND_PASSWORD))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(signupBody(email, password, name, challengeId, code)));
@@ -93,21 +86,10 @@ final class AuthApiTestClient {
             String currentPassword,
             String newPassword
     ) throws Exception {
-        String email = emailByAccessToken.get(accessToken);
-        if (email == null) {
-            throw new IllegalStateException("Access Token에 연결된 Test 이메일이 없습니다.");
-        }
-        OtpProof proof = otp(
-                email,
-                VerificationPurpose.PASSWORD_CHANGE
-        );
-        return changePasswordWithCode(
-                accessToken,
-                currentPassword,
-                newPassword,
-                proof.challengeId(),
-                proof.code()
-        );
+        return mockMvc.perform(patch("/api/v1/users/me/password")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(passwordChangeBody(currentPassword, newPassword)));
     }
 
     ResultActions changePasswordWithCode(
@@ -117,7 +99,7 @@ final class AuthApiTestClient {
             String challengeId,
             String code
     ) throws Exception {
-        return mockMvc.perform(patch("/api/v1/users/me/password")
+        return mockMvc.perform(patch("/api/v2/users/me/password")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(passwordChangeBody(
@@ -160,9 +142,7 @@ final class AuthApiTestClient {
                 .andReturn()
                 .getResponse();
 
-        TokenBundle tokenBundle = readTokenBundle(response.getContentAsString());
-        emailByAccessToken.put(tokenBundle.accessToken(), EmailPolicy.normalize(email));
-        return tokenBundle;
+        return readTokenBundle(response.getContentAsString());
     }
 
     TokenBundle refreshSuccessfully(String refreshToken) throws Exception {
@@ -204,6 +184,16 @@ final class AuthApiTestClient {
         return proof;
     }
 
+    private String signupBody(String email, String password, String name) {
+        return """
+                {
+                  "email": "%s",
+                  "password": "%s",
+                  "name": "%s"
+                }
+                """.formatted(email, password, name);
+    }
+
     private String signupBody(
             String email,
             String password,
@@ -237,6 +227,15 @@ final class AuthApiTestClient {
                   "refreshToken": "%s"
                 }
                 """.formatted(refreshToken);
+    }
+
+    private String passwordChangeBody(String currentPassword, String newPassword) {
+        return """
+                {
+                  "currentPassword": "%s",
+                  "newPassword": "%s"
+                }
+                """.formatted(currentPassword, newPassword);
     }
 
     private String passwordChangeBody(

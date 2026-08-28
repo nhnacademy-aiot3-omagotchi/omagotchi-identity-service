@@ -2,8 +2,6 @@ package site.omagotchi.identityservice.auth.presentation;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.restdocs.test.autoconfigure.AutoConfigureRestDocs;
@@ -20,9 +18,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import site.omagotchi.identityservice.account.application.AccountErrorCode;
-import site.omagotchi.identityservice.auth.application.PasswordChangeService;
 import site.omagotchi.identityservice.auth.application.PasswordChangeV2Service;
 import site.omagotchi.identityservice.auth.infrastructure.JwtAccessTokenIssuer;
+import site.omagotchi.identityservice.email.application.EmailVerificationChallengeResult;
+import site.omagotchi.identityservice.email.application.EmailVerificationCooldownException;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 import site.omagotchi.identityservice.global.security.error.SecurityErrorResponseHandler;
 import site.omagotchi.identityservice.global.security.jwt.JwtAuthorityConfig;
@@ -35,6 +34,8 @@ import java.time.Clock;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -50,12 +51,14 @@ import static org.springframework.restdocs.operation.preprocess.Preprocessors.re
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
 import static org.springframework.restdocs.payload.PayloadDocumentation.requestFields;
 import static org.springframework.restdocs.payload.PayloadDocumentation.responseFields;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = {PasswordChangeController.class, PasswordChangeV2Controller.class})
+@WebMvcTest(controllers = PasswordChangeV2Controller.class)
 @Import({
         JwtSecurityConfig.class,
         JwtConfig.class,
@@ -66,19 +69,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @EnableConfigurationProperties(JwtProperties.class)
 @ActiveProfiles("test")
 @AutoConfigureRestDocs(outputDir = "target/generated-snippets")
-@DisplayName("v1 비밀번호 변경 호환 계약")
-class PasswordChangeControllerTest {
+@DisplayName("v2 비밀번호 변경·이메일 OTP API")
+class PasswordChangeV2ControllerTest {
 
     private static final UUID ACCOUNT_ID = UUID.fromString(
             "00000000-0000-0000-0000-000000000635"
     );
     private static final String CURRENT_PASSWORD = "password-passphrase";
     private static final String NEW_PASSWORD = "new-password-passphrase";
+    private static final String CHALLENGE_ID = "challenge-id";
+    private static final String CODE = "123456";
+    private static final String EMAIL_OTP_PATH = "/api/v2/users/me/password/email-otp";
     private static final Pattern CURRENT_PASSWORD_JSON = Pattern.compile(
             "\"currentPassword\"\\s*:\\s*\"[^\"]*\""
     );
     private static final Pattern NEW_PASSWORD_JSON = Pattern.compile(
             "\"newPassword\"\\s*:\\s*\"[^\"]*\""
+    );
+    private static final Pattern CODE_JSON = Pattern.compile(
+            "\"code\"\\s*:\\s*\"[^\"]*\""
     );
 
     @Autowired
@@ -91,10 +100,7 @@ class PasswordChangeControllerTest {
     private JwtProperties jwtProperties;
 
     @MockitoBean
-    private PasswordChangeService passwordChangeService;
-
-    @MockitoBean
-    private PasswordChangeV2Service passwordChangeV2Service;
+    private PasswordChangeV2Service passwordChangeService;
 
     @Test
     @DisplayName("현재 비밀번호와 새 비밀번호로 변경 요청")
@@ -102,7 +108,7 @@ class PasswordChangeControllerTest {
         mockMvc.perform(passwordChangeRequest())
                 .andExpect(status().isNoContent())
                 .andDo(document(
-                        "password-change/success",
+                        "v2/password-change/success",
                         documentedRequest(),
                         documentedResponse(),
                         requestHeaders(
@@ -117,50 +123,107 @@ class PasswordChangeControllerTest {
                                 fieldWithPath("currentPassword")
                                         .description("현재 비밀번호"),
                                 fieldWithPath("newPassword")
-                                        .description("현재 비밀번호와 다른 15~64자 새 비밀번호. 공백-only·제어 문자·UTF-8 72바이트 초과 입력은 허용하지 않음")
+                                        .description("현재 비밀번호와 다른 15~64자 새 비밀번호. 공백-only·제어 문자·UTF-8 72바이트 초과 입력은 허용하지 않음"),
+                                fieldWithPath("challengeId")
+                                        .description("PASSWORD_CHANGE OTP Challenge ID"),
+                                fieldWithPath("code")
+                                        .description("이메일로 받은 6자리 OTP")
                         )
                 ));
 
         verify(passwordChangeService).changePassword(
                 ACCOUNT_ID,
                 CURRENT_PASSWORD,
-                NEW_PASSWORD
+                NEW_PASSWORD,
+                CHALLENGE_ID,
+                CODE
         );
-        verifyNoInteractions(passwordChangeV2Service);
     }
 
     @Test
-    @DisplayName("v1 요청을 v2에 보내면 OTP 필수값 누락으로 거부")
-    void rejectsV1PayloadOnV2PasswordChange() throws Exception {
-        mockMvc.perform(patch("/api/v2/users/me/password")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "currentPassword": "password-passphrase",
-                                  "newPassword": "new-password-passphrase"
-                                }
-                                """))
-                .andExpectAll(
-                        status().isBadRequest(),
-                        jsonPath("$.code").value("COMMON_INVALID_REQUEST")
-                );
+    @DisplayName("JWT 계정으로 비밀번호 변경 이메일 OTP 발급·발송 요청")
+    void requestsPasswordChangeEmailOtp() throws Exception {
+        given(passwordChangeService.requestEmailOtp(ACCOUNT_ID))
+                .willReturn(new EmailVerificationChallengeResult("challenge-id", 600L));
 
-        verifyNoInteractions(passwordChangeService, passwordChangeV2Service);
+        mockMvc.perform(emailOtpRequest())
+                .andExpectAll(
+                        status().isAccepted(),
+                        header().string(HttpHeaders.CACHE_CONTROL, "no-store"),
+                        jsonPath("$.challengeId").value("challenge-id"),
+                        jsonPath("$.expiresInSeconds").value(600L)
+                )
+                .andDo(document(
+                        "v2/password-change/email-otp/success",
+                        documentedRequest(),
+                        documentedResponse(),
+                        requestHeaders(
+                                headerWithName(HttpHeaders.AUTHORIZATION)
+                                        .description("사용자의 Access JWT Bearer Token")
+                        ),
+                        responseHeaders(
+                                headerWithName(HttpHeaders.CACHE_CONTROL)
+                                        .description("OTP 요청 응답의 저장을 막는 no-store")
+                        ),
+                        responseFields(
+                                fieldWithPath("challengeId")
+                                        .description("최종 비밀번호 변경 요청에 OTP와 함께 제출할 식별자"),
+                                fieldWithPath("expiresInSeconds").description("OTP 유효 시간(초)")
+                        )
+                ));
+
+        verify(passwordChangeService).requestEmailOtp(ACCOUNT_ID);
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {
-            "/api/v1/users/me/password/email-otp",
-            "/api/v1/users/me/password/email-verification/challenges"
-    })
-    @DisplayName("v1 비밀번호 변경에는 이메일 OTP 요청 경로를 제공하지 않음")
-    void doesNotExposeEmailOtpOnV1(String path) throws Exception {
-        mockMvc.perform(post(path)
+    @Test
+    @DisplayName("Access JWT 없는 비밀번호 변경 OTP 요청 거부")
+    void rejectsEmailOtpRequestWithoutBearerAuthentication() throws Exception {
+        mockMvc.perform(post(EMAIL_OTP_PATH))
+                .andExpectAll(
+                        status().isUnauthorized(),
+                        header().string(HttpHeaders.WWW_AUTHENTICATE, startsWith("Bearer")),
+                        jsonPath("$.code").value("AUTH_AUTHENTICATION_REQUIRED")
+                );
+
+        verifyNoInteractions(passwordChangeService);
+    }
+
+    @Test
+    @DisplayName("Frontend Basic 인증으로 비밀번호 변경 OTP를 요청할 수 없음")
+    void rejectsBasicAuthenticationForEmailOtpRequest() throws Exception {
+        mockMvc.perform(post(EMAIL_OTP_PATH)
+                        .with(httpBasic("frontend", "test-only-frontend-credential-password")))
+                .andExpectAll(
+                        status().isUnauthorized(),
+                        header().string(HttpHeaders.WWW_AUTHENTICATE, startsWith("Bearer"))
+                );
+
+        verifyNoInteractions(passwordChangeService);
+    }
+
+    @Test
+    @DisplayName("이전 비밀번호 변경 Challenge 경로는 더 이상 매핑하지 않음")
+    void rejectsLegacyEmailChallengePath() throws Exception {
+        mockMvc.perform(post("/api/v2/users/me/password/email-verification/challenges")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken()))
                 .andExpect(status().isNotFound());
 
-        verifyNoInteractions(passwordChangeService, passwordChangeV2Service);
+        verifyNoInteractions(passwordChangeService);
+    }
+
+    @Test
+    @DisplayName("OTP 재발급 쿨다운의 Retry-After 계약 유지")
+    void preservesEmailOtpCooldownResponse() throws Exception {
+        given(passwordChangeService.requestEmailOtp(ACCOUNT_ID))
+                .willThrow(new EmailVerificationCooldownException(30L));
+
+        mockMvc.perform(emailOtpRequest())
+                .andExpectAll(
+                        status().isTooManyRequests(),
+                        header().string(HttpHeaders.RETRY_AFTER, "30"),
+                        jsonPath("$.code").value("EMAIL_VERIFICATION_COOLDOWN_ACTIVE"),
+                        jsonPath("$.path").value(EMAIL_OTP_PATH)
+                );
     }
 
     @Test
@@ -172,7 +235,7 @@ class PasswordChangeControllerTest {
                         jsonPath("$.code").value("AUTH_AUTHENTICATION_REQUIRED")
                 )
                 .andDo(document(
-                        "password-change/authentication-required",
+                        "v2/password-change/authentication-required",
                         plainRequest(),
                         documentedResponse(),
                         errorResponseFields()
@@ -184,7 +247,13 @@ class PasswordChangeControllerTest {
     void documentsCurrentPasswordMismatch() throws Exception {
         willThrow(new BusinessException(AccountErrorCode.CURRENT_PASSWORD_MISMATCH))
                 .given(passwordChangeService)
-                .changePassword(ACCOUNT_ID, CURRENT_PASSWORD, NEW_PASSWORD);
+                .changePassword(
+                        ACCOUNT_ID,
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD,
+                        CHALLENGE_ID,
+                        CODE
+                );
 
         mockMvc.perform(passwordChangeRequest())
                 .andExpectAll(
@@ -192,7 +261,7 @@ class PasswordChangeControllerTest {
                         jsonPath("$.code").value("ACCOUNT_CURRENT_PASSWORD_MISMATCH")
                 )
                 .andDo(document(
-                        "password-change/current-password-mismatch",
+                        "v2/password-change/current-password-mismatch",
                         documentedRequest(),
                         documentedResponse(),
                         errorResponseFields()
@@ -204,7 +273,13 @@ class PasswordChangeControllerTest {
     void documentsInvalidNewPassword() throws Exception {
         willThrow(new BusinessException(AccountErrorCode.INVALID_PASSWORD))
                 .given(passwordChangeService)
-                .changePassword(ACCOUNT_ID, CURRENT_PASSWORD, NEW_PASSWORD);
+                .changePassword(
+                        ACCOUNT_ID,
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD,
+                        CHALLENGE_ID,
+                        CODE
+                );
 
         mockMvc.perform(passwordChangeRequest())
                 .andExpectAll(
@@ -212,7 +287,7 @@ class PasswordChangeControllerTest {
                         jsonPath("$.code").value("ACCOUNT_INVALID_PASSWORD")
                 )
                 .andDo(document(
-                        "password-change/invalid-new-password",
+                        "v2/password-change/invalid-new-password",
                         documentedRequest(),
                         documentedResponse(),
                         errorResponseFields()
@@ -224,7 +299,13 @@ class PasswordChangeControllerTest {
     void documentsUnchangedPassword() throws Exception {
         willThrow(new BusinessException(AccountErrorCode.PASSWORD_UNCHANGED))
                 .given(passwordChangeService)
-                .changePassword(ACCOUNT_ID, CURRENT_PASSWORD, NEW_PASSWORD);
+                .changePassword(
+                        ACCOUNT_ID,
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD,
+                        CHALLENGE_ID,
+                        CODE
+                );
 
         mockMvc.perform(passwordChangeRequest())
                 .andExpectAll(
@@ -232,7 +313,7 @@ class PasswordChangeControllerTest {
                         jsonPath("$.code").value("ACCOUNT_PASSWORD_UNCHANGED")
                 )
                 .andDo(document(
-                        "password-change/unchanged-password",
+                        "v2/password-change/unchanged-password",
                         documentedRequest(),
                         documentedResponse(),
                         errorResponseFields()
@@ -244,7 +325,13 @@ class PasswordChangeControllerTest {
     void documentsUnavailableAccount() throws Exception {
         willThrow(new BusinessException(AccountErrorCode.PASSWORD_CHANGE_NOT_ALLOWED))
                 .given(passwordChangeService)
-                .changePassword(ACCOUNT_ID, CURRENT_PASSWORD, NEW_PASSWORD);
+                .changePassword(
+                        ACCOUNT_ID,
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD,
+                        CHALLENGE_ID,
+                        CODE
+                );
 
         mockMvc.perform(passwordChangeRequest())
                 .andExpectAll(
@@ -252,11 +339,16 @@ class PasswordChangeControllerTest {
                         jsonPath("$.code").value("ACCOUNT_PASSWORD_CHANGE_NOT_ALLOWED")
                 )
                 .andDo(document(
-                        "password-change/not-allowed",
+                        "v2/password-change/not-allowed",
                         documentedRequest(),
                         documentedResponse(),
                         errorResponseFields()
                 ));
+    }
+
+    private MockHttpServletRequestBuilder emailOtpRequest() {
+        return post(EMAIL_OTP_PATH)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken());
     }
 
     private MockHttpServletRequestBuilder passwordChangeRequest() {
@@ -265,12 +357,14 @@ class PasswordChangeControllerTest {
     }
 
     private MockHttpServletRequestBuilder passwordChangeRequestWithoutAuthentication() {
-        return patch("/api/v1/users/me/password")
+        return patch("/api/v2/users/me/password")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {
                           "currentPassword": "password-passphrase",
-                          "newPassword": "new-password-passphrase"
+                          "newPassword": "new-password-passphrase",
+                          "challengeId": "challenge-id",
+                          "code": "123456"
                         }
                         """);
     }
@@ -308,6 +402,10 @@ class PasswordChangeControllerTest {
                 replacePattern(
                         NEW_PASSWORD_JSON,
                         "\"newPassword\" : \"<password>\""
+                ),
+                replacePattern(
+                        CODE_JSON,
+                        "\"code\" : \"<verification-code>\""
                 )
         );
     }
@@ -326,6 +424,10 @@ class PasswordChangeControllerTest {
                 replacePattern(
                         NEW_PASSWORD_JSON,
                         "\"newPassword\" : \"<password>\""
+                ),
+                replacePattern(
+                        CODE_JSON,
+                        "\"code\" : \"<verification-code>\""
                 )
         );
     }

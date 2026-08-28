@@ -3,7 +3,7 @@ package site.omagotchi.identityservice.account.presentation.request;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
-public record SignupRequest(
+public record SignupV2Request(
         @NotBlank(message = "이메일은 필수입니다.")
         String email,
 
@@ -12,15 +12,21 @@ public record SignupRequest(
         String password,
 
         @NotBlank(message = "이름은 필수입니다.")
-        String name
+        String name,
+
+        @NotBlank(message = "Challenge ID는 필수입니다.")
+        String challengeId,
+
+        @NotBlank(message = "인증 코드는 필수입니다.")
+        String code
 ) {
-    public SignupRequest {
+    public SignupV2Request {
         email = email == null ? null : email.trim();
     }
 
     // 민감정보의 로그 노출 방지
     @Override
     public String toString() {
-        return "SignupRequest[sensitive fields redacted]";
+        return "SignupV2Request[sensitive fields=[REDACTED]]";
     }
 }
