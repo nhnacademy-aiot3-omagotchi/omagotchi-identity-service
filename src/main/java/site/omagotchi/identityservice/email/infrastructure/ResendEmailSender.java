@@ -20,6 +20,8 @@ public class ResendEmailSender implements VerificationMailSender {
 
     private static final String SUBJECT = "[Omagotchi] 이메일 인증 코드";
     private static final String CODE_PATTERN = "\\d{6}";
+    private static final int TOO_MANY_REQUESTS = 429;
+    private static final String RATE_LIMIT_EXCEEDED = "rate_limit_exceeded";
 
     private final Resend resend;
     private final ResendProperties properties;
@@ -53,7 +55,7 @@ public class ResendEmailSender implements VerificationMailSender {
             throw new EmailDeliveryException(
                     exception.getStatusCode(),
                     exception.getErrorName(),
-                    isServerError(exception.getStatusCode()),
+                    isRetryable(exception.getStatusCode(), exception.getErrorName()),
                     exception
             );
         } catch (RuntimeException exception) {
@@ -64,8 +66,16 @@ public class ResendEmailSender implements VerificationMailSender {
         }
     }
 
-    private boolean isServerError(Integer statusCode) {
-        return statusCode != null && statusCode >= 500 && statusCode < 600;
+    private boolean isRetryable(Integer statusCode, String errorName) {
+        if (statusCode == null) {
+            return false;
+        }
+        if (statusCode >= 500 && statusCode < 600) {
+            return true;
+        }
+
+        // TODO: retry-After 헤더를 받을 수 있는 구조로 변경되면, provider-neutral한 재시도 지연으로 변환하여 적용한다.
+        return statusCode == TOO_MANY_REQUESTS && RATE_LIMIT_EXCEEDED.equals(errorName);
     }
 
     private boolean hasIoCause(Throwable throwable) {

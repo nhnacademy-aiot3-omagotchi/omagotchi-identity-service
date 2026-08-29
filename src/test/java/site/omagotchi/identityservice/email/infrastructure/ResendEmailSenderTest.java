@@ -9,6 +9,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -149,6 +151,47 @@ class ResendEmailSenderTest {
                     softly.then(exception.providerErrorName()).isEqualTo("validation_error");
                     softly.then(exception.retryable()).isFalse();
                     softly.then(exception.getCause()).isInstanceOf(ResendException.class);
+                })
+        );
+    }
+
+    @Test
+    @DisplayName("Resend 초당 요청 제한 429 오류를 재시도 가능한 예외로 변환")
+    void convertsRateLimitFailureToRetryableException() throws ResendException {
+        givenDeliveryFailure(new ResendException(
+                429,
+                "{\"name\":\"rate_limit_exceeded\",\"message\":\"too many requests\"}"
+        ));
+
+        Throwable thrown = catchThrowable(this::sendVerificationCode);
+
+        then(thrown).isInstanceOfSatisfying(
+                EmailDeliveryException.class,
+                exception -> thenSoftly(softly -> {
+                    softly.then(exception.providerStatusCode()).isEqualTo(429);
+                    softly.then(exception.providerErrorName()).isEqualTo("rate_limit_exceeded");
+                    softly.then(exception.retryable()).isTrue();
+                })
+        );
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"daily_quota_exceeded", "monthly_quota_exceeded"})
+    @DisplayName("Resend quota 초과 429 오류를 재시도 불가능한 예외로 변환")
+    void convertsQuotaFailureToNonRetryableException(String errorName) throws ResendException {
+        givenDeliveryFailure(new ResendException(
+                429,
+                "{\"name\":\"%s\",\"message\":\"quota exceeded\"}".formatted(errorName)
+        ));
+
+        Throwable thrown = catchThrowable(this::sendVerificationCode);
+
+        then(thrown).isInstanceOfSatisfying(
+                EmailDeliveryException.class,
+                exception -> thenSoftly(softly -> {
+                    softly.then(exception.providerStatusCode()).isEqualTo(429);
+                    softly.then(exception.providerErrorName()).isEqualTo(errorName);
+                    softly.then(exception.retryable()).isFalse();
                 })
         );
     }

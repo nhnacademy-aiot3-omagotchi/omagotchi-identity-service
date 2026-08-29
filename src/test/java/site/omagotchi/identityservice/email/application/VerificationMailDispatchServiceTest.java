@@ -6,6 +6,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.retry.RetryPolicy;
+import org.springframework.core.retry.RetryTemplate;
+import org.springframework.util.backoff.FixedBackOff;
 import site.omagotchi.identityservice.email.application.port.EmailDeliveryException;
 import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
 import site.omagotchi.identityservice.email.application.port.VerificationMailSender;
@@ -37,7 +40,16 @@ class VerificationMailDispatchServiceTest {
 
     @BeforeEach
     void setUp() {
-        dispatchService = new VerificationMailDispatchService(mailSender, repository);
+        RetryPolicy retryPolicy = RetryPolicy.builder()
+                .backOff(new FixedBackOff(0, 2))
+                .predicate(throwable -> throwable instanceof EmailDeliveryException exception
+                        && exception.retryable())
+                .build();
+        dispatchService = new VerificationMailDispatchService(
+                mailSender,
+                repository,
+                new RetryTemplate(retryPolicy)
+        );
     }
 
     @Test
