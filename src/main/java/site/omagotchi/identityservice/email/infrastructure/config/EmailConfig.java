@@ -3,6 +3,7 @@ package site.omagotchi.identityservice.email.infrastructure.config;
 import com.resend.Resend;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.retry.RetryPolicy;
 import org.springframework.core.retry.RetryTemplate;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -10,6 +11,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import site.omagotchi.identityservice.email.application.port.EmailDeliveryException;
+import site.omagotchi.identityservice.email.application.port.VerificationMailSender;
+import site.omagotchi.identityservice.email.infrastructure.ResendEmailSender;
+import site.omagotchi.identityservice.email.infrastructure.RetryingVerificationMailSender;
 
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -50,6 +54,15 @@ public class EmailConfig {
                 .maxDelay(MAX_MAIL_RETRY_DELAY)
                 .build();
         return new RetryTemplate(retryPolicy);
+    }
+
+    @Bean
+    @Primary
+    VerificationMailSender verificationMailSender(
+            ResendEmailSender resendEmailSender,
+            RetryTemplate verificationMailRetryTemplate
+    ) {
+        return new RetryingVerificationMailSender(resendEmailSender, verificationMailRetryTemplate);
     }
 
     // 이메일 인증 코드·재발송 쿨다운·인증 완료 토큰 수명 관리용 RedisTemplate
