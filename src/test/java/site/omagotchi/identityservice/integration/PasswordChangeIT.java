@@ -6,11 +6,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -62,6 +65,13 @@ class PasswordChangeIT {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private JwtDecoder jwtDecoder;
+
+    @Autowired
+    @Qualifier("authenticationEpochRedisTemplate")
+    private StringRedisTemplate redisTemplate;
+
     private AuthApiTestClient api;
     private AccountStateTestFixture accountStateFixture;
 
@@ -91,6 +101,8 @@ class PasswordChangeIT {
                 "other@example.com",
                 CURRENT_PASSWORD
         );
+        String previousEpoch = jwtDecoder.decode(firstLogin.accessToken())
+                .getClaimAsString("auth_epoch");
 
         // When
         ResultActions response = api.changePassword(
@@ -100,6 +112,9 @@ class PasswordChangeIT {
         );
         Account changedAccount = accountJpaRepository.findById(accountId).orElseThrow();
         List<RefreshToken> revokedTokens = tokensFor(accountId);
+        String rotatedEpoch = redisTemplate.opsForValue().get(
+                "auth:account:" + accountId + ":epoch"
+        );
 
         // Then
         response.andExpectAll(
@@ -121,9 +136,10 @@ class PasswordChangeIT {
                 softly.then(token.getRevocationReason())
                         .isEqualTo(RefreshTokenRevocationReason.PASSWORD_CHANGED);
             });
+            softly.then(rotatedEpoch).isNotNull().isNotEqualTo(previousEpoch);
         });
 
-        // 이미 발급된 Access JWT는 denylist 없이 만료까지 유효
+        // Epoch 검증 후속 PR 전 Identity 자체 Resource Server의 기존 Access JWT 허용 확인
         mockMvc.perform(get("/api/v1/users/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + firstLogin.accessToken()))
                 .andExpect(status().isOk());
@@ -139,12 +155,18 @@ class PasswordChangeIT {
                 status().isUnauthorized(),
                 jsonPath("$.code").value("AUTH_INVALID_REFRESH_TOKEN")
         );
-        api.loginSuccessfully("user@example.com", NEW_PASSWORD);
+        AuthApiTestClient.TokenBundle changedPasswordLogin = api.loginSuccessfully(
+                "user@example.com",
+                NEW_PASSWORD
+        );
         AuthApiTestClient.TokenBundle refreshedOther = api.refreshSuccessfully(
                 otherLogin.refreshToken()
         );
         thenSoftly(softly -> {
             softly.then(refreshedOther.userId()).isEqualTo(otherAccountId);
+            softly.then(jwtDecoder.decode(changedPasswordLogin.accessToken())
+                            .getClaimAsString("auth_epoch"))
+                    .isEqualTo(rotatedEpoch);
             softly.then(tokensFor(otherAccountId)).allSatisfy(token ->
                     softly.then(token.isRevoked()).isFalse()
             );
