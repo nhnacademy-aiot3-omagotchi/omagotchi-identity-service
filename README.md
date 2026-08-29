@@ -5,7 +5,7 @@
 ## 담당 범위
 
 - 계정: 회원가입, 본인 정보 조회
-- 인증: 이메일·비밀번호 검증, Access JWT 발급
+- 인증: 이메일·비밀번호 검증, `auth_epoch` 포함 Access JWT 발급
 - 세션: Refresh Token 회전, 재사용 탐지, 로그아웃
 - 전역 권한: `USER`, `SYSTEM_ADMIN`
 - Token 계약: RSA 서명, `iss`·`aud`·`exp` 검증
@@ -17,8 +17,8 @@
 - Java 21, Spring Boot 4.1
 - Spring Security, OAuth2 Resource Server
 - Spring Data JPA, PostgreSQL 18.1
-- Flyway, Eureka Client
-- Testcontainers PostgreSQL 18.1
+- Redis 7.4, Flyway, Eureka Client
+- Testcontainers PostgreSQL 18.1·Redis 7.4
 
 ## 빠른 검증
 
@@ -60,6 +60,7 @@ chmod 644 secrets/jwt-public.pem
 - 설정 파일: 저장소 루트 `.env.local`
 - 기본 Port: `8083`
 - 기본 DB: `jdbc:postgresql://localhost:5432/identity_service`
+- Authentication Epoch Redis: `localhost:6379`, 논리 DB `0`
 - Eureka: 기본 비활성화
 - Git 추적 제외: `.env.local`, `secrets/`
 - Private Key: Identity의 JWT 발급 전용
@@ -87,6 +88,17 @@ chmod 644 secrets/jwt-public.pem
 - `LOGIN_LOCK_DURATION`: 잠금 유지 기간의 ISO-8601 Duration
 - 로컬·개발 예제 정책: `5`, `PT10M`
 - 두 값 모두 필수이며 누락·범위 오류 시 애플리케이션 시작 실패
+
+### Authentication Epoch Redis
+
+- `AUTH_EPOCH_REDIS_USERNAME`·`AUTH_EPOCH_REDIS_PASSWORD`: 모두 필수이며 누락·공백 시 애플리케이션 시작 실패
+- 로컬 예제: Redis `default` 사용자에 `.env.local.example`과 동일한 비밀번호 설정 필요
+- Key: `auth:account:<account-uuid>:epoch`
+- Value: canonical UUID 문자열, TTL 없음
+- 로그인: Key 미존재 시 원자 생성
+- Refresh: Key 미존재 시 `401 AUTH_INVALID_REFRESH_TOKEN`, 새 Key 생성 안 함
+- Redis 연결·명령 장애 또는 저장값 형식 오류: `503 COMMON_SERVICE_UNAVAILABLE`
+- 비밀번호 변경: 전체 Refresh Session 폐기 후 Epoch 교체
 
 ### 실행
 
@@ -137,9 +149,10 @@ chmod 644 secrets/jwt-public.pem
 
 - 서명: Identity Private Key
 - 검증: 각 보호 서비스의 Public Key
-- 주요 Claim: `sub`, `role`, `iss`, `aud`, `exp`
+- 주요 Claim: `sub`, `role`, `auth_epoch`, `iss`, `aud`, `exp`
 - 기본 수명: `PT15M`
-- 매 요청 Identity 조회: 불필요
+- `auth_epoch`: Redis에 저장한 계정별 canonical UUID 문자열
+- Gateway·Resource Server의 Epoch 검증과 Fail-closed 적용: 후속 변경 범위
 
 ### Refresh Token
 
@@ -148,7 +161,7 @@ chmod 644 secrets/jwt-public.pem
 - 기본 Family 수명: 최초 로그인부터 `P7D`
 - 갱신: Token 회전, Family 만료 시각 연장 없음
 - 재사용 탐지·로그아웃: 동일 Family 일괄 폐기
-- Access JWT: 별도 폐기 목록 없이 `exp`까지 유효
+- Access JWT: Identity 발급 시 현재 `auth_epoch` 포함
 - 동시성 경계: 계정 행을 먼저 잠근 뒤 요청 Token 행 잠금
 - 사용자 전체 폐기: 계정 행 잠금 뒤 모든 미폐기 Token 일괄 폐기
 - 로그인 실패 잠금: 새 비밀번호 로그인만 차단하며 기존 Refresh Token은 유지
@@ -160,6 +173,7 @@ chmod 644 secrets/jwt-public.pem
 - JPA 정책: `ddl-auto=validate`
 - `account`: 계정 생성·조회·인증 근거
 - `auth`: Access JWT·Refresh Token 수명주기
+- `auth.infrastructure`: 계정별 Authentication Epoch Redis 저장
 - `global.config`: Service 공통 시간·Password Encoder 등 Framework 설정
 - `global.security.basic`: 서비스 Credential 인증 Provider 조립
 - `global.security.frontend`: Frontend 전용 HTTP Basic 경계
