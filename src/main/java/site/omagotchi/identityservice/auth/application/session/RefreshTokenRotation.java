@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import site.omagotchi.identityservice.account.application.AccountSessionStateService;
 import site.omagotchi.identityservice.account.application.result.AccountSessionStateResult;
+import site.omagotchi.identityservice.auth.application.AuthenticationEpochService;
 import site.omagotchi.identityservice.auth.application.port.AccessTokenIssuer;
 import site.omagotchi.identityservice.auth.application.port.RefreshTokenRepository;
 import site.omagotchi.identityservice.auth.application.result.IssuedAccessToken;
@@ -23,6 +24,7 @@ import java.util.UUID;
 public class RefreshTokenRotation {
 
     private final AccountSessionStateService accountSessionStateService;
+    private final AuthenticationEpochService authenticationEpochService;
     private final AccessTokenIssuer accessTokenIssuer;
     private final RefreshTokenHasher refreshTokenHasher;
     private final RefreshTokenIssuer refreshTokenIssuer;
@@ -91,6 +93,11 @@ public class RefreshTokenRotation {
             return Optional.empty();
         }
 
+        // Epoch 조회 실패 시 Refresh Token 미소비를 위한 선행 확인
+        UUID authenticationEpoch = authenticationEpochService.getRequiredForRefresh(
+                account.accountId()
+        );
+
         // 기존 Token 소비와 다음 Token 저장의 단일 트랜잭션 처리
         currentToken.markUsed(now);
         // 회전 이후에도 현재 로그인 family와 최초 만료 시각 유지
@@ -103,7 +110,8 @@ public class RefreshTokenRotation {
         refreshTokenRepository.store(nextRefreshToken.refreshToken());
         IssuedAccessToken accessToken = accessTokenIssuer.issue(
                 account.accountId(),
-                account.globalRole()
+                account.globalRole(),
+                authenticationEpoch
         );
 
         // Access·Refresh Token과 인증 주체 정보를 묶은 회전 성공 결과 반환

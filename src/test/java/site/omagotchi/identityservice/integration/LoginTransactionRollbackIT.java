@@ -85,7 +85,7 @@ class LoginTransactionRollbackIT {
         @Bean
         @Primary
         AccessTokenIssuer failingAccessTokenIssuer() {
-            return (accountId, globalRole) -> {
+            return (accountId, globalRole, authenticationEpoch) -> {
                 throw new IllegalStateException("의도한 Access Token 발급 실패");
             };
         }

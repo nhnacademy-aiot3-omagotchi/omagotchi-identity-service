@@ -6,11 +6,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -61,6 +63,10 @@ class RefreshTokenApiIT {
 
     @Autowired
     private JwtDecoder jwtDecoder;
+
+    @Autowired
+    @Qualifier("authenticationEpochRedisTemplate")
+    private StringRedisTemplate redisTemplate;
 
     private AuthApiTestClient api;
     private AccountStateTestFixture accountStateFixture;
@@ -124,6 +130,65 @@ class RefreshTokenApiIT {
             softly.then(nextToken.getExpiresAt()).isEqualTo(originalToken.getExpiresAt());
             softly.then(refreshedAccessToken.getSubject()).isEqualTo(userId.toString());
             softly.then(refreshedAccessToken.getId()).isNotEqualTo(originalAccessToken.getId());
+            softly.then(refreshedAccessToken.getClaimAsString("auth_epoch"))
+                    .isEqualTo(originalAccessToken.getClaimAsString("auth_epoch"));
+        });
+    }
+
+    @Test
+    @DisplayName("Authentication Epoch Key가 없으면 Refresh 거부와 Token 미소비")
+    void rejectsRefreshWithoutCreatingMissingEpoch() throws Exception {
+        // Given
+        UUID accountId = api.signupSuccessfully("user@example.com");
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
+                "user@example.com",
+                "password-passphrase"
+        );
+        String epochKey = "auth:account:" + accountId + ":epoch";
+        redisTemplate.delete(epochKey);
+
+        // When
+        ResultActions response = api.refresh(login.refreshToken());
+        RefreshToken originalToken = storedToken(login.refreshToken());
+
+        // Then
+        response.andExpectAll(
+                status().isUnauthorized(),
+                jsonPath("$.code").value("AUTH_INVALID_REFRESH_TOKEN")
+        );
+        thenSoftly(softly -> {
+            softly.then(originalToken.isUsed()).isFalse();
+            softly.then(originalToken.isRevoked()).isFalse();
+            softly.then(refreshTokenJpaRepository.findAll()).hasSize(1);
+            softly.then(redisTemplate.hasKey(epochKey)).isFalse();
+        });
+    }
+
+    @Test
+    @DisplayName("손상된 Authentication Epoch 저장값은 503과 Token 미소비")
+    void failsClosedForMalformedStoredEpoch() throws Exception {
+        // Given
+        UUID accountId = api.signupSuccessfully("user@example.com");
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
+                "user@example.com",
+                "password-passphrase"
+        );
+        String epochKey = "auth:account:" + accountId + ":epoch";
+        redisTemplate.opsForValue().set(epochKey, "malformed-epoch");
+
+        // When
+        ResultActions response = api.refresh(login.refreshToken());
+        RefreshToken originalToken = storedToken(login.refreshToken());
+
+        // Then
+        response.andExpectAll(
+                status().isServiceUnavailable(),
+                jsonPath("$.code").value("COMMON_SERVICE_UNAVAILABLE")
+        );
+        thenSoftly(softly -> {
+            softly.then(originalToken.isUsed()).isFalse();
+            softly.then(originalToken.isRevoked()).isFalse();
+            softly.then(refreshTokenJpaRepository.findAll()).hasSize(1);
         });
     }
 
