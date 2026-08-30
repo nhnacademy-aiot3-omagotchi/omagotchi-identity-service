@@ -19,11 +19,6 @@ public enum CommonErrorCode implements ErrorCode {
             "COMMON_MALFORMED_REQUEST",
             "요청 본문을 읽을 수 없습니다."
     ),
-    SERVICE_UNAVAILABLE(
-            ErrorType.SERVICE_UNAVAILABLE,
-            "COMMON_SERVICE_UNAVAILABLE",
-            "서비스를 일시적으로 사용할 수 없습니다."
-    ),
     /**
      * 예상하지 못한 실패를 최종 외부 경계에서 숨기기 위한 공통 오류
      *

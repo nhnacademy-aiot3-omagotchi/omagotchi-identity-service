@@ -5,7 +5,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import site.omagotchi.identityservice.account.application.AccountAuthenticationService;
 import site.omagotchi.identityservice.account.application.result.AccountAuthenticationResult;
-import site.omagotchi.identityservice.auth.application.AuthenticationEpochService;
 import site.omagotchi.identityservice.auth.application.port.AccessTokenIssuer;
 import site.omagotchi.identityservice.auth.application.port.RefreshTokenRepository;
 import site.omagotchi.identityservice.auth.application.result.IssuedAccessToken;
@@ -15,14 +14,12 @@ import site.omagotchi.identityservice.auth.application.result.TokenIssueResult;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
-import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
 public class LoginTransaction {
 
     private final AccountAuthenticationService accountAuthenticationService;
-    private final AuthenticationEpochService authenticationEpochService;
     private final AccessTokenIssuer accessTokenIssuer;
     private final RefreshTokenIssuer refreshTokenIssuer;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -42,10 +39,6 @@ public class LoginTransaction {
         }
 
         AccountAuthenticationResult account = authenticatedAccount.get();
-        // Token 발급 전 Epoch 확보를 통한 Redis 장애 시 Fail-closed
-        UUID authenticationEpoch = authenticationEpochService.getOrCreateForLogin(
-                account.accountId()
-        );
         Instant issuedAt = clock.instant();
         IssuedRefreshToken refreshToken = refreshTokenIssuer.issueNewFamily(
                 account.accountId(),
@@ -55,8 +48,7 @@ public class LoginTransaction {
 
         IssuedAccessToken accessToken = accessTokenIssuer.issue(
                 account.accountId(),
-                account.globalRole(),
-                authenticationEpoch
+                account.globalRole()
         );
         return Optional.of(new TokenIssueResult(
                 account.accountId(),

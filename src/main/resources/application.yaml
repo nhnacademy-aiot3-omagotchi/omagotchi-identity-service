@@ -8,10 +8,6 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
-  data:
-    redis:
-      repositories:
-        enabled: false
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -54,16 +50,6 @@ management:
       show-details: never
 
 auth:
-  authentication-epoch:
-    redis:
-      host: ${AUTH_EPOCH_REDIS_HOST}
-      port: ${AUTH_EPOCH_REDIS_PORT}
-      database: ${AUTH_EPOCH_REDIS_DATABASE}
-      username: ${AUTH_EPOCH_REDIS_USERNAME}
-      password: ${AUTH_EPOCH_REDIS_PASSWORD}
-      connect-timeout: ${AUTH_EPOCH_REDIS_CONNECT_TIMEOUT}
-      command-timeout: ${AUTH_EPOCH_REDIS_COMMAND_TIMEOUT}
-      ssl-enabled: ${AUTH_EPOCH_REDIS_SSL_ENABLED}
   login-protection:
     maximum-failed-attempts: ${LOGIN_MAXIMUM_FAILED_ATTEMPTS}
     lock-duration: ${LOGIN_LOCK_DURATION}
