@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import site.omagotchi.identityservice.auth.application.PasswordChangeV2Service;
 import site.omagotchi.identityservice.auth.presentation.request.PasswordChangeV2Request;
+import site.omagotchi.identityservice.auth.presentation.response.PasswordChangeEmailOtpResponse;
 import site.omagotchi.identityservice.email.application.EmailVerificationChallengeResult;
-import site.omagotchi.identityservice.email.presentation.response.EmailVerificationChallengeResponse;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -27,14 +27,14 @@ public class PasswordChangeV2Controller {
     private final PasswordChangeV2Service passwordChangeService;
 
     @PostMapping("/email-otp")
-    public ResponseEntity<EmailVerificationChallengeResponse> requestEmailOtp(
+    public ResponseEntity<PasswordChangeEmailOtpResponse> requestEmailOtp(
             @AuthenticationPrincipal Jwt jwt
     ) {
         EmailVerificationChallengeResult result = passwordChangeService
                 .requestEmailOtp(accountId(jwt));
         return ResponseEntity.accepted()
                 .cacheControl(CacheControl.noStore())
-                .body(EmailVerificationChallengeResponse.from(result));
+                .body(PasswordChangeEmailOtpResponse.from(result));
     }
 
     @PatchMapping

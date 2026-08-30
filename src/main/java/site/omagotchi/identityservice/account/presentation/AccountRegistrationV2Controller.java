@@ -14,8 +14,8 @@ import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.presentation.request.SignupEmailOtpRequest;
 import site.omagotchi.identityservice.account.presentation.request.SignupV2Request;
 import site.omagotchi.identityservice.account.presentation.response.AccountResponse;
+import site.omagotchi.identityservice.account.presentation.response.SignupEmailOtpResponse;
 import site.omagotchi.identityservice.email.application.EmailVerificationChallengeResult;
-import site.omagotchi.identityservice.email.presentation.response.EmailVerificationChallengeResponse;
 
 @RestController
 @RequestMapping("/api/v2/auth/signup")
@@ -25,7 +25,7 @@ public class AccountRegistrationV2Controller {
     private final AccountRegistrationV2Service accountRegistrationService;
 
     @PostMapping("/email-otp")
-    public ResponseEntity<EmailVerificationChallengeResponse> requestEmailOtp(
+    public ResponseEntity<SignupEmailOtpResponse> requestEmailOtp(
             @Valid @RequestBody SignupEmailOtpRequest request
     ) {
         EmailVerificationChallengeResult result = accountRegistrationService
@@ -36,7 +36,7 @@ public class AccountRegistrationV2Controller {
                 );
         return ResponseEntity.accepted()
                 .cacheControl(CacheControl.noStore())
-                .body(EmailVerificationChallengeResponse.from(result));
+                .body(SignupEmailOtpResponse.from(result));
     }
 
     @PostMapping

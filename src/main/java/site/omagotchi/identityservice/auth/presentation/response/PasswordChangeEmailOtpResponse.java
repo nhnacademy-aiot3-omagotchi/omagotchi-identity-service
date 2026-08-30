@@ -1,15 +1,15 @@
-package site.omagotchi.identityservice.email.presentation.response;
+package site.omagotchi.identityservice.auth.presentation.response;
 
 import site.omagotchi.identityservice.email.application.EmailVerificationChallengeResult;
 
-public record EmailVerificationChallengeResponse(
+public record PasswordChangeEmailOtpResponse(
         String challengeId,
         long expiresInSeconds
 ) {
-    public static EmailVerificationChallengeResponse from(
+    public static PasswordChangeEmailOtpResponse from(
             EmailVerificationChallengeResult result
     ) {
-        return new EmailVerificationChallengeResponse(
+        return new PasswordChangeEmailOtpResponse(
                 result.challengeId(),
                 result.expiresInSeconds()
         );
