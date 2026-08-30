@@ -15,16 +15,17 @@ import site.omagotchi.identityservice.integration.TestJwtConfig;
 import site.omagotchi.identityservice.integration.TestcontainersConfig;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 
-import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 
 @SpringBootTest
 @ActiveProfiles("test")
 @Import({TestcontainersConfig.class, TestJwtConfig.class})
-class RedisEmailVerificationRepositoryIntegrationTest {
+class RedisEmailVerificationRepositoryIT {
 
     private static final String EMAIL = "user@example.com";
     private static final String FIRST_CHALLENGE_ID = "first-challenge";
@@ -47,17 +48,22 @@ class RedisEmailVerificationRepositoryIntegrationTest {
     @Test
     @DisplayName("동일 목적과 이메일의 재발송 쿨다운을 TTL 동안 한 번만 획득")
     void acquiresCooldownOnce() {
+        // Given
+        Duration cooldownTtl = Duration.ofSeconds(60);
+
+        // When
         boolean first = repository.acquireCooldown(
                 VerificationPurpose.SIGN_UP,
                 EMAIL,
-                Duration.ofSeconds(60)
+                cooldownTtl
         );
         boolean second = repository.acquireCooldown(
                 VerificationPurpose.SIGN_UP,
                 EMAIL,
-                Duration.ofSeconds(60)
+                cooldownTtl
         );
 
+        // Then
         thenSoftly(softly -> {
             softly.then(first).isTrue();
             softly.then(second).isFalse();
@@ -71,12 +77,15 @@ class RedisEmailVerificationRepositoryIntegrationTest {
     @Test
     @DisplayName("사용자 재발급은 기존 OTP를 무효화하고 새 Challenge와 10분 TTL로 교체")
     void replacesActiveChallengeAndResetsTtl() {
+        // Given
         repository.replaceChallenge(
                 VerificationPurpose.PASSWORD_RESET,
                 EMAIL,
                 new OtpChallenge(FIRST_CHALLENGE_ID, "111111"),
                 Duration.ofMinutes(2)
         );
+
+        // When
         repository.replaceChallenge(
                 VerificationPurpose.PASSWORD_RESET,
                 EMAIL,
@@ -110,6 +119,7 @@ class RedisEmailVerificationRepositoryIntegrationTest {
                 5
         );
 
+        // Then
         thenSoftly(softly -> {
             softly.then(oldChallenge).isEqualTo(OtpVerificationStatus.INVALID);
             softly.then(ttl).isNotNull().isBetween(500L, 600L);
@@ -121,6 +131,7 @@ class RedisEmailVerificationRepositoryIntegrationTest {
     @Test
     @DisplayName("이전 발송 실패는 재발급된 새 Challenge를 삭제하지 못함")
     void doesNotDeleteReissuedChallengeForStaleDeliveryFailure() {
+        // Given
         repository.replaceChallenge(
                 VerificationPurpose.SIGN_UP,
                 EMAIL,
@@ -134,6 +145,7 @@ class RedisEmailVerificationRepositoryIntegrationTest {
                 Duration.ofMinutes(10)
         );
 
+        // When
         boolean staleDeleted = repository.deleteChallengeIfMatches(
                 VerificationPurpose.SIGN_UP,
                 EMAIL,
@@ -147,6 +159,7 @@ class RedisEmailVerificationRepositoryIntegrationTest {
                 5
         );
 
+        // Then
         thenSoftly(softly -> {
             softly.then(staleDeleted).isFalse();
             softly.then(currentChallenge).isEqualTo(OtpVerificationStatus.VERIFIED);
@@ -156,6 +169,7 @@ class RedisEmailVerificationRepositoryIntegrationTest {
     @Test
     @DisplayName("다섯 번째 OTP 실패에서 Challenge를 원자적으로 소진")
     void exhaustsChallengeAtMaximumFailedAttempts() {
+        // Given
         repository.replaceChallenge(
                 VerificationPurpose.PASSWORD_CHANGE,
                 EMAIL,
@@ -163,15 +177,16 @@ class RedisEmailVerificationRepositoryIntegrationTest {
                 Duration.ofMinutes(10)
         );
 
-        for (int attempt = 1; attempt < 5; attempt++) {
-            then(repository.verifyAndConsume(
-                    VerificationPurpose.PASSWORD_CHANGE,
-                    EMAIL,
-                    FIRST_CHALLENGE_ID,
-                    "999999",
-                    5
-            )).isEqualTo(OtpVerificationStatus.INVALID);
-        }
+        // When
+        List<OtpVerificationStatus> failuresBeforeExhaustion = IntStream.range(1, 5)
+                .mapToObj(attempt -> repository.verifyAndConsume(
+                        VerificationPurpose.PASSWORD_CHANGE,
+                        EMAIL,
+                        FIRST_CHALLENGE_ID,
+                        "999999",
+                        5
+                ))
+                .toList();
         OtpVerificationStatus fifth = repository.verifyAndConsume(
                 VerificationPurpose.PASSWORD_CHANGE,
                 EMAIL,
@@ -187,7 +202,10 @@ class RedisEmailVerificationRepositoryIntegrationTest {
                 5
         );
 
+        // Then
         thenSoftly(softly -> {
+            softly.then(failuresBeforeExhaustion)
+                    .containsOnly(OtpVerificationStatus.INVALID);
             softly.then(fifth).isEqualTo(OtpVerificationStatus.EXHAUSTED);
             softly.then(afterExhaustion).isEqualTo(OtpVerificationStatus.INVALID);
         });
