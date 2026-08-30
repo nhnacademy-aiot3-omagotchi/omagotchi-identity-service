@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
@@ -17,7 +16,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -78,10 +76,6 @@ class AuthApiIT {
     private JwtDecoder jwtDecoder;
 
     @Autowired
-    @Qualifier("authenticationEpochRedisTemplate")
-    private StringRedisTemplate redisTemplate;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     private AuthApiTestClient api;
@@ -110,7 +104,6 @@ class AuthApiIT {
                 "password-passphrase"
         ).accessToken();
         Jwt jwt = jwtDecoder.decode(accessToken);
-        String epochKey = "auth:account:" + userId + ":epoch";
         ResultActions meResponse = mockMvc.perform(get("/api/v1/users/me")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken));
 
@@ -124,11 +117,6 @@ class AuthApiIT {
             softly.then(userId.version()).isEqualTo(4);
             softly.then(jwt.getSubject()).isEqualTo(userId.toString());
             softly.then(jwt.getClaimAsString("role")).isEqualTo("USER");
-            softly.then(jwt.getClaimAsString("auth_epoch"))
-                    .isEqualTo(redisTemplate.opsForValue().get(epochKey));
-            softly.then(UUID.fromString(jwt.getClaimAsString("auth_epoch")).toString())
-                    .isEqualTo(jwt.getClaimAsString("auth_epoch"));
-            softly.then(redisTemplate.getExpire(epochKey)).isEqualTo(-1L);
         });
         meResponse.andExpectAll(
                 status().isOk(),

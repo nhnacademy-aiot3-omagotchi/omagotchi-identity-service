@@ -9,16 +9,6 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
 
 auth:
-  authentication-epoch:
-    redis:
-      host: localhost
-      port: 6379
-      database: 0
-      username: default
-      password: test-only-authentication-epoch-password
-      connect-timeout: 1s
-      command-timeout: 2s
-      ssl-enabled: false
   login-protection:
     maximum-failed-attempts: 5
     lock-duration: PT10M

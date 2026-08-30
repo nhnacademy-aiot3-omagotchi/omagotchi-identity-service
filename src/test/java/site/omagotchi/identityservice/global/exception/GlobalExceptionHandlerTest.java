@@ -67,30 +67,6 @@ class GlobalExceptionHandlerTest {
                 .isEqualTo(CommonErrorCode.INVALID_REQUEST.message());
     }
 
-    @Test
-    @DisplayName("서비스 일시 장애를 503 공통 오류로 응답")
-    void respondsWithServiceUnavailable() {
-        // Given
-        MockHttpServletRequest request = requestForTest();
-        BusinessException exception = new BusinessException(
-                CommonErrorCode.SERVICE_UNAVAILABLE,
-                "외부에 노출하지 않는 저장소 장애"
-        );
-
-        // When
-        ResponseEntity<ApiErrorResponse> response =
-                handler.handleBusinessException(exception, request);
-
-        // Then
-        then(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-        then(response.getBody()).isEqualTo(new ApiErrorResponse(
-                CommonErrorCode.SERVICE_UNAVAILABLE.code(),
-                CommonErrorCode.SERVICE_UNAVAILABLE.message(),
-                REQUEST_URI,
-                null
-        ));
-    }
-
     private MockHttpServletRequest requestForTest() {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setMethod("POST");

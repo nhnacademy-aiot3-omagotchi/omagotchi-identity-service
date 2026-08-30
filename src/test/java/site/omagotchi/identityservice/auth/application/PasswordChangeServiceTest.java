@@ -33,12 +33,8 @@ class PasswordChangeServiceTest {
         RefreshSessionRevocationService revocationService = mock(
                 RefreshSessionRevocationService.class
         );
-        AuthenticationEpochService authenticationEpochService = mock(
-                AuthenticationEpochService.class
-        );
         PasswordChangeService service = new PasswordChangeService(
                 accountPasswordService,
-                authenticationEpochService,
                 revocationService
         );
 
@@ -46,11 +42,7 @@ class PasswordChangeServiceTest {
         service.changePassword(ACCOUNT_ID, CURRENT_PASSWORD, NEW_PASSWORD);
 
         // Then
-        InOrder invocationOrder = inOrder(
-                accountPasswordService,
-                revocationService,
-                authenticationEpochService
-        );
+        InOrder invocationOrder = inOrder(accountPasswordService, revocationService);
         invocationOrder.verify(accountPasswordService).verifyAndReplacePasswordHash(
                 ACCOUNT_ID,
                 CURRENT_PASSWORD,
@@ -60,12 +52,7 @@ class PasswordChangeServiceTest {
                 ACCOUNT_ID,
                 RefreshSessionRevocationReason.PASSWORD_CHANGED
         );
-        invocationOrder.verify(authenticationEpochService).rotateForAccount(ACCOUNT_ID);
-        verifyNoMoreInteractions(
-                accountPasswordService,
-                revocationService,
-                authenticationEpochService
-        );
+        verifyNoMoreInteractions(accountPasswordService, revocationService);
     }
 
     @Test
@@ -76,12 +63,8 @@ class PasswordChangeServiceTest {
         RefreshSessionRevocationService revocationService = mock(
                 RefreshSessionRevocationService.class
         );
-        AuthenticationEpochService authenticationEpochService = mock(
-                AuthenticationEpochService.class
-        );
         PasswordChangeService service = new PasswordChangeService(
                 accountPasswordService,
-                authenticationEpochService,
                 revocationService
         );
         BusinessException failure = new BusinessException(
@@ -102,40 +85,6 @@ class PasswordChangeServiceTest {
 
         // Then
         then(thrown).isSameAs(failure);
-        verifyNoInteractions(revocationService, authenticationEpochService);
-    }
-
-    @Test
-    @DisplayName("Refresh Session 폐기 실패 시 Authentication Epoch 교체 생략")
-    void preservesEpochWhenSessionRevocationFails() {
-        // Given
-        AccountPasswordService accountPasswordService = mock(AccountPasswordService.class);
-        RefreshSessionRevocationService revocationService = mock(
-                RefreshSessionRevocationService.class
-        );
-        AuthenticationEpochService authenticationEpochService = mock(
-                AuthenticationEpochService.class
-        );
-        PasswordChangeService service = new PasswordChangeService(
-                accountPasswordService,
-                authenticationEpochService,
-                revocationService
-        );
-        IllegalStateException failure = new IllegalStateException("폐기 실패");
-        willThrow(failure).given(revocationService).revokeAllForAccount(
-                ACCOUNT_ID,
-                RefreshSessionRevocationReason.PASSWORD_CHANGED
-        );
-
-        // When
-        Throwable thrown = catchThrowable(() -> service.changePassword(
-                ACCOUNT_ID,
-                CURRENT_PASSWORD,
-                NEW_PASSWORD
-        ));
-
-        // Then
-        then(thrown).isSameAs(failure);
-        verifyNoInteractions(authenticationEpochService);
+        verifyNoInteractions(revocationService);
     }
 }

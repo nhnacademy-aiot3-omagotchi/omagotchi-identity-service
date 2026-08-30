@@ -26,11 +26,7 @@ public class JwtAccessTokenIssuer implements AccessTokenIssuer {
     private final Clock clock;
 
     @Override
-    public IssuedAccessToken issue(
-            UUID accountId,
-            String globalRole,
-            UUID authenticationEpoch
-    ) {
+    public IssuedAccessToken issue(UUID accountId, String globalRole) {
         // JWT NumericDate와 API 응답의 정밀도 일치를 위한 초 단위 발급 시각
         Instant issuedAt = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         Instant expiresAt = issuedAt.plus(properties.accessTokenTtl());
@@ -44,7 +40,6 @@ public class JwtAccessTokenIssuer implements AccessTokenIssuer {
                 .expiresAt(expiresAt)
                 .id(UUID.randomUUID().toString())
                 .claim("role", globalRole)
-                .claim("auth_epoch", authenticationEpoch.toString())
                 .build();
         JwsHeader header = JwsHeader
                 .with(SignatureAlgorithm.RS256)

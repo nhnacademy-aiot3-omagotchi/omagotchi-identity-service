@@ -15,7 +15,6 @@ import java.util.UUID;
 public class PasswordChangeService {
 
     private final AccountPasswordService accountPasswordService;
-    private final AuthenticationEpochService authenticationEpochService;
     private final RefreshSessionRevocationService refreshSessionRevocationService;
 
     @Transactional
@@ -33,7 +32,5 @@ public class PasswordChangeService {
                 accountId,
                 RefreshSessionRevocationReason.PASSWORD_CHANGED
         );
-        // 비밀번호 변경에 따른 계정 전체 Access JWT 폐기
-        authenticationEpochService.rotateForAccount(accountId);
     }
 }
