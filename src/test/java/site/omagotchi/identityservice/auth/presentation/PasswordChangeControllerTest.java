@@ -237,7 +237,7 @@ class PasswordChangeControllerTest {
                 jwtEncoder,
                 jwtProperties,
                 Clock.systemUTC()
-        ).issue(ACCOUNT_ID, "USER").value();
+        ).issue(ACCOUNT_ID, "USER", UUID.randomUUID()).value();
     }
 
     private ResponseFieldsSnippet errorResponseFields() {

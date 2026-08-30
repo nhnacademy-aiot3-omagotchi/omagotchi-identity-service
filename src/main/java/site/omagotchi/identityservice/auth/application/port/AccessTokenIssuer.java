@@ -6,5 +6,5 @@ import java.util.UUID;
 
 public interface AccessTokenIssuer {
 
-    IssuedAccessToken issue(UUID accountId, String globalRole);
+    IssuedAccessToken issue(UUID accountId, String globalRole, UUID authenticationEpoch);
 }

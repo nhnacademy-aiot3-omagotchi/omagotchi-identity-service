@@ -6,5 +6,6 @@ public enum ErrorType {
     CONFLICT,
     AUTHENTICATION,
     AUTHORIZATION,
+    SERVICE_UNAVAILABLE,
     INTERNAL
 }
