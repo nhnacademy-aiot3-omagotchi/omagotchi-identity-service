@@ -20,6 +20,11 @@ public enum EmailVerificationErrorCode implements ErrorCode {
             ErrorType.RATE_LIMIT,
             "EMAIL_VERIFICATION_COOLDOWN_ACTIVE",
             "잠시 후 인증 코드를 다시 요청해 주세요."
+    ),
+    UNAVAILABLE(
+            ErrorType.DEPENDENCY_UNAVAILABLE,
+            "EMAIL_VERIFICATION_UNAVAILABLE",
+            "이메일 인증 서비스를 일시적으로 사용할 수 없습니다."
     );
 
     private final ErrorType type;

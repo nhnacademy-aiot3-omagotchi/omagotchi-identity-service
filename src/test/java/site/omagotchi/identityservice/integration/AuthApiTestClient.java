@@ -7,6 +7,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import site.omagotchi.identityservice.account.domain.EmailPolicy;
+import site.omagotchi.identityservice.email.application.EmailVerificationReservationResult;
 import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
 import site.omagotchi.identityservice.email.domain.OtpChallenge;
 import site.omagotchi.identityservice.email.domain.VerificationPurpose;
@@ -175,12 +176,15 @@ final class AuthApiTestClient {
 
     OtpProof otp(String email, VerificationPurpose purpose) {
         OtpProof proof = new OtpProof(UUID.randomUUID().toString(), "123456");
-        emailVerificationRepository.replaceChallenge(
+        EmailVerificationReservationResult reservation =
+                emailVerificationRepository.reserveChallenge(
                 purpose,
                 EmailPolicy.normalize(email),
                 new OtpChallenge(proof.challengeId(), proof.code()),
-                Duration.ofMinutes(10)
+                Duration.ofMinutes(10),
+                Duration.ofMillis(1)
         );
+        then(reservation.reserved()).isTrue();
         return proof;
     }
 

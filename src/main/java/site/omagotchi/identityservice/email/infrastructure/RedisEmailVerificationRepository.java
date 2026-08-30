@@ -1,10 +1,13 @@
 package site.omagotchi.identityservice.email.infrastructure;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
+import site.omagotchi.identityservice.email.application.EmailVerificationReservationResult;
 import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
+import site.omagotchi.identityservice.email.application.port.EmailVerificationStorageException;
 import site.omagotchi.identityservice.email.domain.OtpChallenge;
 import site.omagotchi.identityservice.email.domain.OtpVerificationStatus;
 import site.omagotchi.identityservice.email.domain.VerificationPurpose;
@@ -12,31 +15,39 @@ import site.omagotchi.identityservice.email.domain.VerificationPurpose;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 @Repository
 @RequiredArgsConstructor
 public class RedisEmailVerificationRepository implements EmailVerificationRepository {
 
     private static final String KEY_PREFIX = "auth:email:";
-    private static final String COOLDOWN_VALUE = "1";
-    private static final long REDIS_TTL_KEY_NOT_FOUND = -2L;
+    private static final long RESERVATION_ACQUIRED = 0L;
     private static final long REDIS_TTL_NO_EXPIRATION = -1L;
     private static final long VERIFIED_RESULT = 1L;
     private static final long EXHAUSTED_RESULT = 2L;
 
     /**
-     * OTP Challenge를 저장/교체하고 실패 횟수를 0으로 초기화한 뒤 만료 시간(TTL)을 원자적으로 설정하는 스크립트
+     * 재발송 쿨다운 획득과 OTP Challenge 저장을 하나의 Redis 실행으로 처리하는 스크립트
+     * 반환값: 0 = 선점 성공, 양수 = 기존 쿨다운의 남은 밀리초, -1 = TTL 없는 비정상 쿨다운
      */
-    private static final DefaultRedisScript<Long> REPLACE_CHALLENGE_SCRIPT =
+    private static final DefaultRedisScript<Long> RESERVE_CHALLENGE_SCRIPT =
             new DefaultRedisScript<>("""
-                    -- OTP Challenge 저장/교체 및 TTL 설정 (반환 코드: 1 = 성공)
-                    redis.call('HSET', KEYS[1],
+                    if redis.call('EXISTS', KEYS[1]) == 1 then
+                        local remainingCooldownMillis = redis.call('PTTL', KEYS[1])
+                        if remainingCooldownMillis < 0 then
+                            return -1
+                        end
+                        return math.max(1, remainingCooldownMillis)
+                    end
+
+                    redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[4])
+                    redis.call('HSET', KEYS[2],
                         'challengeId', ARGV[1],
                         'code', ARGV[2],
                         'failedAttempts', '0')
-                    redis.call('PEXPIRE', KEYS[1], ARGV[3])
-                    return 1
+                    redis.call('PEXPIRE', KEYS[2], ARGV[3])
+                    return 0
                     """, Long.class);
 
     /**
@@ -87,62 +98,63 @@ public class RedisEmailVerificationRepository implements EmailVerificationReposi
                     return 0
                     """, Long.class);
 
+    /**
+     * Executor 접수 실패 시 동일 challengeId가 소유한 Challenge와 쿨다운만 함께 삭제하는 스크립트
+     */
+    private static final DefaultRedisScript<Long> DELETE_RESERVATION_IF_MATCHES_SCRIPT =
+            new DefaultRedisScript<>("""
+                    local deleted = 0
+                    local storedChallengeId = redis.call('HGET', KEYS[2], 'challengeId')
+                    if storedChallengeId == ARGV[1] then
+                        deleted = deleted + redis.call('DEL', KEYS[2])
+                    end
+
+                    local cooldownOwner = redis.call('GET', KEYS[1])
+                    if cooldownOwner == ARGV[1] then
+                        deleted = deleted + redis.call('DEL', KEYS[1])
+                    end
+                    return deleted
+                    """, Long.class);
+
     private final StringRedisTemplate redisTemplate;
 
     @Override
-    public boolean acquireCooldown(
+    public EmailVerificationReservationResult reserveChallenge(
             VerificationPurpose purpose,
             String email,
-            Duration ttl
+            OtpChallenge challenge,
+            Duration challengeTtl,
+            Duration cooldownTtl
     ) {
-        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
-                cooldownKey(purpose, email),
-                COOLDOWN_VALUE,
-                ttl
+        OtpChallenge requiredChallenge = Objects.requireNonNull(challenge, "challenge");
+        Long result = executeRedisCommand(() ->
+                redisTemplate.execute(
+                        RESERVE_CHALLENGE_SCRIPT,
+                        List.of(
+                                cooldownKey(purpose, email),
+                                codeKey(purpose, email)
+                        ),
+                        requiredChallenge.challengeId(),
+                        requiredChallenge.code(),
+                        Long.toString(Math.max(1, challengeTtl.toMillis())),
+                        Long.toString(Math.max(1, cooldownTtl.toMillis()))
+                )
         );
-        return Boolean.TRUE.equals(acquired);
-    }
-
-    @Override
-    public long remainingCooldownSeconds(VerificationPurpose purpose, String email) {
-        Long remainingSecond = redisTemplate.getExpire(
-                cooldownKey(purpose, email),
-                TimeUnit.SECONDS
-        );
-        if (remainingSecond == null) {
-            throw new IllegalStateException(
-                    "Redis Cooldown TTL 조회에 실패했습니다."
-            );
+        if (result == null) {
+            throw new IllegalStateException("Redis OTP Challenge 선점에 실패했습니다.");
         }
-        if (remainingSecond == REDIS_TTL_KEY_NOT_FOUND) {
-            return 0;
+        if (result == RESERVATION_ACQUIRED) {
+            return EmailVerificationReservationResult.acquired();
         }
-        if (remainingSecond == REDIS_TTL_NO_EXPIRATION) {
+        if (result == REDIS_TTL_NO_EXPIRATION) {
             throw new IllegalStateException(
                     "Redis Cooldown Key에 만료 시간이 설정되지 않았습니다."
             );
         }
-        return Math.max(1, remainingSecond);
-    }
-
-    @Override
-    public void replaceChallenge(
-            VerificationPurpose purpose,
-            String email,
-            OtpChallenge challenge,
-            Duration ttl
-    ) {
-        OtpChallenge requiredChallenge = Objects.requireNonNull(challenge, "challenge");
-        Long replaced = redisTemplate.execute(
-                REPLACE_CHALLENGE_SCRIPT,
-                List.of(codeKey(purpose, email)),
-                requiredChallenge.challengeId(),
-                requiredChallenge.code(),
-                Long.toString(Math.max(1, ttl.toMillis()))
-        );
-        if (!Objects.equals(replaced, 1L)) {
-            throw new IllegalStateException("Redis OTP Challenge 교체에 실패했습니다.");
+        if (result < 1) {
+            throw new IllegalStateException("Redis Cooldown TTL 조회에 실패했습니다.");
         }
+        return EmailVerificationReservationResult.cooldown(toSecondsCeiling(result));
     }
 
     @Override
@@ -156,12 +168,14 @@ public class RedisEmailVerificationRepository implements EmailVerificationReposi
         if (maximumAttempts < 1) {
             throw new IllegalArgumentException("maximumAttempts는 1 이상이어야 합니다.");
         }
-        Long result = redisTemplate.execute(
-                VERIFY_AND_CONSUME_SCRIPT,
-                List.of(codeKey(purpose, email)),
-                challengeId,
-                verificationCode,
-                Integer.toString(maximumAttempts)
+        Long result = executeRedisCommand(() ->
+                redisTemplate.execute(
+                        VERIFY_AND_CONSUME_SCRIPT,
+                        List.of(codeKey(purpose, email)),
+                        challengeId,
+                        verificationCode,
+                        Integer.toString(maximumAttempts)
+                )
         );
         if (result == null) {
             throw new IllegalStateException("Redis OTP Challenge 검증에 실패했습니다.");
@@ -181,12 +195,49 @@ public class RedisEmailVerificationRepository implements EmailVerificationReposi
             String email,
             String challengeId
     ) {
-        Long deleted = redisTemplate.execute(
-                DELETE_IF_MATCHES_SCRIPT,
-                List.of(codeKey(purpose, email)),
-                challengeId
+        Long deleted = executeRedisCommand(() ->
+                redisTemplate.execute(
+                        DELETE_IF_MATCHES_SCRIPT,
+                        List.of(codeKey(purpose, email)),
+                        challengeId
+                )
         );
         return Objects.equals(deleted, 1L);
+    }
+
+    @Override
+    public void deleteChallengeAndCooldownIfMatches(
+            VerificationPurpose purpose,
+            String email,
+            String challengeId
+    ) {
+        Long deleted = executeRedisCommand(() ->
+                redisTemplate.execute(
+                        DELETE_RESERVATION_IF_MATCHES_SCRIPT,
+                        List.of(
+                                cooldownKey(purpose, email),
+                                codeKey(purpose, email)
+                        ),
+                        challengeId
+                )
+        );
+        if (deleted == null) {
+            throw new IllegalStateException("Redis OTP Challenge 보상 정리에 실패했습니다.");
+        }
+    }
+
+    private long toSecondsCeiling(long milliseconds) {
+        long seconds = milliseconds / 1_000L;
+        return milliseconds % 1_000L == 0 ? seconds : seconds + 1;
+    }
+
+    // Redis 연결·명령 실패를 Port 기술 예외로 변환하고 원본 cause를 보존한다.
+    private <T> T executeRedisCommand(Supplier<T> command) {
+        try {
+            return command.get();
+        } catch (DataAccessException exception) {
+            throw new EmailVerificationStorageException(exception);
+        }
     }
 
     private String cooldownKey(VerificationPurpose purpose, String email) {

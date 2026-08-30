@@ -8,6 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import site.omagotchi.identityservice.email.application.EmailVerificationReservationResult;
 import site.omagotchi.identityservice.email.domain.OtpChallenge;
 import site.omagotchi.identityservice.email.domain.OtpVerificationStatus;
 import site.omagotchi.identityservice.email.domain.VerificationPurpose;
@@ -30,6 +31,8 @@ class RedisEmailVerificationRepositoryIT {
     private static final String EMAIL = "user@example.com";
     private static final String FIRST_CHALLENGE_ID = "first-challenge";
     private static final String SECOND_CHALLENGE_ID = "second-challenge";
+    private static final Duration CODE_TTL = Duration.ofMinutes(10);
+    private static final Duration COOLDOWN_TTL = Duration.ofMinutes(1);
 
     @Autowired
     private RedisEmailVerificationRepository repository;
@@ -46,53 +49,66 @@ class RedisEmailVerificationRepositoryIT {
     }
 
     @Test
-    @DisplayName("동일 목적과 이메일의 재발송 쿨다운을 TTL 동안 한 번만 획득")
-    void acquiresCooldownOnce() {
-        // Given
-        Duration cooldownTtl = Duration.ofSeconds(60);
-
+    @DisplayName("Challenge 저장과 challengeId 기반 쿨다운 선점을 한 번에 처리")
+    void reservesChallengeAndOwnedCooldownAtomically() {
         // When
-        boolean first = repository.acquireCooldown(
+        EmailVerificationReservationResult first = reserve(
                 VerificationPurpose.SIGN_UP,
-                EMAIL,
-                cooldownTtl
+                FIRST_CHALLENGE_ID,
+                "111111"
         );
-        boolean second = repository.acquireCooldown(
+        EmailVerificationReservationResult second = reserve(
+                VerificationPurpose.SIGN_UP,
+                SECOND_CHALLENGE_ID,
+                "222222"
+        );
+        String cooldownOwner = redisTemplate.opsForValue().get(
+                cooldownKey(VerificationPurpose.SIGN_UP)
+        );
+        OtpVerificationStatus firstStatus = repository.verifyAndConsume(
                 VerificationPurpose.SIGN_UP,
                 EMAIL,
-                cooldownTtl
+                FIRST_CHALLENGE_ID,
+                "111111",
+                5
+        );
+        OtpVerificationStatus secondStatus = repository.verifyAndConsume(
+                VerificationPurpose.SIGN_UP,
+                EMAIL,
+                SECOND_CHALLENGE_ID,
+                "222222",
+                5
         );
 
         // Then
         thenSoftly(softly -> {
-            softly.then(first).isTrue();
-            softly.then(second).isFalse();
-            softly.then(repository.remainingCooldownSeconds(
-                    VerificationPurpose.SIGN_UP,
-                    EMAIL
-            )).isBetween(1L, 60L);
+            softly.then(first.reserved()).isTrue();
+            softly.then(first.remainingCooldownSeconds()).isZero();
+            softly.then(second.reserved()).isFalse();
+            softly.then(second.remainingCooldownSeconds()).isBetween(1L, 60L);
+            softly.then(cooldownOwner).isEqualTo(FIRST_CHALLENGE_ID);
+            softly.then(firstStatus).isEqualTo(OtpVerificationStatus.VERIFIED);
+            softly.then(secondStatus).isEqualTo(OtpVerificationStatus.INVALID);
         });
     }
 
     @Test
-    @DisplayName("사용자 재발급은 기존 OTP를 무효화하고 새 Challenge와 10분 TTL로 교체")
-    void replacesActiveChallengeAndResetsTtl() {
+    @DisplayName("쿨다운 종료 후 재발급은 기존 OTP를 무효화하고 TTL을 갱신")
+    void reissuesChallengeAfterCooldownExpires() {
         // Given
-        repository.replaceChallenge(
+        reserve(
                 VerificationPurpose.PASSWORD_RESET,
-                EMAIL,
-                new OtpChallenge(FIRST_CHALLENGE_ID, "111111"),
-                Duration.ofMinutes(2)
+                FIRST_CHALLENGE_ID,
+                "111111"
         );
+        redisTemplate.delete(cooldownKey(VerificationPurpose.PASSWORD_RESET));
 
         // When
-        repository.replaceChallenge(
+        EmailVerificationReservationResult reissued = reserve(
                 VerificationPurpose.PASSWORD_RESET,
-                EMAIL,
-                new OtpChallenge(SECOND_CHALLENGE_ID, "222222"),
-                Duration.ofMinutes(10)
+                SECOND_CHALLENGE_ID,
+                "222222"
         );
-
         OtpVerificationStatus oldChallenge = repository.verifyAndConsume(
                 VerificationPurpose.PASSWORD_RESET,
                 EMAIL,
@@ -101,7 +117,7 @@ class RedisEmailVerificationRepositoryIT {
                 5
         );
         Long ttl = redisTemplate.getExpire(
-                "auth:email:code:PASSWORD_RESET:" + EMAIL,
+                codeKey(VerificationPurpose.PASSWORD_RESET),
                 TimeUnit.SECONDS
         );
         OtpVerificationStatus newChallenge = repository.verifyAndConsume(
@@ -111,45 +127,40 @@ class RedisEmailVerificationRepositoryIT {
                 "222222",
                 5
         );
-        OtpVerificationStatus consumed = repository.verifyAndConsume(
-                VerificationPurpose.PASSWORD_RESET,
-                EMAIL,
-                SECOND_CHALLENGE_ID,
-                "222222",
-                5
-        );
 
         // Then
         thenSoftly(softly -> {
+            softly.then(reissued.reserved()).isTrue();
             softly.then(oldChallenge).isEqualTo(OtpVerificationStatus.INVALID);
             softly.then(ttl).isNotNull().isBetween(500L, 600L);
             softly.then(newChallenge).isEqualTo(OtpVerificationStatus.VERIFIED);
-            softly.then(consumed).isEqualTo(OtpVerificationStatus.INVALID);
         });
     }
 
     @Test
-    @DisplayName("이전 발송 실패는 재발급된 새 Challenge를 삭제하지 못함")
-    void doesNotDeleteReissuedChallengeForStaleDeliveryFailure() {
+    @DisplayName("이전 요청의 늦은 보상은 새 Challenge와 쿨다운을 삭제하지 못함")
+    void staleCompensationDoesNotDeleteNewReservation() {
         // Given
-        repository.replaceChallenge(
+        reserve(
                 VerificationPurpose.SIGN_UP,
-                EMAIL,
-                new OtpChallenge(FIRST_CHALLENGE_ID, "111111"),
-                Duration.ofMinutes(10)
+                FIRST_CHALLENGE_ID,
+                "111111"
         );
-        repository.replaceChallenge(
+        redisTemplate.delete(cooldownKey(VerificationPurpose.SIGN_UP));
+        EmailVerificationReservationResult reissued = reserve(
                 VerificationPurpose.SIGN_UP,
-                EMAIL,
-                new OtpChallenge(SECOND_CHALLENGE_ID, "222222"),
-                Duration.ofMinutes(10)
+                SECOND_CHALLENGE_ID,
+                "222222"
         );
 
         // When
-        boolean staleDeleted = repository.deleteChallengeIfMatches(
+        repository.deleteChallengeAndCooldownIfMatches(
                 VerificationPurpose.SIGN_UP,
                 EMAIL,
                 FIRST_CHALLENGE_ID
+        );
+        String cooldownOwner = redisTemplate.opsForValue().get(
+                cooldownKey(VerificationPurpose.SIGN_UP)
         );
         OtpVerificationStatus currentChallenge = repository.verifyAndConsume(
                 VerificationPurpose.SIGN_UP,
@@ -158,11 +169,18 @@ class RedisEmailVerificationRepositoryIT {
                 "222222",
                 5
         );
+        EmailVerificationReservationResult third = reserve(
+                VerificationPurpose.SIGN_UP,
+                "third-challenge",
+                "333333"
+        );
 
         // Then
         thenSoftly(softly -> {
-            softly.then(staleDeleted).isFalse();
+            softly.then(reissued.reserved()).isTrue();
+            softly.then(cooldownOwner).isEqualTo(SECOND_CHALLENGE_ID);
             softly.then(currentChallenge).isEqualTo(OtpVerificationStatus.VERIFIED);
+            softly.then(third.reserved()).isFalse();
         });
     }
 
@@ -170,11 +188,10 @@ class RedisEmailVerificationRepositoryIT {
     @DisplayName("다섯 번째 OTP 실패에서 Challenge를 원자적으로 소진")
     void exhaustsChallengeAtMaximumFailedAttempts() {
         // Given
-        repository.replaceChallenge(
+        reserve(
                 VerificationPurpose.PASSWORD_CHANGE,
-                EMAIL,
-                new OtpChallenge(FIRST_CHALLENGE_ID, "111111"),
-                Duration.ofMinutes(10)
+                FIRST_CHALLENGE_ID,
+                "111111"
         );
 
         // When
@@ -211,4 +228,25 @@ class RedisEmailVerificationRepositoryIT {
         });
     }
 
+    private EmailVerificationReservationResult reserve(
+            VerificationPurpose purpose,
+            String challengeId,
+            String code
+    ) {
+        return repository.reserveChallenge(
+                purpose,
+                EMAIL,
+                new OtpChallenge(challengeId, code),
+                CODE_TTL,
+                COOLDOWN_TTL
+        );
+    }
+
+    private String cooldownKey(VerificationPurpose purpose) {
+        return "auth:email:cooldown:" + purpose.name() + ":" + EMAIL;
+    }
+
+    private String codeKey(VerificationPurpose purpose) {
+        return "auth:email:code:" + purpose.name() + ":" + EMAIL;
+    }
 }

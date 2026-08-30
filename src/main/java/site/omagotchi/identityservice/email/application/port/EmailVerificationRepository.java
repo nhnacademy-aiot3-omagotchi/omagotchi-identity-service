@@ -1,5 +1,6 @@
 package site.omagotchi.identityservice.email.application.port;
 
+import site.omagotchi.identityservice.email.application.EmailVerificationReservationResult;
 import site.omagotchi.identityservice.email.domain.OtpChallenge;
 import site.omagotchi.identityservice.email.domain.OtpVerificationStatus;
 import site.omagotchi.identityservice.email.domain.VerificationPurpose;
@@ -8,19 +9,12 @@ import java.time.Duration;
 
 public interface EmailVerificationRepository {
 
-    boolean acquireCooldown(
-            VerificationPurpose purpose,
-            String email,
-            Duration ttl
-    );
-
-    long remainingCooldownSeconds(VerificationPurpose purpose, String email);
-
-    void replaceChallenge(
+    EmailVerificationReservationResult reserveChallenge(
             VerificationPurpose purpose,
             String email,
             OtpChallenge challenge,
-            Duration ttl
+            Duration challengeTtl,
+            Duration cooldownTtl
     );
 
     OtpVerificationStatus verifyAndConsume(
@@ -32,6 +26,12 @@ public interface EmailVerificationRepository {
     );
 
     boolean deleteChallengeIfMatches(
+            VerificationPurpose purpose,
+            String email,
+            String challengeId
+    );
+
+    void deleteChallengeAndCooldownIfMatches(
             VerificationPurpose purpose,
             String email,
             String challengeId

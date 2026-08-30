@@ -31,6 +31,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         HttpStatus status = ErrorHttpStatusMapper.map(errorCode.type());
         ResponseEntity.BodyBuilder builder = ResponseEntity.status(status);
 
+        if (errorCode.type() == ErrorType.DEPENDENCY_UNAVAILABLE) {
+            log.error(
+                    "외부 의존성 가용성 오류 code={}, exception={}, method={}, path={}",
+                    errorCode.code(),
+                    exception.getClass().getName(),
+                    request.getMethod(),
+                    request.getRequestURI(),
+                    exception
+            );
+        }
+
         if (exception instanceof RetryAfterException retryAfter) {
             builder.header(
                     HttpHeaders.RETRY_AFTER,

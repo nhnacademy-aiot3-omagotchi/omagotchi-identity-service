@@ -7,5 +7,6 @@ public enum ErrorType {
     RATE_LIMIT,
     AUTHENTICATION,
     AUTHORIZATION,
+    DEPENDENCY_UNAVAILABLE,
     INTERNAL
 }

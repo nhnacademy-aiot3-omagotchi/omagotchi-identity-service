@@ -1,7 +1,12 @@
 package site.omagotchi.identityservice.global.exception;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -70,6 +75,52 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("의존성 가용성 실패는 안정적인 503 오류 계약으로 반환")
+    void returnsServiceUnavailableForDependencyFailure() {
+        // Given
+        MockHttpServletRequest request = requestForTest();
+        IllegalStateException dependencyFailure =
+                new IllegalStateException("외부에 노출하면 안 되는 의존성 실패");
+        BusinessException exception = new BusinessException(
+                TestErrorCode.DEPENDENCY_UNAVAILABLE,
+                dependencyFailure
+        );
+        Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        // When
+        ResponseEntity<ApiErrorResponse> response;
+        try {
+            response = handler.handleBusinessException(exception, request);
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+            softly.then(response.getBody()).isEqualTo(new ApiErrorResponse(
+                    TestErrorCode.DEPENDENCY_UNAVAILABLE.code(),
+                    TestErrorCode.DEPENDENCY_UNAVAILABLE.message(),
+                    REQUEST_URI,
+                    null
+            ));
+            softly.then(appender.list).hasSize(1);
+            ILoggingEvent event = appender.list.getFirst();
+            softly.then(event.getLevel()).isEqualTo(Level.ERROR);
+            softly.then(event.getFormattedMessage())
+                    .contains("TEST_DEPENDENCY_UNAVAILABLE", "POST", REQUEST_URI);
+            softly.then(event.getThrowableProxy().getClassName())
+                    .isEqualTo(BusinessException.class.getName());
+            softly.then(event.getThrowableProxy().getCause().getClassName())
+                    .isEqualTo(dependencyFailure.getClass().getName());
+        });
+    }
+
+    @Test
     @DisplayName("RetryAfterException 구현 예외는 429와 Retry-After Header를 함께 반환")
     void returnsRetryAfterHeaderForRetryAfterException() {
         // Given
@@ -128,7 +179,12 @@ class GlobalExceptionHandlerTest {
     }
 
     private enum TestErrorCode implements ErrorCode {
-        RATE_LIMITED(ErrorType.RATE_LIMIT, "TEST_RATE_LIMITED", "요청 제한");
+        RATE_LIMITED(ErrorType.RATE_LIMIT, "TEST_RATE_LIMITED", "요청 제한"),
+        DEPENDENCY_UNAVAILABLE(
+                ErrorType.DEPENDENCY_UNAVAILABLE,
+                "TEST_DEPENDENCY_UNAVAILABLE",
+                "일시적으로 사용할 수 없음"
+        );
 
         private final ErrorType type;
         private final String code;

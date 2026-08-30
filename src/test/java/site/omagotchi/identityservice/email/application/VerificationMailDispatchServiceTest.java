@@ -8,11 +8,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import site.omagotchi.identityservice.email.application.port.EmailDeliveryException;
 import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
+import site.omagotchi.identityservice.email.application.port.EmailVerificationStorageException;
 import site.omagotchi.identityservice.email.application.port.VerificationMailSender;
 import site.omagotchi.identityservice.email.domain.VerificationPurpose;
 
 import java.time.Duration;
 
+import static org.assertj.core.api.BDDAssertions.then;
+import static org.assertj.core.api.BDDAssertions.thenCode;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -87,5 +90,43 @@ class VerificationMailDispatchServiceTest {
                 EMAIL,
                 CHALLENGE_ID
         );
+    }
+
+    @Test
+    @DisplayName("메일 발송 실패 후 Redis 정리 장애는 비동기 경계 밖으로 전파하지 않음")
+    void containsStorageFailureDuringAsynchronousCleanup() {
+        // Given
+        EmailDeliveryException deliveryFailure =
+                new EmailDeliveryException(500, "internal_server_error", false);
+        EmailVerificationStorageException storageFailure =
+                new EmailVerificationStorageException(
+                        new IllegalStateException("Redis 연결 실패")
+                );
+        doThrow(deliveryFailure)
+                .when(mailSender)
+                .sendVerificationCode(EMAIL, CODE, CHALLENGE_ID, VALIDITY);
+        when(repository.deleteChallengeIfMatches(
+                VerificationPurpose.SIGN_UP,
+                EMAIL,
+                CHALLENGE_ID
+        )).thenThrow(storageFailure);
+
+        // When & Then
+        thenCode(() -> dispatchService.dispatch(
+                VerificationPurpose.SIGN_UP,
+                EMAIL,
+                CODE,
+                CHALLENGE_ID,
+                VALIDITY
+        )).doesNotThrowAnyException();
+
+        // Then
+        verify(repository).deleteChallengeIfMatches(
+                VerificationPurpose.SIGN_UP,
+                EMAIL,
+                CHALLENGE_ID
+        );
+        then(storageFailure.getSuppressed())
+                .containsExactly(deliveryFailure);
     }
 }
