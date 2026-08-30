@@ -6,7 +6,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
-import site.omagotchi.identityservice.email.domain.EmailPolicy;
+import site.omagotchi.identityservice.account.domain.EmailPolicy;
 import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
 import site.omagotchi.identityservice.email.domain.OtpChallenge;
 import site.omagotchi.identityservice.email.domain.VerificationPurpose;

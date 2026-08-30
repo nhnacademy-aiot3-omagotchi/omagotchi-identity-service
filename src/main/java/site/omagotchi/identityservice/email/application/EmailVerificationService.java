@@ -3,12 +3,12 @@ package site.omagotchi.identityservice.email.application;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import site.omagotchi.identityservice.email.application.port.EmailVerificationRepository;
-import site.omagotchi.identityservice.email.domain.EmailPolicy;
 import site.omagotchi.identityservice.email.domain.OtpChallenge;
 import site.omagotchi.identityservice.email.domain.OtpVerificationStatus;
 import site.omagotchi.identityservice.email.domain.VerificationPurpose;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -24,22 +24,22 @@ public class EmailVerificationService {
     private final EmailVerificationProperties properties;
 
     public EmailVerificationChallengeResult requestCode(
-            String email,
+            String normalizedEmail,
             VerificationPurpose purpose
     ) {
-        String normalizedEmail = requireValidEmail(email);
+        String requiredEmail = requireNormalizedEmail(normalizedEmail);
         VerificationPurpose requiredPurpose = Objects.requireNonNull(purpose, "purpose");
 
         boolean acquired = emailVerificationRepository.acquireCooldown(
                 requiredPurpose,
-                normalizedEmail,
+                requiredEmail,
                 properties.resendCooldown()
         );
         if (!acquired) {
             throw new EmailVerificationCooldownException(
                     emailVerificationRepository.remainingCooldownSeconds(
                             requiredPurpose,
-                            normalizedEmail
+                            requiredEmail
                     )
             );
         }
@@ -49,7 +49,7 @@ public class EmailVerificationService {
         String verificationCode = codeGenerator.generate();
         emailVerificationRepository.replaceChallenge(
                 requiredPurpose,
-                normalizedEmail,
+                requiredEmail,
                 new OtpChallenge(challengeId, verificationCode),
                 properties.codeTtl()
         );
@@ -57,7 +57,7 @@ public class EmailVerificationService {
         try {
             mailDispatchService.dispatch(
                     requiredPurpose,
-                    normalizedEmail,
+                    requiredEmail,
                     verificationCode,
                     challengeId,
                     properties.codeTtl()
@@ -65,7 +65,7 @@ public class EmailVerificationService {
         } catch (RuntimeException exception) {
             emailVerificationRepository.deleteChallengeIfMatches(
                     requiredPurpose,
-                    normalizedEmail,
+                    requiredEmail,
                     challengeId
             );
             throw exception;
@@ -74,12 +74,12 @@ public class EmailVerificationService {
     }
 
     public void verifyAndConsumeCode(
-            String email,
+            String normalizedEmail,
             VerificationPurpose purpose,
             String challengeId,
             String verificationCode
     ) {
-        String normalizedEmail = requireValidEmail(email);
+        String requiredEmail = requireNormalizedEmail(normalizedEmail);
         VerificationPurpose requiredPurpose = Objects.requireNonNull(purpose, "purpose");
 
         if (challengeId == null || challengeId.isBlank()
@@ -90,7 +90,7 @@ public class EmailVerificationService {
 
         OtpVerificationStatus status = emailVerificationRepository.verifyAndConsume(
                 requiredPurpose,
-                normalizedEmail,
+                requiredEmail,
                 challengeId,
                 verificationCode,
                 properties.maximumAttempts()
@@ -100,11 +100,14 @@ public class EmailVerificationService {
         }
     }
 
-    private String requireValidEmail(String email) {
-        if (!EmailPolicy.isSatisfiedBy(email)) {
-            throw new BusinessException(EmailVerificationErrorCode.INVALID_EMAIL);
+    private String requireNormalizedEmail(String email) {
+        String requiredEmail = Objects.requireNonNull(email, "normalizedEmail");
+        if (requiredEmail.isBlank()
+                || !requiredEmail.equals(requiredEmail.trim())
+                || !requiredEmail.equals(requiredEmail.toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("normalizedEmail은 정규화된 값이어야 합니다.");
         }
-        return EmailPolicy.normalize(email);
+        return requiredEmail;
     }
 
     private BusinessException invalidVerification() {

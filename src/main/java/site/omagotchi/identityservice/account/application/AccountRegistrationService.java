@@ -6,7 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import site.omagotchi.identityservice.account.application.port.AccountRepository;
 import site.omagotchi.identityservice.account.application.port.PasswordHasher;
 import site.omagotchi.identityservice.account.domain.Account;
-import site.omagotchi.identityservice.email.domain.EmailPolicy;
+import site.omagotchi.identityservice.account.domain.EmailPolicy;
 import site.omagotchi.identityservice.account.domain.PasswordPolicy;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 

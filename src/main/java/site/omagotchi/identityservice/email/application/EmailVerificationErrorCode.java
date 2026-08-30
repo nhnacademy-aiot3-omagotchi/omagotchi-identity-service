@@ -11,11 +11,6 @@ import site.omagotchi.identityservice.global.exception.ErrorType;
 @RequiredArgsConstructor
 public enum EmailVerificationErrorCode implements ErrorCode {
 
-    INVALID_EMAIL(
-            ErrorType.INVALID_INPUT,
-            "EMAIL_INVALID_EMAIL",
-            "이메일은 올바른 주소 형식의 254자 이하여야 합니다."
-    ),
     INVALID(
             ErrorType.INVALID_INPUT,
             "EMAIL_VERIFICATION_INVALID",

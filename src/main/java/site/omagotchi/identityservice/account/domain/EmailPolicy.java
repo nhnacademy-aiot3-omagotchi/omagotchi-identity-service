@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.email.domain;
+package site.omagotchi.identityservice.account.domain;
 
 import java.util.Arrays;
 import java.util.Locale;

@@ -244,18 +244,16 @@ class EmailVerificationServiceTest {
     }
 
     @Test
-    @DisplayName("올바르지 않은 이메일 형식은 비즈니스 예외로 Redis 접근 전 거절")
-    void rejectsInvalidEmailBeforeRepositoryAccess() {
+    @DisplayName("정규화되지 않은 이메일은 호출 계약 위반으로 Redis 접근 전 거절")
+    void rejectsNonNormalizedEmailBeforeRepositoryAccess() {
         Throwable thrown = catchThrowable(() -> service.requestCode(
-                "invalid-email",
+                "  USER@Example.COM  ",
                 VerificationPurpose.SIGN_UP
         ));
 
-        then(thrown).isInstanceOfSatisfying(
-                BusinessException.class,
-                exception -> then(exception.getErrorCode())
-                        .isSameAs(EmailVerificationErrorCode.INVALID_EMAIL)
-        );
+        then(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("normalizedEmail은 정규화된 값이어야 합니다.");
         verifyNoInteractions(
                 verificationRepository,
                 codeGenerator,
