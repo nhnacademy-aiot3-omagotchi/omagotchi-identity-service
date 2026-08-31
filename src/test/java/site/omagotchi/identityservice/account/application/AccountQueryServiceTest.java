@@ -85,9 +85,18 @@ class AccountQueryServiceTest {
 
         assertThatThrownBy(() -> accountQueryService.searchByNameOrEmail("\u3000", List.of(accountId)))
                 .isInstanceOf(BusinessException.class);
+
         assertThatThrownBy(() -> accountQueryService.searchByNameOrEmail(
                 "사용자", java.util.stream.IntStream.rangeClosed(0, AccountQueryService.ACCOUNT_SEARCH_CANDIDATE_IDS_MAX)
                         .mapToObj(ignored -> UUID.randomUUID()).toList()))
+                .isInstanceOf(BusinessException.class);
+
+        assertThatThrownBy(() -> accountQueryService.searchByNameOrEmail(
+                "사용자",
+                java.util.Collections.nCopies(
+                        AccountQueryService.ACCOUNT_SEARCH_CANDIDATE_IDS_MAX + 1,
+                        accountId
+                )))
                 .isInstanceOf(BusinessException.class);
 
         verifyNoInteractions(accountRepository);

@@ -37,12 +37,14 @@ public class AccountQueryService {
         if (normalized.isBlank() || normalized.length() > ACCOUNT_SEARCH_QUERY_MAX_LENGTH) {
             throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
         }
-        List<UUID> distinctCandidateIds = candidateIds == null ? List.of()
-                : candidateIds.stream().distinct().toList();
-        if (distinctCandidateIds.isEmpty() || distinctCandidateIds.stream().anyMatch(id -> id == null)) {
+        if (candidateIds != null && candidateIds.size() > ACCOUNT_SEARCH_CANDIDATE_IDS_MAX) {
             throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
         }
-        if (distinctCandidateIds.size() > ACCOUNT_SEARCH_CANDIDATE_IDS_MAX) {
+
+        List<UUID> distinctCandidateIds = candidateIds == null ? List.of()
+                : candidateIds.stream().distinct().toList();
+
+        if (distinctCandidateIds.isEmpty() || distinctCandidateIds.stream().anyMatch(id -> id == null)) {
             throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
         }
         return accountRepository.searchByNameOrEmail(
