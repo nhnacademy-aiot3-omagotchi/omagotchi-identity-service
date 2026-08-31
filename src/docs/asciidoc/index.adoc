@@ -180,3 +180,17 @@ include::{snippets}/internal/accounts/batch/success/response-fields.adoc[]
 
 include::{snippets}/internal/accounts/batch/invalid-request/http-response.adoc[]
 include::{snippets}/internal/accounts/batch/invalid-request/response-fields.adoc[]
+
+== Learning 후보 계정 검색
+
+`POST /api/v1/internal/accounts/search`는 Learning Service HTTP Basic Credential을 사용하는 내부 API다.
+Learning이 `candidateIds`에 같은 기수의 ACTIVE 멤버십 중 현재 재실인 계정만 넣고,
+Identity는 그 범위에서 이름 또는 이메일을 부분 검색한 뒤 최대 20건을 반환한다.
+`query`는 앞뒤 공백을 제거하며 빈 문자열은 허용하지 않고 최대 100자다. `%`, `_`, `!`는 LIKE 와일드카드가 아닌 문자 그대로 검색한다.
+`candidateIds`는 내부 일괄 계정 조회 API와 동일하게 요청당 최대 100개이며, 중복 ID는 한 번만 검색한다.
+
+include::{snippets}/internal/accounts/search/success/request-headers.adoc[]
+include::{snippets}/internal/accounts/search/success/request-fields.adoc[]
+include::{snippets}/internal/accounts/search/success/http-request.adoc[]
+include::{snippets}/internal/accounts/search/success/http-response.adoc[]
+include::{snippets}/internal/accounts/search/success/response-fields.adoc[]

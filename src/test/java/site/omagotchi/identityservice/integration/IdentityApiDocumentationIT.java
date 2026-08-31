@@ -469,6 +469,43 @@ class IdentityApiDocumentationIT {
     }
 
     @Test
+    @DisplayName("Learning 후보 계정 검색 성공 계약")
+    void documentsInternalAccountSearch() throws Exception {
+        Account account = saveAccount("search@example.com", "검색 사용자");
+
+        mockMvc.perform(post("/api/v1/internal/accounts/search")
+                        .with(learningCredential())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "  검색  ",
+                                  "candidateIds": ["%s"]
+                                }
+                                """.formatted(account.getId())))
+                .andExpect(status().isOk())
+                .andDo(document(
+                        "internal/accounts/search/success",
+                        learningRequest(),
+                        documentedResponse(),
+                        learningCredentialHeader(),
+                        requestFields(
+                                fieldWithPath("query").description(
+                                        "이름 또는 이메일의 부분 검색어. 앞뒤 공백을 제거하며, "
+                                                + "빈 문자열은 허용하지 않고 최대 100자"),
+                                fieldWithPath("candidateIds[]").description(
+                                        "Learning이 같은 기수 ACTIVE 멤버십과 현재 재실 기준으로 "
+                                                + "확정한 후보 계정 UUID 목록(최대 100개, 중복은 한 번만 검색)")
+                        ),
+                        responseFields(
+                                fieldWithPath("[].accountId").description("계정 UUID"),
+                                fieldWithPath("[].displayName").description("표시 이름"),
+                                fieldWithPath("[].email").description("이메일"),
+                                fieldWithPath("[].status").description("계정 상태")
+                        )
+                ));
+    }
+
+    @Test
     @DisplayName("Learning Credential 누락 오류 계약")
     void documentsMissingLearningCredential() throws Exception {
         mockMvc.perform(get(

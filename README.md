@@ -116,6 +116,7 @@ chmod 644 secrets/jwt-public.pem
 | `PATCH` | `/api/v1/users/me/password` | Access JWT | 현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
 | `GET` | `/api/v1/internal/accounts/{accountId}` | Learning Credential | 계정 상태·표시 이름 단건 조회 |
 | `POST` | `/api/v1/internal/accounts/batch` | Learning Credential | 계정 상태·표시 이름 일괄 조회 |
+| `POST` | `/api/v1/internal/accounts/search` | Learning Credential | Learning 후보 ID 범위 내 이름·이메일 검색(최대 20건) |
 
 - 일괄 조회: 특정 계정 ID 묶음의 단순 목록 응답, 요청당 최대 100개
 - 페이지 응답 제외: 전체 계정 목록 검색이 아닌 요청 ID 집합 조회
