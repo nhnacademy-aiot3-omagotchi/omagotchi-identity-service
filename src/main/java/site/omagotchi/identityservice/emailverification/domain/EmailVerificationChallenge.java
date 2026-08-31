@@ -11,6 +11,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -72,14 +73,16 @@ public class EmailVerificationChallenge {
         this.email = Objects.requireNonNull(email, "email");
         this.purpose = Objects.requireNonNull(purpose, "purpose");
         this.codeMac = requireCodeMac(codeMac);
-        this.expiresAt = Objects.requireNonNull(expiresAt, "expiresAt");
-        this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
-        this.updatedAt = createdAt;
+        Instant normalizedExpiresAt = Objects.requireNonNull(expiresAt, "expiresAt").truncatedTo(ChronoUnit.MICROS);
+        Instant normalizedCreatedAt = Objects.requireNonNull(createdAt, "createdAt").truncatedTo(ChronoUnit.MICROS);
+        this.expiresAt = normalizedExpiresAt;
+        this.createdAt = normalizedCreatedAt;
+        this.updatedAt = normalizedCreatedAt;
         this.status = EmailVerificationStatus.OPEN;
         this.deliveryStatus = EmailDeliveryStatus.PENDING;
         this.failedAttempts = 0;
 
-        if (!expiresAt.isAfter(createdAt)) {
+        if (!normalizedExpiresAt.isAfter(normalizedCreatedAt)) {
             throw new IllegalArgumentException("이메일 인증 만료 시각은 생성 시각 이후여야 합니다.");
         }
     }
@@ -109,15 +112,17 @@ public class EmailVerificationChallenge {
     }
 
     public boolean isUsableAt(Instant now) {
+        Instant checkedAt = Objects.requireNonNull(now, "now").truncatedTo(ChronoUnit.MICROS);
         return status == EmailVerificationStatus.OPEN
-                && Objects.requireNonNull(now, "now").isBefore(expiresAt);
+                && checkedAt.isBefore(expiresAt);
     }
 
     public void recordInvalidAttempt(int maximumFailedAttempts, Instant now) {
         if (maximumFailedAttempts < 1 || maximumFailedAttempts > Short.MAX_VALUE) {
             throw new IllegalArgumentException("최대 이메일 인증 실패 횟수 범위가 올바르지 않습니다.");
         }
-        if (!isUsableAt(now)) {
+        Instant recordedAt = Objects.requireNonNull(now, "now").truncatedTo(ChronoUnit.MICROS);
+        if (!isUsableAt(recordedAt)) {
             throw new IllegalStateException("사용할 수 없는 이메일 인증에는 실패를 기록할 수 없습니다.");
         }
 
@@ -126,15 +131,16 @@ public class EmailVerificationChallenge {
         if (nextAttempts >= maximumFailedAttempts) {
             status = EmailVerificationStatus.EXHAUSTED;
         }
-        updatedAt = now;
+        updatedAt = recordedAt;
     }
 
     public void consume(Instant now) {
-        if (!isUsableAt(now)) {
+        Instant consumedAt = Objects.requireNonNull(now, "now").truncatedTo(ChronoUnit.MICROS);
+        if (!isUsableAt(consumedAt)) {
             throw new IllegalStateException("사용할 수 없는 이메일 인증은 소비할 수 없습니다.");
         }
         status = EmailVerificationStatus.CONSUMED;
-        updatedAt = now;
+        updatedAt = consumedAt;
     }
 
     public void supersede(Instant now) {
@@ -142,7 +148,7 @@ public class EmailVerificationChallenge {
             return;
         }
         status = EmailVerificationStatus.SUPERSEDED;
-        updatedAt = Objects.requireNonNull(now, "now");
+        updatedAt = Objects.requireNonNull(now, "now").truncatedTo(ChronoUnit.MICROS);
     }
 
     public void markDeliveryAccepted(Instant now) {
@@ -150,7 +156,7 @@ public class EmailVerificationChallenge {
             return;
         }
         deliveryStatus = EmailDeliveryStatus.ACCEPTED;
-        updatedAt = Objects.requireNonNull(now, "now");
+        updatedAt = Objects.requireNonNull(now, "now").truncatedTo(ChronoUnit.MICROS);
     }
 
     public void markDeliveryFailed(Instant now) {
@@ -158,7 +164,7 @@ public class EmailVerificationChallenge {
             return;
         }
         deliveryStatus = EmailDeliveryStatus.FAILED;
-        updatedAt = Objects.requireNonNull(now, "now");
+        updatedAt = Objects.requireNonNull(now, "now").truncatedTo(ChronoUnit.MICROS);
     }
 
     private static String requireCodeMac(String codeMac) {

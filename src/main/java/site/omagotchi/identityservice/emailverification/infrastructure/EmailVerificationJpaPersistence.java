@@ -9,6 +9,7 @@ import site.omagotchi.identityservice.emailverification.domain.EmailVerification
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationScope;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,6 +27,7 @@ public class EmailVerificationJpaPersistence implements EmailVerificationReposit
             EmailVerificationPurpose purpose,
             Instant now
     ) {
+        Instant dbNow = now.truncatedTo(ChronoUnit.MICROS);
         entityManager.createNativeQuery("""
                         INSERT INTO identity_service.email_verification_scopes (
                             id, email, purpose, active_challenge_id,
@@ -40,7 +42,7 @@ public class EmailVerificationJpaPersistence implements EmailVerificationReposit
                 .setParameter("id", UUID.randomUUID())
                 .setParameter("email", email)
                 .setParameter("purpose", purpose.name())
-                .setParameter("now", now)
+                .setParameter("now", dbNow)
                 .executeUpdate();
 
         return scopeJpaRepository.lockByEmailAndPurpose(email, purpose)

@@ -11,10 +11,8 @@ import site.omagotchi.identityservice.emailverification.domain.EmailVerification
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationPurpose;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationStatus;
 
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -52,8 +50,7 @@ class EmailVerificationUseServiceTest {
                         Duration.ofMinutes(1),
                         2,
                         "test-hmac-secret-with-at-least-32-characters"
-                ),
-                Clock.fixed(NOW, ZoneOffset.UTC)
+                )
         );
     }
 
@@ -76,7 +73,8 @@ class EmailVerificationUseServiceTest {
                 challenge.getId(),
                 EMAIL,
                 EmailVerificationPurpose.SIGNUP,
-                "123456"
+                "123456",
+                NOW
         );
 
         // Then
@@ -100,10 +98,10 @@ class EmailVerificationUseServiceTest {
 
         // When
         then(service.verify(
-                challenge.getId(), EMAIL, EmailVerificationPurpose.SIGNUP, "000000"
+                challenge.getId(), EMAIL, EmailVerificationPurpose.SIGNUP, "000000", NOW
         )).isFalse();
         then(service.verify(
-                challenge.getId(), EMAIL, EmailVerificationPurpose.SIGNUP, "000000"
+                challenge.getId(), EMAIL, EmailVerificationPurpose.SIGNUP, "000000", NOW
         )).isFalse();
 
         // Then
@@ -123,7 +121,8 @@ class EmailVerificationUseServiceTest {
                 challenge.getId(),
                 "other@example.com",
                 EmailVerificationPurpose.SIGNUP,
-                "123456"
+                "123456",
+                NOW
         );
 
         // Then
@@ -146,7 +145,7 @@ class EmailVerificationUseServiceTest {
         given(repository.lockChallenge(challenge.getId())).willReturn(Optional.of(challenge));
 
         // When
-        service.consume(challenge.getId());
+        service.consume(challenge.getId(), NOW);
 
         // Then
         then(challenge.getStatus()).isEqualTo(EmailVerificationStatus.CONSUMED);

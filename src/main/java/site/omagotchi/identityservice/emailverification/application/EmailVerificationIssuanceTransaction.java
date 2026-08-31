@@ -11,6 +11,7 @@ import site.omagotchi.identityservice.emailverification.domain.EmailVerification
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 @Service
@@ -28,7 +29,7 @@ public class EmailVerificationIssuanceTransaction {
             String normalizedEmail,
             EmailVerificationPurpose purpose
     ) {
-        Instant now = clock.instant();
+        Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
         EmailVerificationScope scope = repository.createIfAbsentAndLockScope(
                 normalizedEmail,
                 purpose,

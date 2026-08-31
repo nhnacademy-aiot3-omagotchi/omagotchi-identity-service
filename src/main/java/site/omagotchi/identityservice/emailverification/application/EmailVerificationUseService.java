@@ -8,7 +8,6 @@ import site.omagotchi.identityservice.emailverification.application.port.EmailVe
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationChallenge;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationPurpose;
 
-import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -19,18 +18,17 @@ public class EmailVerificationUseService {
     private final EmailVerificationRepository repository;
     private final VerificationCodeAuthenticator codeAuthenticator;
     private final EmailVerificationProperties properties;
-    private final Clock clock;
 
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean verify(
             UUID challengeId,
             String normalizedEmail,
             EmailVerificationPurpose purpose,
-            String code
+            String code,
+            Instant now
     ) {
         EmailVerificationChallenge challenge = repository.lockChallenge(challengeId)
                 .orElse(null);
-        Instant now = clock.instant();
 
         if (challenge == null
                 || !challenge.matchesContext(normalizedEmail, purpose)
@@ -54,9 +52,9 @@ public class EmailVerificationUseService {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
-    public void consume(UUID challengeId) {
+    public void consume(UUID challengeId, Instant now) {
         EmailVerificationChallenge challenge = repository.lockChallenge(challengeId)
                 .orElseThrow(() -> new IllegalStateException("검증한 이메일 인증을 찾을 수 없습니다."));
-        challenge.consume(clock.instant());
+        challenge.consume(now);
     }
 }

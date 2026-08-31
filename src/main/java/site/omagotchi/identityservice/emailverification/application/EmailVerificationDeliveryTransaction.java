@@ -10,6 +10,7 @@ import site.omagotchi.identityservice.emailverification.domain.EmailVerification
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 @Service
@@ -22,12 +23,12 @@ public class EmailVerificationDeliveryTransaction {
     @Transactional
     public void markAccepted(UUID challengeId) {
         repository.lockChallenge(challengeId)
-                .ifPresent(challenge -> challenge.markDeliveryAccepted(clock.instant()));
+                .ifPresent(challenge -> challenge.markDeliveryAccepted(now()));
     }
 
     @Transactional
     public void markFailedAndReleaseCooldown(PreparedEmailVerification prepared) {
-        Instant now = clock.instant();
+        Instant now = now();
         // 발급과 같은 Scope → Challenge 잠금 순서를 유지한다.
         EmailVerificationScope scope = repository.createIfAbsentAndLockScope(
                 prepared.email(),
@@ -43,12 +44,16 @@ public class EmailVerificationDeliveryTransaction {
 
     @Transactional
     public void releaseCooldown(PreparedEmailVerification prepared) {
-        Instant now = clock.instant();
+        Instant now = now();
         EmailVerificationScope scope = repository.createIfAbsentAndLockScope(
                 prepared.email(),
                 prepared.purpose(),
                 now
         );
         scope.releaseCooldownForCurrentChallenge(prepared.challengeId(), now);
+    }
+
+    private Instant now() {
+        return clock.instant().truncatedTo(ChronoUnit.MICROS);
     }
 }

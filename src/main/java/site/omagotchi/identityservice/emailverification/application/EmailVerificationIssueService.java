@@ -12,6 +12,7 @@ import site.omagotchi.identityservice.global.exception.DependencyUnavailableExce
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 @Slf4j
 @Service
@@ -59,7 +60,7 @@ public class EmailVerificationIssueService {
             );
         }
 
-        Instant responseAt = clock.instant();
+        Instant responseAt = clock.instant().truncatedTo(ChronoUnit.MICROS);
         if (!responseAt.isBefore(prepared.expiresAt())) {
             rejectExpiredDelivery(prepared);
         }

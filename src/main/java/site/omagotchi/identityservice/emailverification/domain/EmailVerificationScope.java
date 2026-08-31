@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -52,9 +53,10 @@ public class EmailVerificationScope {
         this.id = Objects.requireNonNull(id, "id");
         this.email = Objects.requireNonNull(email, "email");
         this.purpose = Objects.requireNonNull(purpose, "purpose");
-        this.nextIssueAt = Objects.requireNonNull(createdAt, "createdAt");
-        this.createdAt = createdAt;
-        this.updatedAt = createdAt;
+        Instant normalizedCreatedAt = Objects.requireNonNull(createdAt, "createdAt").truncatedTo(ChronoUnit.MICROS);
+        this.nextIssueAt = normalizedCreatedAt;
+        this.createdAt = normalizedCreatedAt;
+        this.updatedAt = normalizedCreatedAt;
     }
 
     public static EmailVerificationScope create(
@@ -67,11 +69,12 @@ public class EmailVerificationScope {
     }
 
     public boolean canIssueAt(Instant now) {
-        return !Objects.requireNonNull(now, "now").isBefore(nextIssueAt);
+        Instant checkedAt = Objects.requireNonNull(now, "now").truncatedTo(ChronoUnit.MICROS);
+        return !checkedAt.isBefore(nextIssueAt);
     }
 
     public long retryAfterSecondsAt(Instant now) {
-        Instant checkedAt = Objects.requireNonNull(now, "now");
+        Instant checkedAt = Objects.requireNonNull(now, "now").truncatedTo(ChronoUnit.MICROS);
         if (canIssueAt(checkedAt)) {
             return 0;
         }
@@ -81,7 +84,7 @@ public class EmailVerificationScope {
     }
 
     public void startChallenge(UUID challengeId, Instant now, Duration cooldown) {
-        Instant startedAt = Objects.requireNonNull(now, "now");
+        Instant startedAt = Objects.requireNonNull(now, "now").truncatedTo(ChronoUnit.MICROS);
         Duration requiredCooldown = Objects.requireNonNull(cooldown, "cooldown");
         if (!canIssueAt(startedAt)) {
             throw new IllegalStateException("쿨다운 중에는 새 이메일 인증을 시작할 수 없습니다.");
@@ -104,7 +107,7 @@ public class EmailVerificationScope {
             return;
         }
 
-        Instant releasedAt = Objects.requireNonNull(now, "now");
+        Instant releasedAt = Objects.requireNonNull(now, "now").truncatedTo(ChronoUnit.MICROS);
         nextIssueAt = releasedAt;
         updatedAt = releasedAt;
     }
