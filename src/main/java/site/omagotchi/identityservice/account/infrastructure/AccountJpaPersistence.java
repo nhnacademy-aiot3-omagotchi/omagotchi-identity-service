@@ -3,10 +3,15 @@ package site.omagotchi.identityservice.account.infrastructure;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import site.omagotchi.identityservice.account.application.AccountErrorCode;
+import site.omagotchi.identityservice.account.application.port.AccountPage;
 import site.omagotchi.identityservice.account.application.port.AccountRepository;
+import site.omagotchi.identityservice.account.application.port.AccountSearchCriteria;
+import site.omagotchi.identityservice.account.application.port.AccountSortOption;
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
@@ -20,6 +25,9 @@ import java.util.UUID;
 public class AccountJpaPersistence implements AccountRepository {
 
     private static final String EMAIL_CONSTRAINT = "uq_accounts_email";
+
+    // 정렬값이 같은 행의 페이지 경계 중복·누락을 막는 최종 Tie-breaker
+    private static final Sort.Order ID_TIE_BREAKER = Sort.Order.asc("id");
 
     private final AccountJpaRepository accountJpaRepository;
 
@@ -64,6 +72,20 @@ public class AccountJpaPersistence implements AccountRepository {
     }
 
     @Override
+    public AccountPage searchAccounts(
+            AccountSearchCriteria criteria,
+            int page,
+            int size,
+            AccountSortOption sortOption
+    ) {
+        Page<Account> found = accountJpaRepository.findAll(
+                AccountSpecifications.of(criteria),
+                PageRequest.of(page, size, toSort(sortOption))
+        );
+        return new AccountPage(found.getContent(), found.getTotalElements());
+    }
+
+    @Override
     public Optional<Account> findByEmail(String email) {
         return accountJpaRepository.findByEmail(email);
     }
@@ -84,6 +106,17 @@ public class AccountJpaPersistence implements AccountRepository {
             }
             throw exception;
         }
+    }
+
+    // Entity 필드명 노출 없이 허용된 정렬만 생성
+    private static Sort toSort(AccountSortOption sortOption) {
+        Sort.Order primary = switch (sortOption) {
+            case CREATED_AT_DESC -> Sort.Order.desc("createdAt");
+            case CREATED_AT_ASC -> Sort.Order.asc("createdAt");
+            case EMAIL_ASC -> Sort.Order.asc("email");
+            case NAME_ASC -> Sort.Order.asc("name");
+        };
+        return Sort.by(primary, ID_TIE_BREAKER);
     }
 
     // 중첩된 Spring·Hibernate 예외에서 실제 DB 제약 이름 확인
