@@ -47,10 +47,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Execution(ExecutionMode.SAME_THREAD)
 class EmailVerificationApiIT {
 
-    private static final String ISSUE_AND_CONSUME_EMAIL = "issue-and-consume@example.com";
-    private static final String FAILED_ATTEMPT_EMAIL = "failed-attempt@example.com";
-    private static final String DELIVERY_FAILURE_EMAIL = "delivery-failure@example.com";
-    private static final String FRONTEND_CREDENTIAL_EMAIL = "frontend-credential@example.com";
     private static final String PASSWORD = "password-passphrase";
 
     @Autowired
@@ -67,11 +63,12 @@ class EmailVerificationApiIT {
     @DisplayName("회원가입 OTP 발급·쿨다운·검증·일회 소비")
     void issuesVerifiesAndConsumesSignupOtp() throws Exception {
         // Given
-        deleteTestData(ISSUE_AND_CONSUME_EMAIL);
+        String email = uniqueEmail("issue-and-consume");
+        deleteTestData(email);
         ArgumentCaptor<String> codeCaptor = ArgumentCaptor.forClass(String.class);
 
         // When
-        String issueResponse = issueSignupOtp(ISSUE_AND_CONSUME_EMAIL)
+        String issueResponse = issueSignupOtp(email)
                 .andExpectAll(
                         status().isAccepted(),
                         header().string(HttpHeaders.CACHE_CONTROL, "no-store"),
@@ -88,22 +85,22 @@ class EmailVerificationApiIT {
         // Then
         verify(mailSender).sendVerificationCode(
                 eq(challengeId),
-                eq(ISSUE_AND_CONSUME_EMAIL),
+                eq(email),
                 codeCaptor.capture(),
                 eq(Duration.ofMinutes(5))
         );
 
-        issueSignupOtp(ISSUE_AND_CONSUME_EMAIL).andExpectAll(
+        issueSignupOtp(email).andExpectAll(
                 status().isTooManyRequests(),
                 header().string(HttpHeaders.RETRY_AFTER, "60"),
                 jsonPath("$.code").value("EMAIL_VERIFICATION_COOLDOWN_ACTIVE")
         );
 
-        signup(ISSUE_AND_CONSUME_EMAIL, challengeId, codeCaptor.getValue()).andExpectAll(
+        signup(email, challengeId, codeCaptor.getValue()).andExpectAll(
                 status().isCreated(),
-                jsonPath("$.email").value(ISSUE_AND_CONSUME_EMAIL)
+                jsonPath("$.email").value(email)
         );
-        signup(ISSUE_AND_CONSUME_EMAIL, challengeId, codeCaptor.getValue()).andExpectAll(
+        signup(email, challengeId, codeCaptor.getValue()).andExpectAll(
                 status().isBadRequest(),
                 jsonPath("$.code").value("EMAIL_VERIFICATION_INVALID_CHALLENGE")
         );
@@ -120,14 +117,15 @@ class EmailVerificationApiIT {
     @DisplayName("잘못된 OTP 응답 뒤 실패 횟수 Commit")
     void commitsFailedAttemptBeforeErrorResponse() throws Exception {
         // Given
-        deleteTestData(FAILED_ATTEMPT_EMAIL);
-        JsonNode issued = objectMapper.readTree(issueSignupOtp(FAILED_ATTEMPT_EMAIL)
+        String email = uniqueEmail("failed-attempt");
+        deleteTestData(email);
+        JsonNode issued = objectMapper.readTree(issueSignupOtp(email)
                 .andExpect(status().isAccepted())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
         UUID challengeId = UUID.fromString(issued.get("challengeId").asString());
 
         // When
-        signup(FAILED_ATTEMPT_EMAIL, challengeId, "000000").andExpectAll(
+        signup(email, challengeId, "000000").andExpectAll(
                 status().isBadRequest(),
                 jsonPath("$.code").value("EMAIL_VERIFICATION_INVALID_CHALLENGE")
         );
@@ -145,23 +143,24 @@ class EmailVerificationApiIT {
     @DisplayName("메일 사업자 실패를 503으로 응답하고 즉시 재발급 허용")
     void releasesCooldownAfterDeliveryFailure() throws Exception {
         // Given
-        deleteTestData(DELIVERY_FAILURE_EMAIL);
+        String email = uniqueEmail("delivery-failure");
+        deleteTestData(email);
         doThrow(new EmailDeliveryException("provider unavailable", new RuntimeException()))
                 .doNothing()
                 .when(mailSender)
                 .sendVerificationCode(
                         any(),
-                        eq(DELIVERY_FAILURE_EMAIL),
+                        eq(email),
                         any(),
                         eq(Duration.ofMinutes(5))
                 );
 
         // When
-        issueSignupOtp(DELIVERY_FAILURE_EMAIL).andExpectAll(
+        issueSignupOtp(email).andExpectAll(
                 status().isServiceUnavailable(),
                 jsonPath("$.code").value("EMAIL_VERIFICATION_DELIVERY_UNAVAILABLE")
         );
-        issueSignupOtp(DELIVERY_FAILURE_EMAIL).andExpect(status().isAccepted());
+        issueSignupOtp(email).andExpect(status().isAccepted());
 
         // Then
         Integer failedDeliveries = jdbcTemplate.queryForObject(
@@ -172,7 +171,7 @@ class EmailVerificationApiIT {
                   AND email = ?
                 """,
                 Integer.class,
-                DELIVERY_FAILURE_EMAIL
+                email
         );
         then(failedDeliveries).isEqualTo(1);
     }
@@ -181,7 +180,7 @@ class EmailVerificationApiIT {
     @DisplayName("v2 회원가입 OTP API는 Frontend Credential 요구")
     void requiresFrontendCredential() throws Exception {
         // Given
-        String requestBody = issueBody(FRONTEND_CREDENTIAL_EMAIL);
+        String requestBody = issueBody(uniqueEmail("frontend-credential"));
 
         // When
         mockMvc.perform(post("/api/v2/auth/signup/email-otp")
@@ -232,6 +231,10 @@ class EmailVerificationApiIT {
                 "password", PASSWORD,
                 "name", "member"
         ));
+    }
+
+    private String uniqueEmail(String scenario) {
+        return scenario + "+" + UUID.randomUUID() + "@example.com";
     }
 
     private void deleteTestData(String email) {
