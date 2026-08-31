@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -12,6 +13,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import site.omagotchi.identityservice.account.application.port.PasswordHasher;
@@ -21,15 +23,21 @@ import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepositor
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
+import site.omagotchi.identityservice.emailverification.application.port.EmailVerificationMailSender;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -61,6 +69,9 @@ class PasswordChangeIT {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @MockitoBean
+    private EmailVerificationMailSender mailSender;
 
     private AuthApiTestClient api;
     private AccountStateTestFixture accountStateFixture;
@@ -148,6 +159,69 @@ class PasswordChangeIT {
             softly.then(tokensFor(otherAccountId)).allSatisfy(token ->
                     softly.then(token.isRevoked()).isFalse()
             );
+        });
+    }
+
+    @Test
+    @DisplayName("v2 OTP로 비밀번호 변경 후 Session 폐기와 Challenge 소비")
+    void changesPasswordWithEmailOtp() throws Exception {
+        // Given
+        String email = "password-v2@example.com";
+        UUID accountId = api.signupSuccessfully(email);
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(email, CURRENT_PASSWORD);
+        ArgumentCaptor<String> codeCaptor = ArgumentCaptor.forClass(String.class);
+
+        String issueResponse = mockMvc.perform(post("/api/v2/users/me/password/email-otp")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + login.accessToken()))
+                .andExpectAll(
+                        status().isAccepted(),
+                        header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store"))
+                )
+                .andReturn().getResponse().getContentAsString();
+        UUID challengeId = UUID.fromString(
+                objectMapper.readTree(issueResponse).get("challengeId").asString()
+        );
+        verify(mailSender).sendVerificationCode(
+                eq(challengeId),
+                eq(email),
+                codeCaptor.capture(),
+                eq(Duration.ofMinutes(5))
+        );
+
+        // When
+        ResultActions response = mockMvc.perform(patch("/api/v2/users/me/password")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + login.accessToken())
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of(
+                        "currentPassword", CURRENT_PASSWORD,
+                        "newPassword", NEW_PASSWORD,
+                        "challengeId", challengeId,
+                        "code", codeCaptor.getValue()
+                ))));
+
+        // Then
+        response.andExpectAll(
+                status().isNoContent(),
+                content().string(""),
+                header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store"))
+        );
+        Account changedAccount = accountJpaRepository.findById(accountId).orElseThrow();
+        String challengeStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM identity_service.email_verification_challenges WHERE id = ?",
+                String.class,
+                challengeId
+        );
+        thenSoftly(softly -> {
+            softly.then(passwordHasher.matches(
+                    NEW_PASSWORD,
+                    changedAccount.getPasswordHash()
+            )).isTrue();
+            softly.then(tokensFor(accountId)).hasSize(1).allSatisfy(token -> {
+                softly.then(token.isRevoked()).isTrue();
+                softly.then(token.getRevocationReason())
+                        .isEqualTo(RefreshTokenRevocationReason.PASSWORD_CHANGED);
+            });
+            softly.then(challengeStatus).isEqualTo("CONSUMED");
         });
     }
 
@@ -303,14 +377,19 @@ class PasswordChangeIT {
     @Test
     @DisplayName("Bearer Token 없는 비밀번호 변경 요청 거부")
     void requiresBearerAuthentication() throws Exception {
+        // Given
+        String requestBody = """
+                {
+                  "currentPassword": "password-passphrase",
+                  "newPassword": "new-password-passphrase"
+                }
+                """;
+
+        // When
         mockMvc.perform(patch("/api/v1/users/me/password")
                         .contentType("application/json")
-                        .content("""
-                                {
-                                  "currentPassword": "password-passphrase",
-                                  "newPassword": "new-password-passphrase"
-                                }
-                                """))
+                        .content(requestBody))
+                // Then
                 .andExpectAll(
                         status().isUnauthorized(),
                         jsonPath("$.code").value("AUTH_AUTHENTICATION_REQUIRED")

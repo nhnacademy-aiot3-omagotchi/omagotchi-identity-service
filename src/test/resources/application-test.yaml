@@ -12,6 +12,11 @@ auth:
   login-protection:
     maximum-failed-attempts: 5
     lock-duration: PT10M
+  email-verification:
+    code-ttl: PT5M
+    cooldown: PT1M
+    maximum-failed-attempts: 5
+    hmac-secret: test-only-email-verification-hmac-secret-value
   frontend:
     username: frontend
     password: test-only-frontend-credential-password
@@ -26,3 +31,9 @@ auth:
     private-key-location: classpath:unused-jwt-private.pem
   refresh-token:
     ttl: P7D
+email:
+  resend:
+    api-key: test-only-resend-api-key
+    from-email: no-reply@omagotchi.test
+    connect-timeout: PT2S
+    read-timeout: PT5S

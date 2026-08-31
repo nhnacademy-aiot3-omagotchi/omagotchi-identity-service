@@ -18,10 +18,11 @@ import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
 
-import java.util.UUID;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -41,6 +42,26 @@ class LearningAccountSecurityIT {
 
     private static final String LEARNING_USERNAME = "learning-service";
     private static final String LEARNING_PASSWORD = "test-only-learning-identity-password";
+    private static final UUID CREDENTIAL_TARGET_ACCOUNT_ID = UUID.fromString(
+            "00000000-0000-0000-0000-000000700101"
+    );
+    private static final UUID AUTH_BOUNDARY_ACCOUNT_ID = UUID.fromString(
+            "00000000-0000-0000-0000-000000700102"
+    );
+    private static final UUID MISSING_ACCOUNT_ID = UUID.fromString(
+            "00000000-0000-0000-0000-000000700103"
+    );
+    private static final UUID BATCH_MISSING_ACCOUNT_ID = UUID.fromString(
+            "00000000-0000-0000-0000-000000700104"
+    );
+    private static final List<UUID> MAXIMUM_BATCH_ACCOUNT_IDS = deterministicAccountIds(
+            100,
+            710_000L
+    );
+    private static final List<UUID> OVERSIZED_BATCH_ACCOUNT_IDS = deterministicAccountIds(
+            101,
+            720_000L
+    );
 
     @Autowired
     private MockMvc mockMvc;
@@ -67,7 +88,7 @@ class LearningAccountSecurityIT {
     @DisplayName("계정 조회 API는 Learning Credential 요구")
     void requiresLearningCredential() throws Exception {
         // Given
-        UUID accountId = UUID.randomUUID();
+        UUID accountId = CREDENTIAL_TARGET_ACCOUNT_ID;
 
         // When
         ResultActions missingCredential = mockMvc.perform(
@@ -96,9 +117,12 @@ class LearningAccountSecurityIT {
     @Test
     @DisplayName("Frontend와 Learning 서비스 인증 경계 분리")
     void separatesFrontendAndLearningCredentials() throws Exception {
+        // Given
+        UUID accountId = AUTH_BOUNDARY_ACCOUNT_ID;
+
         // When
         ResultActions frontendOnAccountQuery = mockMvc.perform(
-                get("/api/v1/internal/accounts/{accountId}", UUID.randomUUID())
+                get("/api/v1/internal/accounts/{accountId}", accountId)
                         .with(httpBasic(
                                 AuthApiTestClient.FRONTEND_USERNAME,
                                 AuthApiTestClient.FRONTEND_PASSWORD
@@ -127,8 +151,11 @@ class LearningAccountSecurityIT {
         // Given
         Account account = saveAccount("active@example.com", "활성 사용자");
 
-        // When & Then
-        learningGet(account.getId()).andExpectAll(
+        // When
+        ResultActions response = learningGet(account.getId());
+
+        // Then
+        response.andExpectAll(
                 status().isOk(),
                 jsonPath("$.accountId").value(account.getId().toString()),
                 jsonPath("$.displayName").value("활성 사용자"),
@@ -139,8 +166,14 @@ class LearningAccountSecurityIT {
     @Test
     @DisplayName("존재하지 않는 Learning 계정 단건 조회 시 404")
     void returnsNotFoundForMissingAccount() throws Exception {
-        // When & Then
-        learningGet(UUID.randomUUID()).andExpectAll(
+        // Given
+        UUID missingAccountId = MISSING_ACCOUNT_ID;
+
+        // When
+        ResultActions response = learningGet(missingAccountId);
+
+        // Then
+        response.andExpectAll(
                 status().isNotFound(),
                 jsonPath("$.code").value("ACCOUNT_NOT_FOUND")
         );
@@ -153,7 +186,7 @@ class LearningAccountSecurityIT {
         Account active = saveAccount("active@example.com", "활성 사용자");
         Account withdrawn = saveAccount("withdrawn@example.com", "탈퇴 사용자");
         accountStateFixture.changeStatus(withdrawn.getId(), AccountStatus.WITHDRAWN);
-        UUID missingId = UUID.randomUUID();
+        UUID missingId = BATCH_MISSING_ACCOUNT_ID;
 
         // When
         ResultActions response = mockMvc.perform(
@@ -182,19 +215,20 @@ class LearningAccountSecurityIT {
     @DisplayName("Learning 계정 일괄 조회는 요청 상한 100개까지 허용")
     void acceptsMaximumAccountBatch() throws Exception {
         // Given
-        String accountIds = IntStream
-                .rangeClosed(1, 100)
-                .mapToObj(ignored -> "\"" + UUID.randomUUID() + "\"")
+        String accountIds = MAXIMUM_BATCH_ACCOUNT_IDS.stream()
+                .map(accountId -> "\"" + accountId + "\"")
                 .collect(Collectors.joining(","));
 
-        // When & Then
-        mockMvc.perform(
+        // When
+        ResultActions response = mockMvc.perform(
                         post("/api/v1/internal/accounts/batch")
                                 .with(httpBasic(LEARNING_USERNAME, LEARNING_PASSWORD))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"accountIds\":[" + accountIds + "]}")
-                )
-                .andExpectAll(
+                );
+
+        // Then
+        response.andExpectAll(
                         status().isOk(),
                         jsonPath("$").isArray()
                 );
@@ -204,19 +238,20 @@ class LearningAccountSecurityIT {
     @DisplayName("Learning 계정 일괄 조회의 요청 상한 검증")
     void rejectsOversizedAccountBatch() throws Exception {
         // Given
-        String accountIds = IntStream
-                .rangeClosed(1, 101)
-                .mapToObj(ignored -> "\"" + UUID.randomUUID() + "\"")
+        String accountIds = OVERSIZED_BATCH_ACCOUNT_IDS.stream()
+                .map(accountId -> "\"" + accountId + "\"")
                 .collect(Collectors.joining(","));
 
-        // When & Then
-        mockMvc.perform(
+        // When
+        ResultActions response = mockMvc.perform(
                         post("/api/v1/internal/accounts/batch")
                                 .with(httpBasic(LEARNING_USERNAME, LEARNING_PASSWORD))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"accountIds\":[" + accountIds + "]}")
-                )
-                .andExpectAll(
+                );
+
+        // Then
+        response.andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.code").value("COMMON_INVALID_REQUEST")
                 );
@@ -364,6 +399,12 @@ class LearningAccountSecurityIT {
                                         .collect(Collectors.joining(","))))
                         .with(httpBasic(LEARNING_USERNAME, LEARNING_PASSWORD))
         );
+    }
+
+    private static List<UUID> deterministicAccountIds(int size, long offset) {
+        return LongStream.rangeClosed(1, size)
+                .mapToObj(index -> new UUID(0L, offset + index))
+                .toList();
     }
 
     private Account saveAccount(String email, String name) {

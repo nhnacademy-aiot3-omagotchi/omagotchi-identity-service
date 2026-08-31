@@ -28,7 +28,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             BusinessException exception,
             HttpServletRequest request
     ) {
-        return response(exception.getErrorCode(), request);
+        HttpHeaders headers = new HttpHeaders();
+        if (exception instanceof RetryAfterException retryAfterException) {
+            headers.set(HttpHeaders.RETRY_AFTER, Long.toString(retryAfterException.retryAfterSeconds()));
+        }
+        return response(exception.getErrorCode(), request, headers);
+    }
+
+    @ExceptionHandler(DependencyUnavailableException.class)
+    public ResponseEntity<ApiErrorResponse> handleDependencyUnavailable(
+            DependencyUnavailableException exception,
+            HttpServletRequest request
+    ) {
+        log.error(
+                "외부 의존성 호출 실패 code={}, exception={}, method={}, path={}",
+                exception.getErrorCode().code(),
+                exception.getClass().getName(),
+                request.getMethod(),
+                request.getRequestURI(),
+                exception
+        );
+        return response(exception.getErrorCode(), request, HttpHeaders.EMPTY);
     }
 
     @Override
@@ -103,7 +123,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpServletRequest request
     ) {
         logUnexpected(exception, request);
-        return response(CommonErrorCode.INTERNAL_SERVER_ERROR, request);
+        return response(CommonErrorCode.INTERNAL_SERVER_ERROR, request, HttpHeaders.EMPTY);
     }
 
     private @Nullable ResponseEntity<Object> frameworkResponse(
@@ -153,13 +173,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private ResponseEntity<ApiErrorResponse> response(
             ErrorCode errorCode,
-            HttpServletRequest request
+            HttpServletRequest request,
+            HttpHeaders headers
     ) {
         HttpStatus status = ErrorHttpStatusMapper.map(errorCode.type());
 
         // 요청 URI의 JSON 문자열 직렬화로 HTML 실행 문맥과 분리된 응답
         return ResponseEntity
                 .status(status)
+                .headers(headers)
                 .body(new ApiErrorResponse(
                         errorCode.code(),
                         errorCode.message(),

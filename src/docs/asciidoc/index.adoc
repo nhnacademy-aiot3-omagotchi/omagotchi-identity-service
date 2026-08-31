@@ -10,7 +10,7 @@
 
 === Frontend Service Credential
 
-`/api/v1/auth/**`는 Browser가 직접 호출하지 않는다. Frontend Service가 별도 HTTP Basic Credential로 호출한다.
+`/api/v1/auth/**`와 `/api/v2/auth/**`는 Browser가 직접 호출하지 않는다. Frontend Service가 별도 HTTP Basic Credential로 호출한다.
 
 include::{snippets}/security/frontend-authentication-required/http-response.adoc[]
 include::{snippets}/security/frontend-authentication-required/response-fields.adoc[]

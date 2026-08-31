@@ -11,8 +11,14 @@ class EmailPolicyTest {
     @Test
     @DisplayName("이메일 공백 제거와 소문자 정규화")
     void normalizesEmail() {
-        then(EmailPolicy.normalize("  USER@Example.COM  "))
-                .isEqualTo("user@example.com");
+        // Given
+        String email = "  USER@Example.COM  ";
+
+        // When
+        String normalizedEmail = EmailPolicy.normalize(email);
+
+        // Then
+        then(normalizedEmail).isEqualTo("user@example.com");
     }
 
     @Test

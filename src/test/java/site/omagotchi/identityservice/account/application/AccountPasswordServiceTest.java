@@ -16,6 +16,7 @@ import static org.assertj.core.api.BDDAssertions.then;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -30,6 +31,41 @@ class AccountPasswordServiceTest {
     private static final String NEW_PASSWORD = "new-password-passphrase";
     private static final String CURRENT_PASSWORD_HASH = "current-password-hash";
     private static final String NEW_PASSWORD_HASH = "new-password-hash";
+
+    @Test
+    @DisplayName("OTP 발급용 이메일은 계정 행 잠금 없이 조회")
+    void getsPasswordChangeEmailWithoutLocking() {
+        // Given
+        Account account = account();
+        Fixture fixture = fixture(Optional.of(account));
+        given(fixture.accountRepository().findById(ACCOUNT_ID)).willReturn(Optional.of(account));
+
+        // When
+        String email = fixture.service().getPasswordChangeEmail(ACCOUNT_ID);
+
+        // Then
+        then(email).isEqualTo("user@example.com");
+        verify(fixture.accountRepository()).findById(ACCOUNT_ID);
+        verify(fixture.accountRepository(), never()).lockById(ACCOUNT_ID);
+        verifyNoInteractions(fixture.passwordHasher());
+    }
+
+    @Test
+    @DisplayName("비밀번호 변경 Transaction용 이메일은 계정 행 잠금 후 조회")
+    void locksAndGetsPasswordChangeEmail() {
+        // Given
+        Account account = account();
+        Fixture fixture = fixture(Optional.of(account));
+
+        // When
+        String email = fixture.service().lockPasswordChangeEmail(ACCOUNT_ID);
+
+        // Then
+        then(email).isEqualTo("user@example.com");
+        verify(fixture.accountRepository()).lockById(ACCOUNT_ID);
+        verify(fixture.accountRepository(), never()).findById(ACCOUNT_ID);
+        verifyNoInteractions(fixture.passwordHasher());
+    }
 
     @Test
     @DisplayName("현재 비밀번호 확인 후 Hash 교체")

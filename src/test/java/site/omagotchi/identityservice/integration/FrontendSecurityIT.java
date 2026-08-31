@@ -127,8 +127,11 @@ class FrontendSecurityIT {
     @Test
     @DisplayName("Refresh Token 없는 갱신 요청은 401")
     void rejectsRefreshWithoutTokenAsAuthenticationFailure() throws Exception {
+        // Given
+        String operation = "refresh";
+
         // When
-        ResultActions response = requestWithoutRefreshToken("refresh");
+        ResultActions response = requestWithoutRefreshToken(operation);
 
         // Then
         response.andExpectAll(
@@ -142,8 +145,11 @@ class FrontendSecurityIT {
     @Test
     @DisplayName("Refresh Token 없는 로그아웃 요청은 멱등하게 204")
     void succeedsLogoutWithoutRefreshToken() throws Exception {
+        // Given
+        String operation = "logout";
+
         // When
-        ResultActions response = requestWithoutRefreshToken("logout");
+        ResultActions response = requestWithoutRefreshToken(operation);
 
         // Then
         response.andExpectAll(
@@ -156,11 +162,14 @@ class FrontendSecurityIT {
     @Test
     @DisplayName("Frontend Basic 인증과 사용자 Bearer 인증 경계 분리")
     void separatesFrontendAndResourceServerAuthentication() throws Exception {
+        // Given
+        String loginBody = loginBody("user@example.com", "password-passphrase");
+
         // When
         ResultActions bearerOnFrontendAuth = mockMvc.perform(post("/api/v1/auth/login")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer not-used-by-frontend")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(loginBody("user@example.com", "password-passphrase")));
+                .content(loginBody));
         ResultActions basicOnResourceApi = mockMvc.perform(get("/api/v1/users/me")
                 .with(httpBasic(
                         AuthApiTestClient.FRONTEND_USERNAME,

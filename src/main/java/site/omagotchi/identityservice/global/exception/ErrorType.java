@@ -6,5 +6,7 @@ public enum ErrorType {
     CONFLICT,
     AUTHENTICATION,
     AUTHORIZATION,
+    RATE_LIMIT,
+    DEPENDENCY_UNAVAILABLE,
     INTERNAL
 }
