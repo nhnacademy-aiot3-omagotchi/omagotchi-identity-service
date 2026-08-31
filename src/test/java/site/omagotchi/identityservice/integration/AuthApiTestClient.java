@@ -15,6 +15,8 @@ import java.util.UUID;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -78,6 +80,33 @@ final class AuthApiTestClient {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(nameChangeBody(name)));
+    }
+
+    ResultActions me(String accessToken) throws Exception {
+        return mockMvc.perform(get("/api/v1/users/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken));
+    }
+
+    ResultActions withdraw(String accessToken, String currentPassword) throws Exception {
+        return mockMvc.perform(delete("/api/v1/users/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(withdrawalBody(currentPassword)));
+    }
+
+    ResultActions changeAccountStatus(
+            String accessToken,
+            UUID targetAccountId,
+            String status,
+            String reason
+    ) throws Exception {
+        return mockMvc.perform(patch(
+                        "/api/v1/admin/accounts/{user-id}/status",
+                        targetAccountId
+                )
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(accountStatusBody(status, reason)));
     }
 
     UUID signupSuccessfully(String email) throws Exception {
@@ -178,6 +207,23 @@ final class AuthApiTestClient {
                   "name": "%s"
                 }
                 """.formatted(name);
+    }
+
+    private String withdrawalBody(String currentPassword) {
+        return """
+                {
+                  "currentPassword": "%s"
+                }
+                """.formatted(currentPassword);
+    }
+
+    private String accountStatusBody(String status, String reason) {
+        return """
+                {
+                  "status": "%s",
+                  "reason": "%s"
+                }
+                """.formatted(status, reason);
     }
 
     record TokenBundle(
