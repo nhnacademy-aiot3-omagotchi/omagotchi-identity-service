@@ -40,6 +40,8 @@ public class JwtSecurityConfig {
                                 "/actuator/health",
                                 "/actuator/health/**"
                         ).permitAll()
+                        .requestMatchers("/api/v1/admin/**")
+                        .hasRole("SYSTEM_ADMIN")
                         .anyRequest().authenticated()
                 )
                 // Bearer Token 해석·인증 실패에 대한 RFC 6750 Header와 공통 JSON 응답
