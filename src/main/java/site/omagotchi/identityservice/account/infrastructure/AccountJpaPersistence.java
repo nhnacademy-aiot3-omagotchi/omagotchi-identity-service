@@ -34,6 +34,25 @@ public class AccountJpaPersistence implements AccountRepository {
     }
 
     @Override
+    public List<Account> lockAllByIdInOrder(Collection<UUID> accountIds) {
+        return accountJpaRepository.lockAllByIdInOrder(accountIds);
+    }
+
+    @Override
+    public void lockSystemAdministratorGuard() {
+        Integer lockedGuardId = accountJpaRepository.lockSystemAdministratorGuard();
+        // 마이그레이션 누락이나 보호 행 손상에 대한 즉시 실패
+        if (!Integer.valueOf(1).equals(lockedGuardId)) {
+            throw new IllegalStateException("SYSTEM_ADMIN 보호 행을 찾을 수 없습니다.");
+        }
+    }
+
+    @Override
+    public long countUsableSystemAdministrators() {
+        return accountJpaRepository.countUsableSystemAdministrators();
+    }
+
+    @Override
     public List<Account> findAllById(Collection<UUID> accountIds) {
         return accountJpaRepository.findAllById(accountIds);
     }
@@ -57,7 +76,7 @@ public class AccountJpaPersistence implements AccountRepository {
     @Override
     public Account create(Account account) {
         try {
-            // UNIQUE 제약 위반의 현재 Persistence 경계 내 판별을 위한 즉시 반영
+            // 이메일 중복 제약을 즉시 확인하기 위한 DB 반영
             return accountJpaRepository.saveAndFlush(account);
         } catch (DataIntegrityViolationException exception) {
             if (isEmailConstraintViolation(exception)) {
@@ -67,7 +86,7 @@ public class AccountJpaPersistence implements AccountRepository {
         }
     }
 
-    // Spring·Hibernate 예외 래퍼 내부의 실제 DB 제약 이름 탐색
+    // 중첩된 Spring·Hibernate 예외에서 실제 DB 제약 이름 확인
     private boolean isEmailConstraintViolation(Throwable exception) {
         Throwable current = exception;
 

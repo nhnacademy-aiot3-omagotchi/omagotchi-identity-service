@@ -14,6 +14,12 @@ public interface AccountRepository {
 
     Optional<Account> lockById(UUID accountId);
 
+    List<Account> lockAllByIdInOrder(Collection<UUID> accountIds);
+
+    void lockSystemAdministratorGuard();
+
+    long countUsableSystemAdministrators();
+
     List<Account> findAllById(Collection<UUID> accountIds);
 
     List<Account> searchByNameOrEmail(String query, Collection<UUID> candidateIds, int limit);

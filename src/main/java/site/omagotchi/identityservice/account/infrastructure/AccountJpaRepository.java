@@ -25,6 +25,39 @@ public interface AccountJpaRepository extends JpaRepository<Account, UUID> {
             """)
     Optional<Account> lockById(@Param("accountId") UUID accountId);
 
+    // 교차 관리자 요청의 잠금 순서 고정
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT account
+            FROM Account account
+            WHERE account.id IN :accountIds
+            ORDER BY account.id ASC
+            """)
+    List<Account> lockAllByIdInOrder(
+            @Param("accountIds") Collection<UUID> accountIds
+    );
+
+    // 관리자 감소 요청만 직렬화하는 단일 행 잠금
+    @Query(value = """
+            SELECT id
+            FROM identity_service.system_administrator_guards
+            WHERE id = 1
+            FOR UPDATE
+            """, nativeQuery = true)
+    Integer lockSystemAdministratorGuard();
+
+    // ACTIVE 또는 LOCKED 상태의 SYSTEM_ADMIN 집계
+    @Query("""
+            SELECT COUNT(account)
+            FROM Account account
+            WHERE account.globalRole = site.omagotchi.identityservice.account.domain.GlobalRole.SYSTEM_ADMIN
+              AND account.status IN (
+                  site.omagotchi.identityservice.account.domain.AccountStatus.ACTIVE,
+                  site.omagotchi.identityservice.account.domain.AccountStatus.LOCKED
+              )
+            """)
+    long countUsableSystemAdministrators();
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT account
