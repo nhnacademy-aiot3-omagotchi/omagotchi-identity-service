@@ -19,6 +19,7 @@ public class AccountQueryService {
 
     public static final int ACCOUNT_SEARCH_LIMIT = 20;
     public static final int ACCOUNT_SEARCH_QUERY_MAX_LENGTH = 100;
+    public static final int ACCOUNT_SEARCH_CANDIDATE_IDS_MAX = 100;
 
     private final AccountRepository accountRepository;
 
@@ -32,13 +33,16 @@ public class AccountQueryService {
     }
 
     public List<Account> searchByNameOrEmail(String query, Collection<UUID> candidateIds) {
-        String normalized = query == null ? "" : query.trim();
+        String normalized = query == null ? "" : query.strip();
         if (normalized.isBlank() || normalized.length() > ACCOUNT_SEARCH_QUERY_MAX_LENGTH) {
             throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
         }
         List<UUID> distinctCandidateIds = candidateIds == null ? List.of()
                 : candidateIds.stream().distinct().toList();
         if (distinctCandidateIds.isEmpty() || distinctCandidateIds.stream().anyMatch(id -> id == null)) {
+            throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
+        }
+        if (distinctCandidateIds.size() > ACCOUNT_SEARCH_CANDIDATE_IDS_MAX) {
             throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
         }
         return accountRepository.searchByNameOrEmail(

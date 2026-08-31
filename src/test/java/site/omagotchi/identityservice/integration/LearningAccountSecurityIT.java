@@ -22,6 +22,7 @@ import java.util.UUID;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.startsWith;
@@ -308,6 +309,31 @@ class LearningAccountSecurityIT {
                 status().isBadRequest(),
                 jsonPath("$.code").value("COMMON_INVALID_REQUEST")
         );
+    }
+
+    @Test
+    @DisplayName("Learning 계정 검색은 Unicode 공백만 있는 검색어를 거부한다")
+    void rejectsUnicodeBlankAccountSearchQuery() throws Exception {
+        learningSearch("　", List.of(UUID.randomUUID())).andExpectAll(
+                status().isBadRequest(),
+                jsonPath("$.code").value("COMMON_INVALID_REQUEST")
+        );
+    }
+
+    @Test
+    @DisplayName("Learning 계정 검색 후보 ID는 내부 batch 조회와 같이 최대 100개다")
+    void limitsAccountSearchCandidateIds() throws Exception {
+        List<UUID> maximumCandidateIds = IntStream.range(0, 100)
+                .mapToObj(ignored -> UUID.randomUUID())
+                .toList();
+
+        learningSearch("사용자", maximumCandidateIds)
+                .andExpect(status().isOk());
+        learningSearch("사용자", Stream.concat(maximumCandidateIds.stream(), Stream.of(UUID.randomUUID())).toList())
+                .andExpectAll(
+                        status().isBadRequest(),
+                        jsonPath("$.code").value("COMMON_INVALID_REQUEST")
+                );
     }
 
     @Test

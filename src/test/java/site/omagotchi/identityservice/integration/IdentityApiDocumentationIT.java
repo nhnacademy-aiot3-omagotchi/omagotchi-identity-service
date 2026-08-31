@@ -494,7 +494,7 @@ class IdentityApiDocumentationIT {
                                                 + "빈 문자열은 허용하지 않고 최대 100자"),
                                 fieldWithPath("candidateIds[]").description(
                                         "Learning이 같은 기수 ACTIVE 멤버십과 현재 재실 기준으로 "
-                                                + "확정한 후보 계정 UUID 목록")
+                                                + "확정한 후보 계정 UUID 목록(최대 100개, 중복은 한 번만 검색)")
                         ),
                         responseFields(
                                 fieldWithPath("[].accountId").description("계정 UUID"),

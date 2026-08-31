@@ -2,6 +2,8 @@ package site.omagotchi.identityservice.account.presentation.request;
 
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import site.omagotchi.identityservice.account.application.AccountQueryService;
 
 import java.util.List;
 import java.util.UUID;
@@ -10,6 +12,11 @@ import java.util.UUID;
 public record InternalAccountSearchRequest(
         String query,
         @NotEmpty(message = "candidateIds는 비어 있을 수 없습니다.")
+        @Size(
+                max = AccountQueryService.ACCOUNT_SEARCH_CANDIDATE_IDS_MAX,
+                message = "candidateIds는 한 번에 "
+                        + AccountQueryService.ACCOUNT_SEARCH_CANDIDATE_IDS_MAX + "개까지 검색할 수 있습니다."
+        )
         List<@NotNull(message = "candidateId는 null일 수 없습니다.") UUID> candidateIds
 ) {
 }
