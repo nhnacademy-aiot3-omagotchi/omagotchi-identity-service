@@ -156,7 +156,7 @@ class IdentityServiceApplicationIT {
             );
             softly.then(usableAdministratorIndex)
                     .contains("global_role", "SYSTEM_ADMIN", "ACTIVE", "LOCKED");
-            softly.then(migrationVersions).containsExactly("1", "2", "3");
+            softly.then(migrationVersions).containsExactly("1", "2", "3", "4");
         });
     }
 }

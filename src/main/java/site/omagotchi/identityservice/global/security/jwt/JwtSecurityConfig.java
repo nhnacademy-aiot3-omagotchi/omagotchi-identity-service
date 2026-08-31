@@ -40,6 +40,7 @@ public class JwtSecurityConfig {
                                 "/actuator/health",
                                 "/actuator/health/**"
                         ).permitAll()
+                        // 전역 운영 관리자 전용 경계, anyRequest보다 먼저 평가되어야 한다
                         .requestMatchers("/api/v1/admin/**")
                         .hasRole("SYSTEM_ADMIN")
                         .anyRequest().authenticated()

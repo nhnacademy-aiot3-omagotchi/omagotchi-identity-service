@@ -80,6 +80,11 @@ public enum AccountErrorCode implements ErrorCode {
             ErrorType.NOT_FOUND,
             "ACCOUNT_NOT_FOUND",
             "계정을 찾을 수 없습니다."
+    ),
+    ADMIN_ACCESS_NOT_ALLOWED(
+            ErrorType.AUTHORIZATION,
+            "ACCOUNT_ADMIN_ACCESS_NOT_ALLOWED",
+            "관리자 권한이 필요합니다."
     );
 
     private final ErrorType type;

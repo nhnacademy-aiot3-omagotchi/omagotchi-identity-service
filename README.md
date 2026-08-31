@@ -115,11 +115,14 @@ chmod 644 secrets/jwt-public.pem
 | `PATCH` | `/api/v1/users/me` | Access JWT | 본인 이름 변경 |
 | `PATCH` | `/api/v1/users/me/password` | Access JWT | 현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
 | `DELETE` | `/api/v1/users/me` | Access JWT | 현재 비밀번호 확인 후 본인 탈퇴·전체 Refresh Session 폐기 |
+| `GET` | `/api/v1/admin/users` | Access JWT (`SYSTEM_ADMIN`) | 사용자 목록 페이지 조회·검색 |
 | `PATCH` | `/api/v1/admin/accounts/{user-id}/status` | SYSTEM_ADMIN Access JWT | 계정 활성화·비활성화와 영속 감사 기록 |
 | `GET` | `/api/v1/internal/accounts/{accountId}` | Learning Credential | 계정 상태·표시 이름 단건 조회 |
 | `POST` | `/api/v1/internal/accounts/batch` | Learning Credential | 계정 상태·표시 이름 일괄 조회 |
 | `POST` | `/api/v1/internal/accounts/search` | Learning Credential | Learning 후보 ID 범위 내 이름·이메일 검색(최대 20건) |
 
+- 관리자 목록: 기본 20건, 최대 100건, 기본 정렬 최신 가입순, 정렬 기준은 화이트리스트 고정
+- 관리자 목록 인가: Filter Chain의 `role` Claim 검사 이후 요청 시점 DB 권한·상태 재검증
 - 일괄 조회: 특정 계정 ID 묶음의 단순 목록 응답, 요청당 최대 100개
 - 페이지 응답 제외: 전체 계정 목록 검색이 아닌 요청 ID 집합 조회
 
@@ -127,6 +130,7 @@ chmod 644 secrets/jwt-public.pem
 
 - `/api/v1/auth/**`: Gateway Route 미등록
 - `/api/v1/internal/**`: Gateway Route 미등록
+- `/api/v1/admin/users`: Gateway Route 등록
 - 인증 API: Frontend → Identity 직접 호출
 - 계정 조회 API: Learning → Identity 직접 호출
 - Browser 보관값: Frontend Session Cookie
