@@ -4,7 +4,7 @@
 
 ## 담당 범위
 
-- 계정: 회원가입, 본인 정보 조회
+- 계정: 회원가입, 본인 정보 조회·수정·탈퇴
 - 인증: 이메일·비밀번호 검증, Access JWT 발급
 - 세션: Refresh Token 회전, 재사용 탐지, 로그아웃
 - 전역 권한: `USER`, `SYSTEM_ADMIN`
@@ -114,6 +114,8 @@ chmod 644 secrets/jwt-public.pem
 | `GET` | `/api/v1/users/me` | Access JWT | 본인 정보 조회 |
 | `PATCH` | `/api/v1/users/me` | Access JWT | 본인 이름 변경 |
 | `PATCH` | `/api/v1/users/me/password` | Access JWT | 현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
+| `DELETE` | `/api/v1/users/me` | Access JWT | 현재 비밀번호 확인 후 본인 탈퇴·전체 Refresh Session 폐기 |
+| `PATCH` | `/api/v1/admin/accounts/{user-id}/status` | SYSTEM_ADMIN Access JWT | 계정 활성화·비활성화와 영속 감사 기록 |
 | `GET` | `/api/v1/internal/accounts/{accountId}` | Learning Credential | 계정 상태·표시 이름 단건 조회 |
 | `POST` | `/api/v1/internal/accounts/batch` | Learning Credential | 계정 상태·표시 이름 일괄 조회 |
 
@@ -159,6 +161,7 @@ chmod 644 secrets/jwt-public.pem
 - Migration: `src/main/resources/db/migration/`
 - JPA 정책: `ddl-auto=validate`
 - `account`: 계정 생성·조회·인증 근거
+- `accountstate`: 본인 탈퇴·관리자 계정 상태 변경 조정과 감사 기록
 - `auth`: Access JWT·Refresh Token 수명주기
 - `global.config`: Service 공통 시간·Password Encoder 등 Framework 설정
 - `global.security.basic`: 서비스 Credential 인증 Provider 조립
@@ -175,6 +178,14 @@ chmod 644 secrets/jwt-public.pem
 - Password·Token·Cookie·Private Key의 기록 금지
 - 필수 설정·RSA Key 오류의 애플리케이션 시작 실패
 - Request ID 공통 적용 전 상태
+- 본인 탈퇴와 계정 비활성화는 Refresh Session만 즉시 폐기하며, 기존 Access JWT는 최대 15분간 유효할 수 있음
+- `SYSTEM_ADMIN`의 자기 비활성화와 마지막 이용 가능 관리자(`ACTIVE`·`LOCKED`)의 소실 방지
+- 마지막 관리자 보호는 감소 작업만 단일 보호 행으로 직렬화하며, 계정 조회나 일반 사용자 상태 변경은 해당 행을 잠그지 않음
+- 최초 `SYSTEM_ADMIN` 승격은 관리자 수를 늘리는 통제된 DB 작업으로 수행
+- 직접 SQL 역할 강등·`DISABLED`·`WITHDRAWN` 전환은 애플리케이션 보호를 우회하므로 서비스 쓰기 트래픽과 동시에 수행하지 않음
+- 운영 SQL에서 관리자 감소가 불가피하면 동일 트랜잭션에서 대상 Account 행을 UUID 순으로 잠근 뒤 보호 행을 잠금
+- 보호 행 획득 후 `ACTIVE`·`LOCKED` SYSTEM_ADMIN 수를 다시 계산하고, 예정 변경 적용 뒤 한 명도 남지 않으면 전체 Rollback
+- 운영 SQL에서도 보호 행보다 Account 행을 먼저 잠그며, 역순 잠금 금지
 
 ## 관련 문서
 
