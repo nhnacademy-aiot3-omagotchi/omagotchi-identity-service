@@ -33,6 +33,7 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -174,6 +175,39 @@ class EmailVerificationApiIT {
                 email
         );
         then(failedDeliveries).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Resend 429는 로컬 쿨다운을 유지하고 외부 재호출 차단")
+    void keepsCooldownAfterProviderRateLimit() throws Exception {
+        // Given
+        String email = uniqueEmail("provider-rate-limit");
+        deleteTestData(email);
+        doThrow(EmailDeliveryException.rateLimited(
+                "provider rate limited",
+                new RuntimeException()
+        )).when(mailSender).sendVerificationCode(
+                any(),
+                eq(email),
+                any(),
+                eq(Duration.ofMinutes(5))
+        );
+
+        // When
+        issueSignupOtp(email).andExpectAll(
+                status().isTooManyRequests(),
+                header().string(HttpHeaders.RETRY_AFTER, "60"),
+                jsonPath("$.code").value("EMAIL_VERIFICATION_COOLDOWN_ACTIVE")
+        );
+        issueSignupOtp(email).andExpect(status().isTooManyRequests());
+
+        // Then
+        verify(mailSender, times(1)).sendVerificationCode(
+                any(),
+                eq(email),
+                any(),
+                eq(Duration.ofMinutes(5))
+        );
     }
 
     @Test

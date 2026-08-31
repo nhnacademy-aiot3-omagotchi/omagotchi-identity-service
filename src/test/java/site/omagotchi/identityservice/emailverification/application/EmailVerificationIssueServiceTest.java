@@ -23,6 +23,7 @@ import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -109,6 +110,30 @@ class EmailVerificationIssueServiceTest {
                                 .isEqualTo(EmailVerificationErrorCode.DELIVERY_UNAVAILABLE)
                 );
         verify(deliveryTransaction).markFailedAndReleaseCooldown(prepared);
+    }
+
+    @Test
+    @DisplayName("Provider 429는 기존 쿨다운을 유지하고 남은 시간을 응답")
+    void keepsCooldownAfterProviderRateLimit() {
+        // Given
+        EmailDeliveryException deliveryFailure = EmailDeliveryException.rateLimited(
+                "provider rate limited",
+                new IllegalStateException("provider unavailable")
+        );
+        willThrow(deliveryFailure).given(mailSender).sendVerificationCode(
+                prepared.challengeId(), EMAIL, "123456", Duration.ofMinutes(5)
+        );
+        given(deliveryTransaction.markFailedKeepingCooldown(prepared)).willReturn(42L);
+
+        // When
+        // Then
+        thenThrownBy(() -> service.issue(EMAIL, EmailVerificationPurpose.SIGNUP))
+                .isInstanceOfSatisfying(
+                        EmailVerificationCooldownException.class,
+                        exception -> then(exception.retryAfterSeconds()).isEqualTo(42)
+                );
+        verify(deliveryTransaction).markFailedKeepingCooldown(prepared);
+        verify(deliveryTransaction, never()).markFailedAndReleaseCooldown(prepared);
     }
 
     @Test

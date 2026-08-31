@@ -53,6 +53,22 @@ public class EmailVerificationDeliveryTransaction {
     }
 
     @Transactional
+    public long markFailedKeepingCooldown(PreparedEmailVerification prepared) {
+        Instant now = now();
+        EmailVerificationScope scope = repository.createIfAbsentAndLockScope(
+                prepared.email(),
+                prepared.purpose(),
+                now
+        );
+        EmailVerificationChallenge challenge = repository.lockChallenge(prepared.challengeId())
+                .orElseThrow(() -> new IllegalStateException("전달 실패 Challenge를 찾을 수 없습니다."));
+
+        // Provider 제한에서는 FAILED만 기록하고 기존 nextIssueAt을 변경하지 않는다.
+        challenge.markDeliveryFailed(now);
+        return scope.retryAfterSecondsAt(now);
+    }
+
+    @Transactional
     public void releaseCooldown(PreparedEmailVerification prepared) {
         Instant now = now();
         EmailVerificationScope scope = repository.createIfAbsentAndLockScope(

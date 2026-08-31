@@ -43,11 +43,19 @@ public class EmailVerificationIssueService {
                     properties.codeTtl()
             );
         } catch (EmailDeliveryException deliveryFailure) {
+            if (deliveryFailure.failureKind() == EmailDeliveryFailureKind.RATE_LIMITED) {
+                // Provider 429에서는 외부 요청 증폭을 막기 위해 발급 쿨다운을 유지한다.
+                long retryAfterSeconds = compensateRateLimitedDelivery(
+                        prepared,
+                        deliveryFailure
+                );
+                if (retryAfterSeconds > 0) {
+                    throw new EmailVerificationCooldownException(retryAfterSeconds);
+                }
+                throw dependencyUnavailable(deliveryFailure);
+            }
             compensateDeliveryFailure(prepared, deliveryFailure);
-            throw new DependencyUnavailableException(
-                    EmailVerificationErrorCode.DELIVERY_UNAVAILABLE,
-                    deliveryFailure
-            );
+            throw dependencyUnavailable(deliveryFailure);
         }
 
         boolean currentChallenge = true;
@@ -91,6 +99,32 @@ public class EmailVerificationIssueService {
                     compensationFailure
             );
         }
+    }
+
+    private long compensateRateLimitedDelivery(
+            PreparedEmailVerification prepared,
+            EmailDeliveryException deliveryFailure
+    ) {
+        try {
+            return deliveryTransaction.markFailedKeepingCooldown(prepared);
+        } catch (RuntimeException compensationFailure) {
+            deliveryFailure.addSuppressed(compensationFailure);
+            log.error(
+                    "Rate Limit 인증 메일 실패 기록 실패 challengeId={}",
+                    prepared.challengeId(),
+                    compensationFailure
+            );
+            return 0;
+        }
+    }
+
+    private DependencyUnavailableException dependencyUnavailable(
+            EmailDeliveryException deliveryFailure
+    ) {
+        return new DependencyUnavailableException(
+                EmailVerificationErrorCode.DELIVERY_UNAVAILABLE,
+                deliveryFailure
+        );
     }
 
     private void rejectExpiredDelivery(PreparedEmailVerification prepared) {

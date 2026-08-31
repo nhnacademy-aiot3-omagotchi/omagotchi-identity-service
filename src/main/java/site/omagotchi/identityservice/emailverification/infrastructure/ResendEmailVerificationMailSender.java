@@ -2,9 +2,11 @@ package site.omagotchi.identityservice.emailverification.infrastructure;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import site.omagotchi.identityservice.emailverification.application.EmailDeliveryException;
 import site.omagotchi.identityservice.emailverification.application.port.EmailVerificationMailSender;
 
@@ -52,6 +54,15 @@ public class ResendEmailVerificationMailSender implements EmailVerificationMailS
                     .body(request)
                     .retrieve()
                     .toBodilessEntity();
+        } catch (RestClientResponseException exception) {
+            // Resend 응답 해석은 Adapter에서 끝내고 상위에는 중립적인 실패 종류만 전달한다.
+            if (exception.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                throw EmailDeliveryException.rateLimited(
+                        "Resend 메일 전송 요청이 제한되었습니다.",
+                        exception
+                );
+            }
+            throw new EmailDeliveryException("Resend 메일 전송 요청에 실패했습니다.", exception);
         } catch (RestClientException exception) {
             throw new EmailDeliveryException("Resend 메일 전송 요청에 실패했습니다.", exception);
         }
