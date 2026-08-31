@@ -11,6 +11,7 @@ import site.omagotchi.identityservice.emailverification.domain.EmailVerification
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationPurpose;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationStatus;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -18,6 +19,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -37,11 +39,14 @@ class EmailVerificationUseServiceTest {
     private EmailVerificationRepository repository;
     @Mock
     private VerificationCodeAuthenticator authenticator;
+    @Mock
+    private Clock clock;
 
     private EmailVerificationUseService service;
 
     @BeforeEach
     void setUp() {
+        given(clock.instant()).willReturn(NOW);
         service = new EmailVerificationUseService(
                 repository,
                 authenticator,
@@ -50,7 +55,8 @@ class EmailVerificationUseServiceTest {
                         Duration.ofMinutes(1),
                         2,
                         "test-hmac-secret-with-at-least-32-characters"
-                )
+                ),
+                clock
         );
     }
 
@@ -73,8 +79,7 @@ class EmailVerificationUseServiceTest {
                 challenge.getId(),
                 EMAIL,
                 EmailVerificationPurpose.SIGNUP,
-                "123456",
-                NOW
+                "123456"
         );
 
         // Then
@@ -98,10 +103,10 @@ class EmailVerificationUseServiceTest {
 
         // When
         then(service.verify(
-                challenge.getId(), EMAIL, EmailVerificationPurpose.SIGNUP, "000000", NOW
+                challenge.getId(), EMAIL, EmailVerificationPurpose.SIGNUP, "000000"
         )).isFalse();
         then(service.verify(
-                challenge.getId(), EMAIL, EmailVerificationPurpose.SIGNUP, "000000", NOW
+                challenge.getId(), EMAIL, EmailVerificationPurpose.SIGNUP, "000000"
         )).isFalse();
 
         // Then
@@ -121,8 +126,7 @@ class EmailVerificationUseServiceTest {
                 challenge.getId(),
                 "other@example.com",
                 EmailVerificationPurpose.SIGNUP,
-                "123456",
-                NOW
+                "123456"
         );
 
         // Then
@@ -138,6 +142,38 @@ class EmailVerificationUseServiceTest {
     }
 
     @Test
+    @DisplayName("Challenge 잠금 대기 중 만료된 인증번호 거부")
+    void rejectsChallengeExpiredWhileWaitingForLock() {
+        // Given
+        Instant lockAcquiredAt = NOW.plusSeconds(1);
+        EmailVerificationChallenge challenge = EmailVerificationChallenge.issue(
+                CHALLENGE_ID,
+                SCOPE_ID,
+                EMAIL,
+                EmailVerificationPurpose.SIGNUP,
+                "a".repeat(64),
+                lockAcquiredAt,
+                NOW.minusSeconds(1)
+        );
+        given(repository.lockChallenge(challenge.getId())).willReturn(Optional.of(challenge));
+        given(clock.instant()).willReturn(lockAcquiredAt);
+
+        // When
+        boolean verified = service.verify(
+                challenge.getId(),
+                EMAIL,
+                EmailVerificationPurpose.SIGNUP,
+                "123456"
+        );
+
+        // Then
+        then(verified).isFalse();
+        var invocationOrder = inOrder(repository, clock);
+        invocationOrder.verify(repository).lockChallenge(challenge.getId());
+        invocationOrder.verify(clock).instant();
+    }
+
+    @Test
     @DisplayName("검증된 Challenge 소비")
     void consumesChallenge() {
         // Given
@@ -145,10 +181,13 @@ class EmailVerificationUseServiceTest {
         given(repository.lockChallenge(challenge.getId())).willReturn(Optional.of(challenge));
 
         // When
-        service.consume(challenge.getId(), NOW);
+        service.consume(challenge.getId());
 
         // Then
         then(challenge.getStatus()).isEqualTo(EmailVerificationStatus.CONSUMED);
+        var invocationOrder = inOrder(repository, clock);
+        invocationOrder.verify(repository).lockChallenge(challenge.getId());
+        invocationOrder.verify(clock).instant();
     }
 
     private EmailVerificationChallenge challenge() {

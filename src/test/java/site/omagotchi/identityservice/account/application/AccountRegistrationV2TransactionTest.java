@@ -11,9 +11,6 @@ import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.emailverification.application.EmailVerificationUseService;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationPurpose;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static org.assertj.core.api.BDDAssertions.then;
@@ -24,7 +21,6 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class AccountRegistrationV2TransactionTest {
 
-    private static final Instant NOW = Instant.parse("2026-08-30T00:00:00Z");
     private static final UUID CHALLENGE_ID = UUID.fromString(
             "00000000-0000-0000-0000-000000700501"
     );
@@ -40,8 +36,7 @@ class AccountRegistrationV2TransactionTest {
     void setUp() {
         transaction = new AccountRegistrationV2Transaction(
                 registrationService,
-                verificationUseService,
-                Clock.fixed(NOW, ZoneOffset.UTC)
+                verificationUseService
         );
     }
 
@@ -54,8 +49,7 @@ class AccountRegistrationV2TransactionTest {
                 challengeId,
                 "member@example.com",
                 EmailVerificationPurpose.SIGNUP,
-                "000000",
-                NOW
+                "000000"
         )).willReturn(false);
 
         // When
@@ -75,7 +69,7 @@ class AccountRegistrationV2TransactionTest {
         verify(registrationService, never()).signUp(
                 " Member@Example.com ", "long-enough-password", "member"
         );
-        verify(verificationUseService, never()).consume(challengeId, NOW);
+        verify(verificationUseService, never()).consume(challengeId);
     }
 
     @Test
@@ -90,8 +84,7 @@ class AccountRegistrationV2TransactionTest {
                 challengeId,
                 "member@example.com",
                 EmailVerificationPurpose.SIGNUP,
-                "123456",
-                NOW
+                "123456"
         )).willReturn(true);
         given(registrationService.signUp(
                 "member@example.com", "long-enough-password", "member"
@@ -108,6 +101,6 @@ class AccountRegistrationV2TransactionTest {
 
         // Then
         then(attempt.account()).isSameAs(account);
-        verify(verificationUseService).consume(challengeId, NOW);
+        verify(verificationUseService).consume(challengeId);
     }
 }

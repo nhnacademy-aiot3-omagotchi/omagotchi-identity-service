@@ -29,12 +29,13 @@ public class EmailVerificationIssuanceTransaction {
             String normalizedEmail,
             EmailVerificationPurpose purpose
     ) {
-        Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
+        Instant scopeInitializationAt = now();
         EmailVerificationScope scope = repository.createIfAbsentAndLockScope(
                 normalizedEmail,
                 purpose,
-                now
+                scopeInitializationAt
         );
+        Instant now = now();
 
         if (!scope.canIssueAt(now)) {
             throw new EmailVerificationCooldownException(scope.retryAfterSecondsAt(now));
@@ -74,5 +75,9 @@ public class EmailVerificationIssuanceTransaction {
                 code,
                 expiresAt
         );
+    }
+
+    private Instant now() {
+        return clock.instant().truncatedTo(ChronoUnit.MICROS);
     }
 }

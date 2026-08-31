@@ -11,9 +11,6 @@ import site.omagotchi.identityservice.emailverification.application.EmailVerific
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationPurpose;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 @Service
@@ -24,7 +21,6 @@ public class PasswordChangeV2Transaction {
     private final AccountPasswordService accountPasswordService;
     private final RefreshSessionRevocationService refreshSessionRevocationService;
     private final EmailVerificationUseService emailVerificationUseService;
-    private final Clock clock;
 
     @Transactional
     public boolean changePassword(
@@ -40,14 +36,11 @@ public class PasswordChangeV2Transaction {
         if (!account.isPasswordChangeAllowed()) {
             throw new BusinessException(AccountErrorCode.PASSWORD_CHANGE_NOT_ALLOWED);
         }
-
-        Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
         boolean verified = emailVerificationUseService.verify(
                 challengeId,
                 account.getEmail(),
                 EmailVerificationPurpose.PASSWORD_CHANGE,
-                code,
-                now
+                code
         );
         if (!verified) {
             return false;
@@ -62,7 +55,7 @@ public class PasswordChangeV2Transaction {
                 accountId,
                 RefreshSessionRevocationReason.PASSWORD_CHANGED
         );
-        emailVerificationUseService.consume(challengeId, now);
+        emailVerificationUseService.consume(challengeId);
         return true;
     }
 }

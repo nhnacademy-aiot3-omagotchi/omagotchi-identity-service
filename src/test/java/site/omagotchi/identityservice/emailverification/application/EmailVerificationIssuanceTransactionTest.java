@@ -16,7 +16,6 @@ import site.omagotchi.identityservice.emailverification.domain.EmailVerification
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,6 +23,7 @@ import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
@@ -48,11 +48,14 @@ class EmailVerificationIssuanceTransactionTest {
     private VerificationCodeGenerator codeGenerator;
     @Mock
     private VerificationCodeAuthenticator codeAuthenticator;
+    @Mock
+    private Clock clock;
 
     private EmailVerificationIssuanceTransaction transaction;
 
     @BeforeEach
     void setUp() {
+        given(clock.instant()).willReturn(NOW);
         transaction = new EmailVerificationIssuanceTransaction(
                 repository,
                 codeGenerator,
@@ -63,7 +66,7 @@ class EmailVerificationIssuanceTransactionTest {
                         5,
                         "test-hmac-secret-with-at-least-32-characters"
                 ),
-                Clock.fixed(NOW, ZoneOffset.UTC)
+                clock
         );
     }
 
@@ -93,6 +96,39 @@ class EmailVerificationIssuanceTransactionTest {
         then(previous.getStatus()).isEqualTo(EmailVerificationStatus.SUPERSEDED);
         then(scope.getActiveChallengeId()).isEqualTo(prepared.challengeId());
         verify(repository).store(any(EmailVerificationChallenge.class));
+    }
+
+    @Test
+    @DisplayName("Scope 잠금 획득 후 읽은 시각부터 Challenge 유효시간 계산")
+    void calculatesExpirationFromTimeReadAfterScopeLock() {
+        // Given
+        Instant lockAcquiredAt = NOW.plusSeconds(30);
+        EmailVerificationScope scope = scope();
+        given(clock.instant()).willReturn(NOW, lockAcquiredAt);
+        given(repository.createIfAbsentAndLockScope(
+                EMAIL,
+                EmailVerificationPurpose.SIGNUP,
+                NOW
+        )).willReturn(scope);
+        given(codeGenerator.generate()).willReturn("123456");
+        given(codeAuthenticator.encode(any(), any(), any(), any())).willReturn("a".repeat(64));
+
+        // When
+        PreparedEmailVerification prepared = transaction.prepare(
+                EMAIL,
+                EmailVerificationPurpose.SIGNUP
+        );
+
+        // Then
+        then(prepared.expiresAt()).isEqualTo(lockAcquiredAt.plusSeconds(300));
+        var invocationOrder = inOrder(clock, repository);
+        invocationOrder.verify(clock).instant();
+        invocationOrder.verify(repository).createIfAbsentAndLockScope(
+                EMAIL,
+                EmailVerificationPurpose.SIGNUP,
+                NOW
+        );
+        invocationOrder.verify(clock).instant();
     }
 
     @Test

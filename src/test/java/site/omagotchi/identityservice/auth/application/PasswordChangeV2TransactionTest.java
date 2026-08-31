@@ -12,9 +12,6 @@ import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.emailverification.application.EmailVerificationUseService;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationPurpose;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,7 +23,6 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class PasswordChangeV2TransactionTest {
 
-    private static final Instant NOW = Instant.parse("2026-08-30T00:00:00Z");
     private static final UUID ACCOUNT_ID = UUID.fromString(
             "00000000-0000-0000-0000-000000701101"
     );
@@ -51,8 +47,7 @@ class PasswordChangeV2TransactionTest {
                 accountRepository,
                 accountPasswordService,
                 revocationService,
-                verificationUseService,
-                Clock.fixed(NOW, ZoneOffset.UTC)
+                verificationUseService
         );
         given(accountRepository.lockById(ACCOUNT_ID)).willReturn(Optional.of(Account.register(
                 "member@example.com", "password-hash", "member"
@@ -67,8 +62,7 @@ class PasswordChangeV2TransactionTest {
                 CHALLENGE_ID,
                 "member@example.com",
                 EmailVerificationPurpose.PASSWORD_CHANGE,
-                "000000",
-                NOW
+                "000000"
         )).willReturn(false);
 
         // When
@@ -84,7 +78,7 @@ class PasswordChangeV2TransactionTest {
         verify(revocationService, never()).revokeAllForAccount(
                 ACCOUNT_ID, RefreshSessionRevocationReason.PASSWORD_CHANGED
         );
-        verify(verificationUseService, never()).consume(CHALLENGE_ID, NOW);
+        verify(verificationUseService, never()).consume(CHALLENGE_ID);
     }
 
     @Test
@@ -95,8 +89,7 @@ class PasswordChangeV2TransactionTest {
                 CHALLENGE_ID,
                 "member@example.com",
                 EmailVerificationPurpose.PASSWORD_CHANGE,
-                "123456",
-                NOW
+                "123456"
         )).willReturn(true);
 
         // When
@@ -112,6 +105,6 @@ class PasswordChangeV2TransactionTest {
         verify(revocationService).revokeAllForAccount(
                 ACCOUNT_ID, RefreshSessionRevocationReason.PASSWORD_CHANGED
         );
-        verify(verificationUseService).consume(CHALLENGE_ID, NOW);
+        verify(verificationUseService).consume(CHALLENGE_ID);
     }
 }
