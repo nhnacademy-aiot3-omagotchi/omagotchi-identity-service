@@ -41,6 +41,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({TestcontainersConfig.class, TestJwtConfig.class})
 class RefreshTokenApiIT {
 
+    private static final UUID EXPIRED_TOKEN_FAMILY_ID = UUID.fromString(
+            "00000000-0000-0000-0000-000000700001"
+    );
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -267,7 +271,7 @@ class RefreshTokenApiIT {
         Instant createdAt = Instant.now().minus(Duration.ofDays(8));
         RefreshToken expiredToken = RefreshToken.issue(
                 accountId,
-                UUID.randomUUID(),
+                EXPIRED_TOKEN_FAMILY_ID,
                 refreshTokenHasher.hash(expiredTokenValue),
                 createdAt.plus(Duration.ofDays(7)),
                 createdAt

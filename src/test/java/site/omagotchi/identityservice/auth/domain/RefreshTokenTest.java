@@ -14,6 +14,12 @@ import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 class RefreshTokenTest {
 
     private static final String TOKEN_HASH = "a".repeat(64);
+    private static final UUID ACCOUNT_ID = UUID.fromString(
+            "00000000-0000-0000-0000-000000700401"
+    );
+    private static final UUID TOKEN_FAMILY_ID = UUID.fromString(
+            "00000000-0000-0000-0000-000000700402"
+    );
 
     @Test
     @DisplayName("발급 후 한 번만 사용")
@@ -56,8 +62,8 @@ class RefreshTokenTest {
 
     private RefreshToken issue(Instant issuedAt) {
         return RefreshToken.issue(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
+                ACCOUNT_ID,
+                TOKEN_FAMILY_ID,
                 TOKEN_HASH,
                 issuedAt.plus(7, ChronoUnit.DAYS),
                 issuedAt

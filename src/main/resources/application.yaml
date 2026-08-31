@@ -53,6 +53,11 @@ auth:
   login-protection:
     maximum-failed-attempts: ${LOGIN_MAXIMUM_FAILED_ATTEMPTS}
     lock-duration: ${LOGIN_LOCK_DURATION}
+  email-verification:
+    code-ttl: ${EMAIL_VERIFICATION_CODE_TTL}
+    cooldown: ${EMAIL_VERIFICATION_COOLDOWN}
+    maximum-failed-attempts: ${EMAIL_VERIFICATION_MAXIMUM_FAILED_ATTEMPTS}
+    hmac-secret: ${EMAIL_VERIFICATION_HMAC_SECRET}
   frontend:
     # 가입·Login·Refresh·Logout API를 직접 호출하는 Frontend 프로세스의 Credential
     username: ${FRONTEND_USERNAME}
@@ -69,3 +74,10 @@ auth:
     private-key-location: ${JWT_PRIVATE_KEY_LOCATION}
   refresh-token:
     ttl: ${REFRESH_TOKEN_TTL}
+
+email:
+  resend:
+    api-key: ${RESEND_API_KEY}
+    from-email: ${RESEND_FROM_EMAIL}
+    connect-timeout: ${RESEND_CONNECT_TIMEOUT}
+    read-timeout: ${RESEND_READ_TIMEOUT}

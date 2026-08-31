@@ -39,6 +39,9 @@ class PasswordChangeRollbackIT {
 
     private static final String CURRENT_PASSWORD = "password-passphrase";
     private static final String NEW_PASSWORD = "new-password-passphrase";
+    private static final UUID REFRESH_TOKEN_FAMILY_ID = UUID.fromString(
+            "00000000-0000-0000-0000-000000700002"
+    );
 
     @Autowired
     private AccountJpaRepository accountJpaRepository;
@@ -75,7 +78,7 @@ class PasswordChangeRollbackIT {
         RefreshToken refreshToken = refreshTokenJpaRepository.saveAndFlush(
                 RefreshToken.issue(
                         account.getId(),
-                        UUID.randomUUID(),
+                        REFRESH_TOKEN_FAMILY_ID,
                         "a".repeat(64),
                         issuedAt.plus(7, ChronoUnit.DAYS),
                         issuedAt

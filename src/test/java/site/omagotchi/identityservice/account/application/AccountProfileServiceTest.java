@@ -18,6 +18,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class AccountProfileServiceTest {
 
+    private static final UUID ACCOUNT_ID = UUID.fromString(
+            "00000000-0000-0000-0000-000000700303"
+    );
+
     private final AccountRepository accountRepository = mock(AccountRepository.class);
     private final AccountProfileService accountProfileService =
             new AccountProfileService(accountRepository);
@@ -26,7 +30,7 @@ class AccountProfileServiceTest {
     @DisplayName("계정 행 잠금 뒤 이름 변경")
     void changesNameAfterLockingAccount() {
         // Given
-        UUID accountId = UUID.randomUUID();
+        UUID accountId = ACCOUNT_ID;
         Account account = Account.register(
                 "user@example.com",
                 "encoded-password",
@@ -45,9 +49,12 @@ class AccountProfileServiceTest {
     @Test
     @DisplayName("잘못된 이름은 계정 조회 전에 거부")
     void rejectsInvalidNameBeforeLookup() {
+        // Given
+        UUID accountId = ACCOUNT_ID;
+
         // When
         Throwable thrown = catchThrowable(() -> accountProfileService.changeName(
-                UUID.randomUUID(),
+                accountId,
                 "가".repeat(31)
         ));
 
@@ -64,7 +71,7 @@ class AccountProfileServiceTest {
     @DisplayName("존재하지 않는 계정의 이름 변경 거부")
     void rejectsMissingAccount() {
         // Given
-        UUID accountId = UUID.randomUUID();
+        UUID accountId = ACCOUNT_ID;
         given(accountRepository.lockById(accountId)).willReturn(Optional.empty());
 
         // When
@@ -85,7 +92,7 @@ class AccountProfileServiceTest {
     @DisplayName("이름 변경이 허용되지 않은 계정 상태 거부")
     void rejectsUnavailableAccount() {
         // Given
-        UUID accountId = UUID.randomUUID();
+        UUID accountId = ACCOUNT_ID;
         Account account = mock(Account.class);
         given(accountRepository.lockById(accountId)).willReturn(Optional.of(account));
         given(account.isNameChangeAllowed()).willReturn(false);

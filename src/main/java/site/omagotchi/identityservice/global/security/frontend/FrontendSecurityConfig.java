@@ -28,7 +28,7 @@ public class FrontendSecurityConfig {
     ) {
         http
                 // 본 Filter Chain에 포함할 Frontend 전용 인증 API 경로
-                .securityMatcher("/api/v1/auth/**")
+                .securityMatcher("/api/v1/auth/**", "/api/v2/auth/**")
                 // Browser Cookie 인증을 사용하지 않는 내부 HTTP API
                 .csrf(AbstractHttpConfigurer::disable)
                 // Browser의 Identity 직접 호출 금지

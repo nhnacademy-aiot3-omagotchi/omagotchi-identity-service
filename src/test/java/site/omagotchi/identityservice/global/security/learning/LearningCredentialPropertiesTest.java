@@ -96,7 +96,10 @@ class LearningCredentialPropertiesTest {
                         "auth.learning.username=" + VALID_USERNAME,
                         "auth.learning.password=" + passwordAtCharacterMinimum
                 )
-                .run(context -> then(context).hasNotFailed());
+                .run(context -> {
+                    // Then: 최소 길이 Credential로 Context 기동 성공
+                    then(context).hasNotFailed();
+                });
     }
 
     @Test
@@ -111,7 +114,10 @@ class LearningCredentialPropertiesTest {
                         "auth.learning.username=" + VALID_USERNAME,
                         "auth.learning.password=" + passwordAtBcryptLimit
                 )
-                .run(context -> then(context).hasNotFailed());
+                .run(context -> {
+                    // Then: 최대 길이 Credential로 Context 기동 성공
+                    then(context).hasNotFailed();
+                });
     }
 
     @ParameterizedTest(name = "{0}")

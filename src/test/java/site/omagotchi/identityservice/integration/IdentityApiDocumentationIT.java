@@ -93,7 +93,12 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("회원가입 성공 계약")
     void documentsSignup() throws Exception {
-        api.signUp("user@example.com", PASSWORD, "홍길동")
+        // Given
+        String email = "user@example.com";
+
+        // When
+        api.signUp(email, PASSWORD, "홍길동")
+                // Then
                 .andExpect(status().isCreated())
                 .andDo(document(
                         "auth/signup/success",
@@ -112,9 +117,12 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("중복 이메일 회원가입 오류 계약")
     void documentsDuplicateSignup() throws Exception {
+        // Given
         api.signupSuccessfully("user@example.com");
 
+        // When
         api.signUp("user@example.com")
+                // Then
                 .andExpectAll(
                         status().isConflict(),
                         jsonPath("$.code").value("ACCOUNT_DUPLICATE_EMAIL")
@@ -130,9 +138,12 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("로그인 성공 계약")
     void documentsLogin() throws Exception {
+        // Given
         api.signupSuccessfully("user@example.com");
 
+        // When
         api.login("user@example.com", PASSWORD)
+                // Then
                 .andExpect(status().isOk())
                 .andDo(document(
                         "auth/login/success",
@@ -151,9 +162,12 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("잘못된 로그인 자격 증명 오류 계약")
     void documentsInvalidLogin() throws Exception {
+        // Given
         api.signupSuccessfully("user@example.com");
 
+        // When
         api.login("user@example.com", "wrong-password1")
+                // Then
                 .andExpectAll(
                         status().isUnauthorized(),
                         jsonPath("$.code").value("AUTH_INVALID_CREDENTIALS")
@@ -169,13 +183,16 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("Refresh Token 회전 성공 계약")
     void documentsRefresh() throws Exception {
+        // Given
         api.signupSuccessfully("user@example.com");
         AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
                 "user@example.com",
                 PASSWORD
         );
 
+        // When
         api.refresh(login.refreshToken())
+                // Then
                 .andExpect(status().isOk())
                 .andDo(document(
                         "auth/refresh/success",
@@ -191,7 +208,12 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("유효하지 않은 Refresh Token 오류 계약")
     void documentsInvalidRefreshToken() throws Exception {
-        api.refresh("")
+        // Given
+        String invalidRefreshToken = "";
+
+        // When
+        api.refresh(invalidRefreshToken)
+                // Then
                 .andExpectAll(
                         status().isUnauthorized(),
                         jsonPath("$.code").value("AUTH_INVALID_REFRESH_TOKEN")
@@ -207,13 +229,16 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("로그아웃 성공 계약")
     void documentsLogout() throws Exception {
+        // Given
         api.signupSuccessfully("user@example.com");
         AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
                 "user@example.com",
                 PASSWORD
         );
 
+        // When
         api.logout(login.refreshToken())
+                // Then
                 .andExpect(status().isNoContent())
                 .andDo(document(
                         "auth/logout/success",
@@ -228,14 +253,19 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("Frontend Credential 누락 오류 계약")
     void documentsMissingFrontendCredential() throws Exception {
+        // Given
+        String requestBody = """
+                {
+                  "email": "user@example.com",
+                  "password": "password-passphrase"
+                }
+                """;
+
+        // When
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "email": "user@example.com",
-                                  "password": "password-passphrase"
-                                }
-                                """))
+                        .content(requestBody))
+                // Then
                 .andExpectAll(
                         status().isUnauthorized(),
                         jsonPath("$.code").value("AUTH_AUTHENTICATION_REQUIRED")
@@ -255,17 +285,20 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("본인 계정 조회 성공 계약")
     void documentsCurrentAccount() throws Exception {
+        // Given
         api.signupSuccessfully("user@example.com");
         AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
                 "user@example.com",
                 PASSWORD
         );
 
+        // When
         mockMvc.perform(get("/api/v1/users/me")
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + login.accessToken()
                         ))
+                // Then
                 .andExpect(status().isOk())
                 .andDo(document(
                         "account/me/success",
@@ -279,7 +312,12 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("본인 계정 조회의 Access JWT 누락 오류 계약")
     void documentsMissingAccessToken() throws Exception {
-        mockMvc.perform(get("/api/v1/users/me"))
+        // Given
+        String path = "/api/v1/users/me";
+
+        // When
+        mockMvc.perform(get(path))
+                // Then
                 .andExpectAll(
                         status().isUnauthorized(),
                         jsonPath("$.code").value("AUTH_AUTHENTICATION_REQUIRED")
@@ -299,13 +337,16 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("본인 이름 변경 성공 계약")
     void documentsCurrentAccountNameChange() throws Exception {
+        // Given
         api.signupSuccessfully("user@example.com");
         AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
                 "user@example.com",
                 PASSWORD
         );
 
+        // When
         api.changeName(login.accessToken(), "  새 이름  ")
+                // Then
                 .andExpect(status().isNoContent())
                 .andDo(document(
                         "account/me/update-name/success",
@@ -332,13 +373,16 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("본인 이름 정책 위반 오류 계약")
     void documentsInvalidCurrentAccountName() throws Exception {
+        // Given
         api.signupSuccessfully("user@example.com");
         AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
                 "user@example.com",
                 PASSWORD
         );
 
+        // When
         api.changeName(login.accessToken(), "가".repeat(31))
+                // Then
                 .andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.code").value("ACCOUNT_INVALID_NAME")
@@ -354,13 +398,18 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("본인 이름 변경의 Access JWT 누락 오류 계약")
     void documentsMissingAccessTokenForNameChange() throws Exception {
+        // Given
+        String requestBody = """
+                {
+                  "name": "새 이름"
+                }
+                """;
+
+        // When
         mockMvc.perform(patch("/api/v1/users/me")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "name": "새 이름"
-                                }
-                                """))
+                        .content(requestBody))
+                // Then
                 .andExpectAll(
                         status().isUnauthorized(),
                         jsonPath("$.code").value("AUTH_AUTHENTICATION_REQUIRED")
@@ -370,13 +419,16 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("Learning 계정 단건 조회 성공 계약")
     void documentsInternalAccount() throws Exception {
+        // Given
         Account account = saveAccount("active@example.com", "활성 사용자");
 
+        // When
         mockMvc.perform(get(
                                 "/api/v1/internal/accounts/{accountId}",
                                 account.getId()
                         )
                         .with(learningCredential()))
+                // Then
                 .andExpect(status().isOk())
                 .andDo(document(
                         "internal/accounts/get/success",
@@ -394,15 +446,18 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("Learning 계정 단건 조회의 미존재 오류 계약")
     void documentsMissingInternalAccount() throws Exception {
+        // Given
         UUID missingAccountId = UUID.fromString(
                 "00000000-0000-0000-0000-000000000404"
         );
 
+        // When
         mockMvc.perform(get(
                                 "/api/v1/internal/accounts/{accountId}",
                                 missingAccountId
                         )
                         .with(learningCredential()))
+                // Then
                 .andExpectAll(
                         status().isNotFound(),
                         jsonPath("$.code").value("ACCOUNT_NOT_FOUND")
@@ -418,9 +473,11 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("Learning 계정 일괄 조회 성공 계약")
     void documentsInternalAccountBatch() throws Exception {
+        // Given
         Account first = saveAccount("first@example.com", "첫 사용자");
         Account second = saveAccount("second@example.com", "두 번째 사용자");
 
+        // When
         mockMvc.perform(post("/api/v1/internal/accounts/batch")
                         .with(learningCredential())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -429,6 +486,7 @@ class IdentityApiDocumentationIT {
                                   "accountIds": ["%s", "%s"]
                                 }
                                 """.formatted(first.getId(), second.getId())))
+                // Then
                 .andExpect(status().isOk())
                 .andDo(document(
                         "internal/accounts/batch/success",
@@ -450,12 +508,17 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("Learning 계정 일괄 조회의 빈 요청 오류 계약")
     void documentsInvalidInternalAccountBatch() throws Exception {
+        // Given
+        String requestBody = """
+                {"accountIds": []}
+                """;
+
+        // When
         mockMvc.perform(post("/api/v1/internal/accounts/batch")
                         .with(learningCredential())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"accountIds": []}
-                                """))
+                        .content(requestBody))
+                // Then
                 .andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.code").value("COMMON_INVALID_REQUEST")
@@ -508,10 +571,15 @@ class IdentityApiDocumentationIT {
     @Test
     @DisplayName("Learning Credential 누락 오류 계약")
     void documentsMissingLearningCredential() throws Exception {
+        // Given
+        UUID accountId = UUID.fromString("00000000-0000-0000-0000-000000000401");
+
+        // When
         mockMvc.perform(get(
                         "/api/v1/internal/accounts/{accountId}",
-                        UUID.fromString("00000000-0000-0000-0000-000000000401")
+                        accountId
                 ))
+                // Then
                 .andExpectAll(
                         status().isUnauthorized(),
                         jsonPath("$.code").value("AUTH_AUTHENTICATION_REQUIRED")

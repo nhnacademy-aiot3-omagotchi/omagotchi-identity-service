@@ -18,6 +18,13 @@ import site.omagotchi.identityservice.global.exception.BusinessException;
 
 class AccountQueryServiceTest {
 
+    private static final UUID FIRST_ACCOUNT_ID = UUID.fromString(
+            "00000000-0000-0000-0000-000000700301"
+    );
+    private static final UUID SECOND_ACCOUNT_ID = UUID.fromString(
+            "00000000-0000-0000-0000-000000700302"
+    );
+
     private final AccountRepository accountRepository = mock(AccountRepository.class);
     private final AccountQueryService accountQueryService =
             new AccountQueryService(accountRepository);
@@ -26,8 +33,8 @@ class AccountQueryServiceTest {
     @DisplayName("계정 일괄 조회 요청의 식별자 중복 제거")
     void deduplicatesAccountIdsBeforeBatchLookup() {
         // Given
-        UUID firstId = UUID.randomUUID();
-        UUID secondId = UUID.randomUUID();
+        UUID firstId = FIRST_ACCOUNT_ID;
+        UUID secondId = SECOND_ACCOUNT_ID;
         List<UUID> distinctIds = List.of(firstId, secondId);
         given(accountRepository.findAllById(distinctIds)).willReturn(List.of());
 

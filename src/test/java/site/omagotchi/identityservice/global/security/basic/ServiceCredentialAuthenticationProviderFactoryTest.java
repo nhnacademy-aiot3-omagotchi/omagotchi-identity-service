@@ -55,7 +55,8 @@ class ServiceCredentialAuthenticationProviderFactoryTest {
                 "wrong-password"
         );
 
-        // When & Then
+        // When
+        // Then
         assertThatThrownBy(() -> provider.authenticate(request))
                 .isInstanceOf(BadCredentialsException.class);
     }

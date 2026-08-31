@@ -5,6 +5,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import site.omagotchi.identityservice.emailverification.application.EmailDeliveryException;
+import site.omagotchi.identityservice.emailverification.application.EmailVerificationCooldownException;
+import site.omagotchi.identityservice.emailverification.application.EmailVerificationErrorCode;
 
 import static org.assertj.core.api.BDDAssertions.then;
 
@@ -65,6 +68,47 @@ class GlobalExceptionHandlerTest {
         // Then
         then(response.getBody().message())
                 .isEqualTo(CommonErrorCode.INVALID_REQUEST.message());
+    }
+
+    @Test
+    @DisplayName("쿨다운 오류에 Retry-After 초 단위 Header 포함")
+    void addsRetryAfterHeader() {
+        // Given
+        EmailVerificationCooldownException exception =
+                new EmailVerificationCooldownException(42);
+
+        // When
+        ResponseEntity<ApiErrorResponse> response = handler.handleBusinessException(
+                exception,
+                requestForTest()
+        );
+
+        // Then
+        then(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        then(response.getHeaders().getFirst("Retry-After")).isEqualTo("42");
+        then(response.getBody().code())
+                .isEqualTo(EmailVerificationErrorCode.COOLDOWN_ACTIVE.code());
+    }
+
+    @Test
+    @DisplayName("외부 메일 장애를 원인 노출 없이 503으로 변환")
+    void mapsDependencyUnavailableException() {
+        // Given
+        DependencyUnavailableException exception = new DependencyUnavailableException(
+                EmailVerificationErrorCode.DELIVERY_UNAVAILABLE,
+                new EmailDeliveryException("sensitive provider detail", new RuntimeException())
+        );
+
+        // When
+        ResponseEntity<ApiErrorResponse> response = handler.handleDependencyUnavailable(
+                exception,
+                requestForTest()
+        );
+
+        // Then
+        then(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        then(response.getBody().message())
+                .isEqualTo(EmailVerificationErrorCode.DELIVERY_UNAVAILABLE.message());
     }
 
     private MockHttpServletRequest requestForTest() {

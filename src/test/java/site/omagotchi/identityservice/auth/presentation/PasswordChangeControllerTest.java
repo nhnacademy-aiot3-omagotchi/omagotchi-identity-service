@@ -91,7 +91,12 @@ class PasswordChangeControllerTest {
     @Test
     @DisplayName("현재 비밀번호와 새 비밀번호로 변경 요청")
     void changesPassword() throws Exception {
-        mockMvc.perform(passwordChangeRequest())
+        // Given
+        MockHttpServletRequestBuilder request = passwordChangeRequest();
+
+        // When
+        mockMvc.perform(request)
+                // Then
                 .andExpect(status().isNoContent())
                 .andDo(document(
                         "password-change/success",
@@ -123,7 +128,12 @@ class PasswordChangeControllerTest {
     @Test
     @DisplayName("Access JWT 없는 요청의 인증 오류 계약")
     void documentsAuthenticationRequired() throws Exception {
-        mockMvc.perform(passwordChangeRequestWithoutAuthentication())
+        // Given
+        MockHttpServletRequestBuilder request = passwordChangeRequestWithoutAuthentication();
+
+        // When
+        mockMvc.perform(request)
+                // Then
                 .andExpectAll(
                         status().isUnauthorized(),
                         jsonPath("$.code").value("AUTH_AUTHENTICATION_REQUIRED")
@@ -139,11 +149,14 @@ class PasswordChangeControllerTest {
     @Test
     @DisplayName("현재 비밀번호 불일치 오류 계약")
     void documentsCurrentPasswordMismatch() throws Exception {
+        // Given
         willThrow(new BusinessException(AccountErrorCode.CURRENT_PASSWORD_MISMATCH))
                 .given(passwordChangeService)
                 .changePassword(ACCOUNT_ID, CURRENT_PASSWORD, NEW_PASSWORD);
 
+        // When
         mockMvc.perform(passwordChangeRequest())
+                // Then
                 .andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.code").value("ACCOUNT_CURRENT_PASSWORD_MISMATCH")
@@ -159,11 +172,14 @@ class PasswordChangeControllerTest {
     @Test
     @DisplayName("새 비밀번호 정책 위반 오류 계약")
     void documentsInvalidNewPassword() throws Exception {
+        // Given
         willThrow(new BusinessException(AccountErrorCode.INVALID_PASSWORD))
                 .given(passwordChangeService)
                 .changePassword(ACCOUNT_ID, CURRENT_PASSWORD, NEW_PASSWORD);
 
+        // When
         mockMvc.perform(passwordChangeRequest())
+                // Then
                 .andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.code").value("ACCOUNT_INVALID_PASSWORD")
@@ -179,11 +195,14 @@ class PasswordChangeControllerTest {
     @Test
     @DisplayName("현재 비밀번호 재사용 오류 계약")
     void documentsUnchangedPassword() throws Exception {
+        // Given
         willThrow(new BusinessException(AccountErrorCode.PASSWORD_UNCHANGED))
                 .given(passwordChangeService)
                 .changePassword(ACCOUNT_ID, CURRENT_PASSWORD, NEW_PASSWORD);
 
+        // When
         mockMvc.perform(passwordChangeRequest())
+                // Then
                 .andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.code").value("ACCOUNT_PASSWORD_UNCHANGED")
@@ -199,11 +218,14 @@ class PasswordChangeControllerTest {
     @Test
     @DisplayName("비밀번호 변경 불가 계정 오류 계약")
     void documentsUnavailableAccount() throws Exception {
+        // Given
         willThrow(new BusinessException(AccountErrorCode.PASSWORD_CHANGE_NOT_ALLOWED))
                 .given(passwordChangeService)
                 .changePassword(ACCOUNT_ID, CURRENT_PASSWORD, NEW_PASSWORD);
 
+        // When
         mockMvc.perform(passwordChangeRequest())
+                // Then
                 .andExpectAll(
                         status().isForbidden(),
                         jsonPath("$.code").value("ACCOUNT_PASSWORD_CHANGE_NOT_ALLOWED")

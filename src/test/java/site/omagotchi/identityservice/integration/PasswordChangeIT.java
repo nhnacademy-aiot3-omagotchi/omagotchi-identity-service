@@ -303,14 +303,19 @@ class PasswordChangeIT {
     @Test
     @DisplayName("Bearer Token 없는 비밀번호 변경 요청 거부")
     void requiresBearerAuthentication() throws Exception {
+        // Given
+        String requestBody = """
+                {
+                  "currentPassword": "password-passphrase",
+                  "newPassword": "new-password-passphrase"
+                }
+                """;
+
+        // When
         mockMvc.perform(patch("/api/v1/users/me/password")
                         .contentType("application/json")
-                        .content("""
-                                {
-                                  "currentPassword": "password-passphrase",
-                                  "newPassword": "new-password-passphrase"
-                                }
-                                """))
+                        .content(requestBody))
+                // Then
                 .andExpectAll(
                         status().isUnauthorized(),
                         jsonPath("$.code").value("AUTH_AUTHENTICATION_REQUIRED")
