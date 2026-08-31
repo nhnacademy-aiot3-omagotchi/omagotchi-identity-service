@@ -1,6 +1,5 @@
 package site.omagotchi.identityservice.emailverification.infrastructure;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.hibernate.validator.constraints.time.DurationMin;
@@ -16,7 +15,6 @@ public record ResendProperties(
         String apiKey,
 
         @NotBlank(message = "email.resend.from-email은 필수입니다.")
-        @Email(message = "email.resend.from-email은 올바른 이메일 형식이어야 합니다.")
         String fromEmail,
 
         @NotNull(message = "email.resend.connect-timeout은 필수입니다.")
@@ -33,4 +31,13 @@ public record ResendProperties(
         )
         Duration readTimeout
 ) {
+
+    @Override
+    public String toString() {
+        return "ResendProperties[apiKey=[REDACTED]"
+                + ", fromEmail=" + fromEmail
+                + ", connectTimeout=" + connectTimeout
+                + ", readTimeout=" + readTimeout
+                + ']';
+    }
 }

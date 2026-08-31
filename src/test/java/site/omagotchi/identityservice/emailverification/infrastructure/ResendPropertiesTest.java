@@ -53,8 +53,9 @@ class ResendPropertiesTest {
     @DisplayName("명시한 Resend 시간 제한 바인딩")
     void bindsExplicitTimeouts() {
         // Given
+        String apiKey = "test-api-key";
         contextRunner.withPropertyValues(
-                        "email.resend.api-key=test-api-key",
+                        "email.resend.api-key=" + apiKey,
                         "email.resend.from-email=no-reply@omagotchi.test",
                         "email.resend.connect-timeout=PT2S",
                         "email.resend.read-timeout=PT5S"
@@ -66,6 +67,9 @@ class ResendPropertiesTest {
                     then(context.getStartupFailure()).isNull();
                     then(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(2));
                     then(properties.readTimeout()).isEqualTo(Duration.ofSeconds(5));
+                    then(properties.toString())
+                            .contains("[REDACTED]")
+                            .doesNotContain(apiKey);
                 });
     }
 
