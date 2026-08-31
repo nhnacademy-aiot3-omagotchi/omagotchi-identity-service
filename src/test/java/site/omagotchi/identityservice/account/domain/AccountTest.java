@@ -270,4 +270,176 @@ class AccountTest {
             softly.then(account.getLockedUntil()).isEqualTo(failedAt.plus(lockDuration));
         });
     }
+
+    @Test
+    @DisplayName("활성 계정 탈퇴 시 WITHDRAWN 전환과 탈퇴 시각 기록")
+    void withdrawsActiveAccount() {
+        // Given
+        Account account = account();
+        Instant withdrawnAt = Instant.parse("2026-08-30T12:00:00Z");
+
+        // When
+        AccountStatusTransition transition = account.withdraw(withdrawnAt);
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(transition.before()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(transition.after()).isEqualTo(AccountStatus.WITHDRAWN);
+            softly.then(transition.changed()).isTrue();
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.WITHDRAWN);
+            softly.then(account.getWithdrawnAt()).isEqualTo(withdrawnAt);
+            softly.then(account.getFailedLoginAttempts()).isZero();
+            softly.then(account.getLockedUntil()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("잠긴 계정 탈퇴 시 로그인 잠금 정보 정리")
+    void withdrawsLockedAccountAndClearsLoginLock() {
+        // Given
+        Account account = lockedAccount();
+        Instant withdrawnAt = Instant.parse("2026-08-30T12:00:00Z");
+
+        // When
+        account.withdraw(withdrawnAt);
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.WITHDRAWN);
+            softly.then(account.getWithdrawnAt()).isEqualTo(withdrawnAt);
+            softly.then(account.getFailedLoginAttempts()).isZero();
+            softly.then(account.getLockedUntil()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("탈퇴 재요청은 최초 탈퇴 시각을 보존하는 No-op")
+    void preservesFirstWithdrawalOnRepeatedRequest() {
+        // Given
+        Account account = account();
+        Instant firstWithdrawal = Instant.parse("2026-08-30T12:00:00Z");
+        account.withdraw(firstWithdrawal);
+
+        // When
+        AccountStatusTransition transition = account.withdraw(
+                firstWithdrawal.plusSeconds(60)
+        );
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(transition.changed()).isFalse();
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.WITHDRAWN);
+            softly.then(account.getWithdrawnAt()).isEqualTo(firstWithdrawal);
+        });
+    }
+
+    @Test
+    @DisplayName("비활성 계정의 본인 탈퇴 거부")
+    void rejectsWithdrawalOfDisabledAccount() {
+        // Given
+        Account account = account();
+        account.disable();
+
+        // When
+        Throwable thrown = catchThrowable(() -> account.withdraw(
+                Instant.parse("2026-08-30T12:00:00Z")
+        ));
+
+        // Then
+        then(thrown).isInstanceOf(IllegalStateException.class);
+        then(account.getStatus()).isEqualTo(AccountStatus.DISABLED);
+    }
+
+    @Test
+    @DisplayName("활성·잠금 계정 비활성화와 잠금 정보 정리")
+    void disablesActiveAndLockedAccounts() {
+        // Given
+        Account active = account();
+        Account locked = lockedAccount();
+
+        then(active.isDisableAllowed()).isTrue();
+        then(locked.isDisableAllowed()).isTrue();
+
+        // When
+        AccountStatusTransition activeTransition = active.disable();
+        AccountStatusTransition lockedTransition = locked.disable();
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(activeTransition.before()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(activeTransition.after()).isEqualTo(AccountStatus.DISABLED);
+            softly.then(lockedTransition.before()).isEqualTo(AccountStatus.LOCKED);
+            softly.then(lockedTransition.after()).isEqualTo(AccountStatus.DISABLED);
+            softly.then(locked.getFailedLoginAttempts()).isZero();
+            softly.then(locked.getLockedUntil()).isNull();
+            softly.then(active.isDisableAllowed()).isFalse();
+            softly.then(locked.isDisableAllowed()).isFalse();
+        });
+    }
+
+    @Test
+    @DisplayName("잠금 해제·재활성화와 동일 상태 No-op")
+    void activatesLockedAndDisabledAccountsIdempotently() {
+        // Given
+        Account locked = lockedAccount();
+        Account disabled = account();
+        disabled.disable();
+
+        then(locked.isActivationAllowed()).isTrue();
+        then(disabled.isActivationAllowed()).isTrue();
+
+        // When
+        AccountStatusTransition unlocked = locked.activate();
+        AccountStatusTransition reactivated = disabled.activate();
+        AccountStatusTransition unchanged = disabled.activate();
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(unlocked.before()).isEqualTo(AccountStatus.LOCKED);
+            softly.then(unlocked.after()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(reactivated.before()).isEqualTo(AccountStatus.DISABLED);
+            softly.then(reactivated.after()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(unchanged.changed()).isFalse();
+            softly.then(locked.getFailedLoginAttempts()).isZero();
+            softly.then(locked.getLockedUntil()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("탈퇴 계정의 관리자 상태 변경 거부")
+    void rejectsAdministrativeTransitionFromWithdrawnAccount() {
+        // Given
+        Account account = account();
+        account.withdraw(Instant.parse("2026-08-30T12:00:00Z"));
+
+        // When
+        boolean disableAllowed = account.isDisableAllowed();
+        boolean activationAllowed = account.isActivationAllowed();
+        Throwable disableFailure = catchThrowable(account::disable);
+        Throwable activationFailure = catchThrowable(account::activate);
+
+        // Then
+        then(disableAllowed).isFalse();
+        then(activationAllowed).isFalse();
+        then(disableFailure).isInstanceOf(IllegalStateException.class);
+        then(activationFailure).isInstanceOf(IllegalStateException.class);
+        then(account.getStatus()).isEqualTo(AccountStatus.WITHDRAWN);
+    }
+
+    private Account account() {
+        return Account.register(
+                "state-user@example.com",
+                "encoded-password",
+                "사용자"
+        );
+    }
+
+    private Account lockedAccount() {
+        Account account = account();
+        Instant failedAt = Instant.parse("2026-08-30T00:00:00Z");
+        for (int attempt = 0; attempt < 5; attempt++) {
+            account.recordLoginFailure(failedAt, 5, Duration.ofMinutes(10));
+        }
+        return account;
+    }
 }

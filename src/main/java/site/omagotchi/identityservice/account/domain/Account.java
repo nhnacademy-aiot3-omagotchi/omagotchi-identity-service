@@ -80,7 +80,7 @@ public class Account {
                 passwordHash,
                 normalizedName
         )) {
-            // Application 검사를 우회한 호출에 대한 Domain 불변식 방어
+            // 상위 계층 검사를 우회한 생성에 대한 도메인 불변식 방어
             throw new IllegalArgumentException("회원가입 계정 값이 올바르지 않습니다.");
         }
 
@@ -101,6 +101,29 @@ public class Account {
 
     public boolean isNameChangeAllowed() {
         return status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED;
+    }
+
+    // 마지막 관리자 보호 대상이 되는 역할과 상태
+    public boolean isUsableSystemAdministrator() {
+        return globalRole == GlobalRole.SYSTEM_ADMIN
+                && (status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED);
+    }
+
+    // 명세에서 허용한 본인 탈퇴 시작 상태
+    public boolean isWithdrawalAllowed() {
+        return status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED;
+    }
+
+    // 명세에서 허용한 관리자 비활성화 시작 상태
+    public boolean isDisableAllowed() {
+        return status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED;
+    }
+
+    // 명세에서 허용한 관리자 활성화 시작 상태
+    public boolean isActivationAllowed() {
+        return status == AccountStatus.ACTIVE
+                || status == AccountStatus.LOCKED
+                || status == AccountStatus.DISABLED;
     }
 
     public void changeName(String newName) {
@@ -125,6 +148,61 @@ public class Account {
         }
 
         passwordHash = newPasswordHash;
+    }
+
+    public AccountStatusTransition withdraw(Instant withdrawnAt) {
+        Instant occurredAt = Objects.requireNonNull(withdrawnAt, "withdrawnAt");
+        AccountStatus before = status;
+
+        // 도메인 객체의 중복 탈퇴 멱등 처리
+        if (status == AccountStatus.WITHDRAWN) {
+            return AccountStatusTransition.unchanged(status);
+        }
+        if (!isWithdrawalAllowed()) {
+            throw new IllegalStateException("현재 계정 상태에서는 탈퇴할 수 없습니다.");
+        }
+
+        // 탈퇴 계정에 남길 필요가 없는 로그인 잠금 정보 정리
+        status = AccountStatus.WITHDRAWN;
+        failedLoginAttempts = 0;
+        lockedUntil = null;
+        this.withdrawnAt = occurredAt;
+        return AccountStatusTransition.changed(before, status);
+    }
+
+    public AccountStatusTransition disable() {
+        AccountStatus before = status;
+
+        // 도메인 객체의 중복 비활성화 멱등 처리
+        if (status == AccountStatus.DISABLED) {
+            return AccountStatusTransition.unchanged(status);
+        }
+        if (!isDisableAllowed()) {
+            throw new IllegalStateException("현재 계정 상태에서는 비활성화할 수 없습니다.");
+        }
+
+        // 비활성 계정에 남길 필요가 없는 로그인 잠금 정보 정리
+        status = AccountStatus.DISABLED;
+        failedLoginAttempts = 0;
+        lockedUntil = null;
+        return AccountStatusTransition.changed(before, status);
+    }
+
+    public AccountStatusTransition activate() {
+        AccountStatus before = status;
+
+        // 도메인 객체의 중복 활성화 멱등 처리
+        if (status == AccountStatus.ACTIVE) {
+            return AccountStatusTransition.unchanged(status);
+        }
+        if (!isActivationAllowed()) {
+            throw new IllegalStateException("현재 계정 상태에서는 활성화할 수 없습니다.");
+        }
+
+        status = AccountStatus.ACTIVE;
+        failedLoginAttempts = 0;
+        lockedUntil = null;
+        return AccountStatusTransition.changed(before, status);
     }
 
     public void recoverExpiredLoginLock(Instant now) {
