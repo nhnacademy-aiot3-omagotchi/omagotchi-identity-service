@@ -7,12 +7,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import site.omagotchi.identityservice.account.application.AccountPasswordService;
-import site.omagotchi.identityservice.account.application.port.AccountRepository;
-import site.omagotchi.identityservice.account.domain.Account;
-import site.omagotchi.identityservice.emailverification.application.EmailVerificationUseService;
-import site.omagotchi.identityservice.emailverification.domain.EmailVerificationPurpose;
+import site.omagotchi.identityservice.emailverification.application.PasswordChangeEmailOtpService;
 
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.BDDAssertions.then;
@@ -31,37 +27,32 @@ class PasswordChangeV2TransactionTest {
     );
 
     @Mock
-    private AccountRepository accountRepository;
-    @Mock
     private AccountPasswordService accountPasswordService;
     @Mock
     private RefreshSessionRevocationService revocationService;
     @Mock
-    private EmailVerificationUseService verificationUseService;
+    private PasswordChangeEmailOtpService emailOtpService;
 
     private PasswordChangeV2Transaction transaction;
 
     @BeforeEach
     void setUp() {
         transaction = new PasswordChangeV2Transaction(
-                accountRepository,
                 accountPasswordService,
                 revocationService,
-                verificationUseService
+                emailOtpService
         );
-        given(accountRepository.lockById(ACCOUNT_ID)).willReturn(Optional.of(Account.register(
-                "member@example.com", "password-hash", "member"
-        )));
+        given(accountPasswordService.lockPasswordChangeEmail(ACCOUNT_ID))
+                .willReturn("member@example.com");
     }
 
     @Test
     @DisplayName("OTP 실패 시 실패 결과만 반환하고 비밀번호·Session 미변경")
     void keepsBusinessStateWhenOtpFails() {
         // Given
-        given(verificationUseService.verify(
+        given(emailOtpService.verify(
                 CHALLENGE_ID,
                 "member@example.com",
-                EmailVerificationPurpose.PASSWORD_CHANGE,
                 "000000"
         )).willReturn(false);
 
@@ -72,23 +63,23 @@ class PasswordChangeV2TransactionTest {
 
         // Then
         then(changed).isFalse();
+        verify(accountPasswordService).lockPasswordChangeEmail(ACCOUNT_ID);
         verify(accountPasswordService, never()).verifyAndReplacePasswordHash(
                 ACCOUNT_ID, "current-password", "new-long-password"
         );
         verify(revocationService, never()).revokeAllForAccount(
                 ACCOUNT_ID, RefreshSessionRevocationReason.PASSWORD_CHANGED
         );
-        verify(verificationUseService, never()).consume(CHALLENGE_ID);
+        verify(emailOtpService, never()).consume(CHALLENGE_ID);
     }
 
     @Test
     @DisplayName("OTP 성공 시 비밀번호 변경·Session 폐기·Challenge 소비")
     void changesPasswordRevokesSessionsAndConsumesOtp() {
         // Given
-        given(verificationUseService.verify(
+        given(emailOtpService.verify(
                 CHALLENGE_ID,
                 "member@example.com",
-                EmailVerificationPurpose.PASSWORD_CHANGE,
                 "123456"
         )).willReturn(true);
 
@@ -99,12 +90,13 @@ class PasswordChangeV2TransactionTest {
 
         // Then
         then(changed).isTrue();
+        verify(accountPasswordService).lockPasswordChangeEmail(ACCOUNT_ID);
         verify(accountPasswordService).verifyAndReplacePasswordHash(
                 ACCOUNT_ID, "current-password", "new-long-password"
         );
         verify(revocationService).revokeAllForAccount(
                 ACCOUNT_ID, RefreshSessionRevocationReason.PASSWORD_CHANGED
         );
-        verify(verificationUseService).consume(CHALLENGE_ID);
+        verify(emailOtpService).consume(CHALLENGE_ID);
     }
 }

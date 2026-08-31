@@ -2,9 +2,14 @@ package site.omagotchi.identityservice.account.application;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import site.omagotchi.identityservice.account.application.port.AccountRepository;
 import site.omagotchi.identityservice.account.application.result.AccountRegistrationAttempt;
+import site.omagotchi.identityservice.account.application.result.SignupEmailOtpResult;
 import site.omagotchi.identityservice.account.domain.Account;
+import site.omagotchi.identityservice.account.domain.EmailPolicy;
 import site.omagotchi.identityservice.emailverification.application.EmailVerificationErrorCode;
+import site.omagotchi.identityservice.emailverification.application.SignupEmailOtpService;
+import site.omagotchi.identityservice.emailverification.application.result.IssuedEmailVerification;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
 import java.util.UUID;
@@ -14,6 +19,23 @@ import java.util.UUID;
 public class AccountRegistrationV2Service {
 
     private final AccountRegistrationV2Transaction transaction;
+    private final AccountRegistrationService accountRegistrationService;
+    private final AccountRepository accountRepository;
+    private final SignupEmailOtpService emailOtpService;
+
+    public SignupEmailOtpResult issueEmailOtp(
+            String email,
+            String rawPassword,
+            String name
+    ) {
+        accountRegistrationService.validateRegistrationInput(email, rawPassword, name);
+        String normalizedEmail = EmailPolicy.normalize(email);
+        if (accountRepository.findByEmail(normalizedEmail).isPresent()) {
+            throw new BusinessException(AccountErrorCode.DUPLICATE_EMAIL);
+        }
+        IssuedEmailVerification issued = emailOtpService.issue(normalizedEmail);
+        return new SignupEmailOtpResult(issued.challengeId(), issued.expiresInSeconds());
+    }
 
     public Account signUp(
             String email,

@@ -1,11 +1,11 @@
-package site.omagotchi.identityservice.emailverification.presentation;
+package site.omagotchi.identityservice.account.presentation;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import site.omagotchi.identityservice.emailverification.application.SignupEmailOtpService;
-import site.omagotchi.identityservice.emailverification.application.result.IssuedEmailVerification;
-import site.omagotchi.identityservice.emailverification.presentation.request.SignupEmailOtpRequest;
-import site.omagotchi.identityservice.emailverification.presentation.response.EmailVerificationResponse;
+import site.omagotchi.identityservice.account.application.AccountRegistrationV2Service;
+import site.omagotchi.identityservice.account.application.result.SignupEmailOtpResult;
+import site.omagotchi.identityservice.account.presentation.request.SignupEmailOtpRequest;
+import site.omagotchi.identityservice.account.presentation.response.SignupEmailOtpResponse;
 
 import java.util.UUID;
 
@@ -23,11 +23,11 @@ class SignupEmailOtpControllerTest {
     @DisplayName("회원가입 OTP 발급은 202와 no-store 응답")
     void returnsAcceptedWithoutCaching() {
         // Given
-        SignupEmailOtpService service = mock(SignupEmailOtpService.class);
+        AccountRegistrationV2Service service = mock(AccountRegistrationV2Service.class);
         SignupEmailOtpController controller = new SignupEmailOtpController(service);
         UUID challengeId = CHALLENGE_ID;
-        given(service.issue("member@example.com", "long-enough-password", "member"))
-                .willReturn(new IssuedEmailVerification(challengeId, 300));
+        given(service.issueEmailOtp("member@example.com", "long-enough-password", "member"))
+                .willReturn(new SignupEmailOtpResult(challengeId, 300));
 
         // When
         var response = controller.issue(new SignupEmailOtpRequest(
@@ -37,6 +37,6 @@ class SignupEmailOtpControllerTest {
         // Then
         then(response.getStatusCode().value()).isEqualTo(202);
         then(response.getHeaders().getCacheControl()).isEqualTo("no-store");
-        then(response.getBody()).isEqualTo(new EmailVerificationResponse(challengeId, 300));
+        then(response.getBody()).isEqualTo(new SignupEmailOtpResponse(challengeId, 300));
     }
 }

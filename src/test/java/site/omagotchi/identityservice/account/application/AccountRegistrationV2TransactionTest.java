@@ -8,8 +8,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import site.omagotchi.identityservice.account.application.result.AccountRegistrationAttempt;
 import site.omagotchi.identityservice.account.domain.Account;
-import site.omagotchi.identityservice.emailverification.application.EmailVerificationUseService;
-import site.omagotchi.identityservice.emailverification.domain.EmailVerificationPurpose;
+import site.omagotchi.identityservice.emailverification.application.SignupEmailOtpService;
 
 import java.util.UUID;
 
@@ -28,7 +27,7 @@ class AccountRegistrationV2TransactionTest {
     @Mock
     private AccountRegistrationService registrationService;
     @Mock
-    private EmailVerificationUseService verificationUseService;
+    private SignupEmailOtpService emailOtpService;
 
     private AccountRegistrationV2Transaction transaction;
 
@@ -36,7 +35,7 @@ class AccountRegistrationV2TransactionTest {
     void setUp() {
         transaction = new AccountRegistrationV2Transaction(
                 registrationService,
-                verificationUseService
+                emailOtpService
         );
     }
 
@@ -45,10 +44,9 @@ class AccountRegistrationV2TransactionTest {
     void returnsFailureWithoutRegistration() {
         // Given
         UUID challengeId = CHALLENGE_ID;
-        given(verificationUseService.verify(
+        given(emailOtpService.verify(
                 challengeId,
                 "member@example.com",
-                EmailVerificationPurpose.SIGNUP,
                 "000000"
         )).willReturn(false);
 
@@ -69,7 +67,7 @@ class AccountRegistrationV2TransactionTest {
         verify(registrationService, never()).signUp(
                 " Member@Example.com ", "long-enough-password", "member"
         );
-        verify(verificationUseService, never()).consume(challengeId);
+        verify(emailOtpService, never()).consume(challengeId);
     }
 
     @Test
@@ -80,10 +78,9 @@ class AccountRegistrationV2TransactionTest {
         Account account = Account.register(
                 "member@example.com", "password-hash", "member"
         );
-        given(verificationUseService.verify(
+        given(emailOtpService.verify(
                 challengeId,
                 "member@example.com",
-                EmailVerificationPurpose.SIGNUP,
                 "123456"
         )).willReturn(true);
         given(registrationService.signUp(
@@ -101,6 +98,6 @@ class AccountRegistrationV2TransactionTest {
 
         // Then
         then(attempt.account()).isSameAs(account);
-        verify(verificationUseService).consume(challengeId);
+        verify(emailOtpService).consume(challengeId);
     }
 }

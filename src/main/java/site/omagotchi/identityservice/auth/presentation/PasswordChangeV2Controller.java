@@ -14,8 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import site.omagotchi.identityservice.auth.application.PasswordChangeV2Service;
 import site.omagotchi.identityservice.auth.presentation.request.PasswordChangeV2Request;
-import site.omagotchi.identityservice.emailverification.application.PasswordChangeEmailOtpService;
-import site.omagotchi.identityservice.emailverification.presentation.response.EmailVerificationResponse;
+import site.omagotchi.identityservice.auth.presentation.response.PasswordChangeEmailOtpResponse;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -25,17 +24,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PasswordChangeV2Controller {
 
-    private final PasswordChangeEmailOtpService emailOtpService;
-    private final PasswordChangeV2Service passwordChangeService;
+    private final PasswordChangeV2Service service;
 
     @PostMapping("/email-otp")
-    public ResponseEntity<EmailVerificationResponse> issueEmailOtp(
+    public ResponseEntity<PasswordChangeEmailOtpResponse> issueEmailOtp(
             @AuthenticationPrincipal Jwt jwt
     ) {
         UUID accountId = accountId(jwt);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .cacheControl(CacheControl.noStore())
-                .body(EmailVerificationResponse.from(emailOtpService.issue(accountId)));
+                .body(PasswordChangeEmailOtpResponse.from(service.issueEmailOtp(accountId)));
     }
 
     @PatchMapping
@@ -43,7 +41,7 @@ public class PasswordChangeV2Controller {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody PasswordChangeV2Request request
     ) {
-        passwordChangeService.changePassword(
+        service.changePassword(
                 accountId(jwt),
                 request.currentPassword(),
                 request.newPassword(),

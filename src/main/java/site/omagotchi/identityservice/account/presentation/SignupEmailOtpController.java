@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.emailverification.presentation;
+package site.omagotchi.identityservice.account.presentation;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -9,24 +9,24 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import site.omagotchi.identityservice.emailverification.application.SignupEmailOtpService;
-import site.omagotchi.identityservice.emailverification.presentation.request.SignupEmailOtpRequest;
-import site.omagotchi.identityservice.emailverification.presentation.response.EmailVerificationResponse;
+import site.omagotchi.identityservice.account.application.AccountRegistrationV2Service;
+import site.omagotchi.identityservice.account.presentation.request.SignupEmailOtpRequest;
+import site.omagotchi.identityservice.account.presentation.response.SignupEmailOtpResponse;
 
 @RestController
 @RequestMapping("/api/v2/auth/signup/email-otp")
 @RequiredArgsConstructor
 public class SignupEmailOtpController {
 
-    private final SignupEmailOtpService service;
+    private final AccountRegistrationV2Service service;
 
     @PostMapping
-    public ResponseEntity<EmailVerificationResponse> issue(
+    public ResponseEntity<SignupEmailOtpResponse> issue(
             @Valid @RequestBody SignupEmailOtpRequest request
     ) {
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .cacheControl(CacheControl.noStore())
-                .body(EmailVerificationResponse.from(service.issue(
+                .body(SignupEmailOtpResponse.from(service.issueEmailOtp(
                         request.email(),
                         request.password(),
                         request.name()

@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.emailverification.presentation.request;
+package site.omagotchi.identityservice.account.presentation.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

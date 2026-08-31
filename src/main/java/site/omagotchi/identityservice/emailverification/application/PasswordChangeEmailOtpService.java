@@ -2,12 +2,8 @@ package site.omagotchi.identityservice.emailverification.application;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import site.omagotchi.identityservice.account.application.AccountErrorCode;
-import site.omagotchi.identityservice.account.application.AccountQueryService;
-import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.emailverification.application.result.IssuedEmailVerification;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationPurpose;
-import site.omagotchi.identityservice.global.exception.BusinessException;
 
 import java.util.UUID;
 
@@ -15,14 +11,23 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PasswordChangeEmailOtpService {
 
-    private final AccountQueryService accountQueryService;
     private final EmailVerificationIssueService issueService;
+    private final EmailVerificationUseService useService;
 
-    public IssuedEmailVerification issue(UUID accountId) {
-        Account account = accountQueryService.getById(accountId);
-        if (!account.isPasswordChangeAllowed()) {
-            throw new BusinessException(AccountErrorCode.PASSWORD_CHANGE_NOT_ALLOWED);
-        }
-        return issueService.issue(account.getEmail(), EmailVerificationPurpose.PASSWORD_CHANGE);
+    public IssuedEmailVerification issue(String normalizedEmail) {
+        return issueService.issue(normalizedEmail, EmailVerificationPurpose.PASSWORD_CHANGE);
+    }
+
+    public boolean verify(UUID challengeId, String normalizedEmail, String code) {
+        return useService.verify(
+                challengeId,
+                normalizedEmail,
+                EmailVerificationPurpose.PASSWORD_CHANGE,
+                code
+        );
+    }
+
+    public void consume(UUID challengeId) {
+        useService.consume(challengeId);
     }
 }
