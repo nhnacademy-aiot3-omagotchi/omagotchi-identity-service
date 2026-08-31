@@ -7,6 +7,7 @@ import site.omagotchi.identityservice.emailverification.application.port.EmailVe
 import site.omagotchi.identityservice.emailverification.application.result.IssuedEmailVerification;
 import site.omagotchi.identityservice.emailverification.application.result.PreparedEmailVerification;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationPurpose;
+import site.omagotchi.identityservice.global.exception.BusinessException;
 import site.omagotchi.identityservice.global.exception.DependencyUnavailableException;
 
 import java.time.Clock;
@@ -49,8 +50,9 @@ public class EmailVerificationIssueService {
             );
         }
 
+        boolean currentChallenge = true;
         try {
-            deliveryTransaction.markAccepted(prepared.challengeId());
+            currentChallenge = deliveryTransaction.markAccepted(prepared);
         } catch (RuntimeException statusUpdateFailure) {
             // 메일은 이미 접수되었고 PENDING Challenge도 검증할 수 있으므로 202 계약을 유지한다.
             log.error(
@@ -58,6 +60,9 @@ public class EmailVerificationIssueService {
                     prepared.challengeId(),
                     statusUpdateFailure
             );
+        }
+        if (!currentChallenge) {
+            throw new BusinessException(EmailVerificationErrorCode.ISSUE_SUPERSEDED);
         }
 
         Instant responseAt = clock.instant().truncatedTo(ChronoUnit.MICROS);

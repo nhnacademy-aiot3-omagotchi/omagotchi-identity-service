@@ -7,11 +7,11 @@ import site.omagotchi.identityservice.emailverification.application.port.EmailVe
 import site.omagotchi.identityservice.emailverification.application.result.PreparedEmailVerification;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationChallenge;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationScope;
+import site.omagotchi.identityservice.emailverification.domain.EmailVerificationStatus;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -21,9 +21,19 @@ public class EmailVerificationDeliveryTransaction {
     private final Clock clock;
 
     @Transactional
-    public void markAccepted(UUID challengeId) {
-        repository.lockChallenge(challengeId)
-                .ifPresent(challenge -> challenge.markDeliveryAccepted(now()));
+    public boolean markAccepted(PreparedEmailVerification prepared) {
+        Instant now = now();
+        EmailVerificationScope scope = repository.createIfAbsentAndLockScope(
+                prepared.email(),
+                prepared.purpose(),
+                now
+        );
+        EmailVerificationChallenge challenge = repository.lockChallenge(prepared.challengeId())
+                .orElseThrow(() -> new IllegalStateException("전달 성공 Challenge를 찾을 수 없습니다."));
+
+        challenge.markDeliveryAccepted(now);
+        return scope.isCurrentChallenge(prepared.challengeId())
+                && challenge.getStatus() == EmailVerificationStatus.OPEN;
     }
 
     @Transactional

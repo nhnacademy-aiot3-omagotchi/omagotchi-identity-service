@@ -21,6 +21,11 @@ public enum EmailVerificationErrorCode implements ErrorCode {
             "EMAIL_VERIFICATION_COOLDOWN_ACTIVE",
             "이메일 인증번호를 다시 요청하려면 잠시 기다려야 합니다."
     ),
+    ISSUE_SUPERSEDED(
+            ErrorType.CONFLICT,
+            "EMAIL_VERIFICATION_ISSUE_SUPERSEDED",
+            "새 인증번호 요청으로 이전 발급 요청이 대체되었습니다."
+    ),
     DELIVERY_UNAVAILABLE(
             ErrorType.DEPENDENCY_UNAVAILABLE,
             "EMAIL_VERIFICATION_DELIVERY_UNAVAILABLE",

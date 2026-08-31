@@ -96,6 +96,13 @@ idempotency key로 사용합니다. 전달 상태가 `PENDING`이어도 올바�
 Transaction으로 처리합니다. 계정 저장, 비밀번호 변경, Refresh Session 폐기 중 하나라도 실패하면
 Challenge 소비도 함께 Rollback됩니다.
 
+Refresh Session 동시성은 [ADR 0002](0002-account-authentication-refresh-session-serialization.md)를
+따릅니다. `accounts` 행을 사용자 단위 인증 상태와 Refresh Session 변경의 공통 직렬화 지점으로
+사용하고, 잠금 순서는 항상 `Account → RefreshToken`으로 고정합니다. Refresh·Logout의 최초
+`token_hash → account_id` 조회는 UUID 값만 반환하며, 계정 행을 잠근 뒤 요청 Token 행을 잠가 최종
+상태를 판단합니다. 사용자 전체 폐기는 미폐기 RefreshToken만 변경하므로 이미 폐기된 행에는 영향을
+주지 않는 멱등 동작입니다.
+
 ```text
 Challenge SELECT FOR UPDATE
   → 잘못된 번호: 실패 횟수 증가 후 정상 반환 → Commit → 바깥에서 400

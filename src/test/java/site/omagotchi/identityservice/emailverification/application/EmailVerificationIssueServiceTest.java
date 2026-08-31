@@ -10,6 +10,7 @@ import site.omagotchi.identityservice.emailverification.application.port.EmailVe
 import site.omagotchi.identityservice.emailverification.application.result.IssuedEmailVerification;
 import site.omagotchi.identityservice.emailverification.application.result.PreparedEmailVerification;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationPurpose;
+import site.omagotchi.identityservice.global.exception.BusinessException;
 import site.omagotchi.identityservice.global.exception.DependencyUnavailableException;
 
 import java.time.Clock;
@@ -73,7 +74,7 @@ class EmailVerificationIssueServiceTest {
     @DisplayName("DB Commit 뒤 동기 메일 전송과 ACCEPTED 상태 기록")
     void sendsAndMarksAccepted() {
         // Given
-        // setUp에서 발급 결과와 의존성을 준비한다.
+        given(deliveryTransaction.markAccepted(prepared)).willReturn(true);
 
         // When
         IssuedEmailVerification issued = service.issue(EMAIL, EmailVerificationPurpose.SIGNUP);
@@ -84,7 +85,7 @@ class EmailVerificationIssueServiceTest {
         verify(mailSender).sendVerificationCode(
                 prepared.challengeId(), EMAIL, "123456", Duration.ofMinutes(5)
         );
-        verify(deliveryTransaction).markAccepted(prepared.challengeId());
+        verify(deliveryTransaction).markAccepted(prepared);
     }
 
     @Test
@@ -115,7 +116,7 @@ class EmailVerificationIssueServiceTest {
     void keepsAcceptedResultWhenStatusRecordFails() {
         // Given
         willThrow(new IllegalStateException("database unavailable"))
-                .given(deliveryTransaction).markAccepted(prepared.challengeId());
+                .given(deliveryTransaction).markAccepted(prepared);
 
         // When
         IssuedEmailVerification issued = service.issue(EMAIL, EmailVerificationPurpose.SIGNUP);
@@ -125,9 +126,26 @@ class EmailVerificationIssueServiceTest {
     }
 
     @Test
+    @DisplayName("메일 응답 중 대체된 Challenge는 409 예외")
+    void rejectsSupersededChallengeAfterDelivery() {
+        // Given
+        given(deliveryTransaction.markAccepted(prepared)).willReturn(false);
+
+        // When
+        // Then
+        thenThrownBy(() -> service.issue(EMAIL, EmailVerificationPurpose.SIGNUP))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> then(exception.getErrorCode())
+                                .isEqualTo(EmailVerificationErrorCode.ISSUE_SUPERSEDED)
+                );
+    }
+
+    @Test
     @DisplayName("메일 처리 중 Challenge가 만료되면 쿨다운 해제 후 503 응답")
     void rejectsExpiredChallengeAfterDelivery() {
         // Given
+        given(deliveryTransaction.markAccepted(prepared)).willReturn(true);
         EmailVerificationProperties properties = new EmailVerificationProperties(
                 Duration.ofMinutes(5),
                 Duration.ofMinutes(1),
@@ -150,7 +168,7 @@ class EmailVerificationIssueServiceTest {
                         exception -> then(exception.getErrorCode())
                                 .isEqualTo(EmailVerificationErrorCode.DELIVERY_UNAVAILABLE)
                 );
-        verify(deliveryTransaction).markAccepted(prepared.challengeId());
+        verify(deliveryTransaction).markAccepted(prepared);
         verify(deliveryTransaction).releaseCooldown(prepared);
     }
 }
