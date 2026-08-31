@@ -39,8 +39,9 @@ public class AccountJpaPersistence implements AccountRepository {
     }
 
     @Override
-    public List<Account> searchByNameOrEmail(String query, int limit) {
-        return accountJpaRepository.searchByNameOrEmail(query, PageRequest.of(0, limit));
+    public List<Account> searchByNameOrEmail(String query, Collection<UUID> candidateIds, int limit) {
+        return accountJpaRepository.searchByNameOrEmail(
+                query, candidateIds, PageRequest.of(0, limit));
     }
 
     @Override

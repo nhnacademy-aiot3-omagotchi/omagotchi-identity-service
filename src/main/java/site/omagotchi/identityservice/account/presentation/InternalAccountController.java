@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import site.omagotchi.identityservice.account.application.AccountQueryService;
 import site.omagotchi.identityservice.account.presentation.request.InternalAccountBatchRequest;
+import site.omagotchi.identityservice.account.presentation.request.InternalAccountSearchRequest;
 import site.omagotchi.identityservice.account.presentation.response.InternalAccountResponse;
 import site.omagotchi.identityservice.account.presentation.response.InternalAccountSearchResponse;
 
@@ -46,12 +47,12 @@ public class InternalAccountController {
         return ResponseEntity.ok(accounts);
     }
 
-    @GetMapping("/search")
+    @PostMapping("/search")
     public ResponseEntity<List<InternalAccountSearchResponse>> searchAccounts(
-            @RequestParam String query
+            @Valid @RequestBody InternalAccountSearchRequest request
     ) {
         List<InternalAccountSearchResponse> accounts = accountQueryService
-                .searchByNameOrEmail(query)
+                .searchByNameOrEmail(request.query(), request.candidateIds())
                 .stream()
                 .map(InternalAccountSearchResponse::from)
                 .toList();

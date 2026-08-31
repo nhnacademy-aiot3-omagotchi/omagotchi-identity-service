@@ -31,11 +31,23 @@ public class AccountQueryService {
         return accountRepository.findAllById(accountIds.stream().distinct().toList());
     }
 
-    public List<Account> searchByNameOrEmail(String query) {
+    public List<Account> searchByNameOrEmail(String query, Collection<UUID> candidateIds) {
         String normalized = query == null ? "" : query.trim();
         if (normalized.isBlank() || normalized.length() > ACCOUNT_SEARCH_QUERY_MAX_LENGTH) {
             throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
         }
-        return accountRepository.searchByNameOrEmail(normalized, ACCOUNT_SEARCH_LIMIT);
+        List<UUID> distinctCandidateIds = candidateIds == null ? List.of()
+                : candidateIds.stream().distinct().toList();
+        if (distinctCandidateIds.isEmpty() || distinctCandidateIds.stream().anyMatch(id -> id == null)) {
+            throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
+        }
+        return accountRepository.searchByNameOrEmail(
+                escapeLikePattern(normalized), distinctCandidateIds, ACCOUNT_SEARCH_LIMIT);
+    }
+
+    private static String escapeLikePattern(String query) {
+        return query.replace("!", "!!")
+                .replace("%", "!%")
+                .replace("_", "!_");
     }
 }

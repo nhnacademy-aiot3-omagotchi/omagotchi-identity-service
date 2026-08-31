@@ -19,6 +19,7 @@ import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepositor
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
 
 import java.util.UUID;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -228,7 +229,7 @@ class LearningAccountSecurityIT {
         saveAccount("other@example.com", "다른 사용자");
 
         // When & Then
-        learningSearch("  대상  ").andExpectAll(
+        learningSearch("  대상  ", List.of(matched.getId())).andExpectAll(
                 status().isOk(),
                 jsonPath("$.length()").value(1),
                 jsonPath("$[0].accountId").value(matched.getId().toString()),
@@ -246,7 +247,7 @@ class LearningAccountSecurityIT {
         saveAccount("other@example.com", "다른 사용자");
 
         // When & Then
-        learningSearch("UNIQUE.EMAIL").andExpectAll(
+        learningSearch("UNIQUE.EMAIL", List.of(matched.getId())).andExpectAll(
                 status().isOk(),
                 jsonPath("$.length()").value(1),
                 jsonPath("$[0].accountId").value(matched.getId().toString()),
@@ -257,7 +258,7 @@ class LearningAccountSecurityIT {
     @Test
     @DisplayName("Learning 계정 검색 결과 없음")
     void returnsEmptyAccountSearchResult() throws Exception {
-        learningSearch("존재하지않는검색어").andExpectAll(
+        learningSearch("존재하지않는검색어", List.of(UUID.randomUUID())).andExpectAll(
                 status().isOk(),
                 jsonPath("$").isArray(),
                 jsonPath("$").isEmpty()
@@ -270,16 +271,40 @@ class LearningAccountSecurityIT {
         IntStream.range(0, 25).forEach(index ->
                 saveAccount("limited-%02d@example.com".formatted(index), "제한 검색 사용자"));
 
-        learningSearch("제한 검색").andExpectAll(
+        List<UUID> candidateIds = accountJpaRepository.findAll().stream().map(Account::getId).toList();
+        learningSearch("제한 검색", candidateIds).andExpectAll(
                 status().isOk(),
                 jsonPath("$.length()").value(20)
         );
     }
 
     @Test
+    @DisplayName("LIKE 와일드카드는 리터럴 문자로 검색한다")
+    void searchesLikeWildcardsLiterally() throws Exception {
+        Account ordinary = saveAccount("ordinary@example.com", "일반 사용자");
+        Account percent = saveAccount("percent@example.com", "백분율%사용자");
+        Account underscore = saveAccount("underscore@example.com", "밑줄_사용자");
+        Account asterisk = saveAccount("asterisk@example.com", "별표*사용자");
+        Account escape = saveAccount("escape@example.com", "느낌표!사용자");
+        List<UUID> candidateIds = List.of(
+                ordinary.getId(), percent.getId(), underscore.getId(), asterisk.getId(), escape.getId());
+
+        learningSearch("%", candidateIds).andExpectAll(
+                status().isOk(), jsonPath("$[*].accountId", containsInAnyOrder(percent.getId().toString())));
+        learningSearch("_", candidateIds).andExpectAll(
+                status().isOk(), jsonPath("$[*].accountId", containsInAnyOrder(underscore.getId().toString())));
+        learningSearch("*", candidateIds).andExpectAll(
+                status().isOk(), jsonPath("$[*].accountId", containsInAnyOrder(asterisk.getId().toString())));
+        learningSearch("!", candidateIds).andExpectAll(
+                status().isOk(), jsonPath("$[*].accountId", containsInAnyOrder(escape.getId().toString())));
+        learningSearch("일반", candidateIds).andExpectAll(
+                status().isOk(), jsonPath("$[*].accountId", containsInAnyOrder(ordinary.getId().toString())));
+    }
+
+    @Test
     @DisplayName("Learning 계정 검색은 빈 검색어 거부")
     void rejectsBlankAccountSearchQuery() throws Exception {
-        learningSearch("   ").andExpectAll(
+        learningSearch("   ", List.of(UUID.randomUUID())).andExpectAll(
                 status().isBadRequest(),
                 jsonPath("$.code").value("COMMON_INVALID_REQUEST")
         );
@@ -288,7 +313,10 @@ class LearningAccountSecurityIT {
     @Test
     @DisplayName("Learning 계정 검색 API는 Learning Credential 요구")
     void accountSearchRequiresLearningCredential() throws Exception {
-        mockMvc.perform(get("/api/v1/internal/accounts/search").queryParam("query", "사용자"))
+        mockMvc.perform(post("/api/v1/internal/accounts/search")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"query\":\"사용자\",\"candidateIds\":[\"%s\"]}"
+                                .formatted(UUID.randomUUID())))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -299,10 +327,15 @@ class LearningAccountSecurityIT {
         );
     }
 
-    private ResultActions learningSearch(String query) throws Exception {
+    private ResultActions learningSearch(String query, List<UUID> candidateIds) throws Exception {
         return mockMvc.perform(
-                get("/api/v1/internal/accounts/search")
-                        .queryParam("query", query)
+                post("/api/v1/internal/accounts/search")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"query\":\"%s\",\"candidateIds\":[%s]}".formatted(
+                                query,
+                                candidateIds.stream()
+                                        .map(id -> "\"" + id + "\"")
+                                        .collect(Collectors.joining(","))))
                         .with(httpBasic(LEARNING_USERNAME, LEARNING_PASSWORD))
         );
     }

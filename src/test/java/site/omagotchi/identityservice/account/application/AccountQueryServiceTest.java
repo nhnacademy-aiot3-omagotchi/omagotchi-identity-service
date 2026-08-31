@@ -43,18 +43,22 @@ class AccountQueryServiceTest {
     void normalizesAccountSearchQuery() {
         // Given
         Account account = mock(Account.class);
+        UUID accountId = UUID.randomUUID();
         given(accountRepository.searchByNameOrEmail(
                 "사용자@example.com",
+                List.of(accountId),
                 AccountQueryService.ACCOUNT_SEARCH_LIMIT
         )).willReturn(List.of(account));
 
         // When
-        var accounts = accountQueryService.searchByNameOrEmail("  사용자@example.com  ");
+        var accounts = accountQueryService.searchByNameOrEmail(
+                "  사용자@example.com  ", List.of(accountId));
 
         // Then
         then(accounts).containsExactly(account);
         verify(accountRepository).searchByNameOrEmail(
                 "사용자@example.com",
+                List.of(accountId),
                 AccountQueryService.ACCOUNT_SEARCH_LIMIT
         );
     }

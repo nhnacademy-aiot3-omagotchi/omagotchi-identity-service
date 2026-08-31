@@ -16,7 +16,7 @@ public interface AccountRepository {
 
     List<Account> findAllById(Collection<UUID> accountIds);
 
-    List<Account> searchByNameOrEmail(String query, int limit);
+    List<Account> searchByNameOrEmail(String query, Collection<UUID> candidateIds, int limit);
 
     Optional<Account> findByEmail(String email);
 

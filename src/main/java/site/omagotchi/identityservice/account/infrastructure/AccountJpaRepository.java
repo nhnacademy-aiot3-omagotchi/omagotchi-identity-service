@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import site.omagotchi.identityservice.account.domain.Account;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,10 +35,16 @@ public interface AccountJpaRepository extends JpaRepository<Account, UUID> {
 
     @Query("""
             SELECT account
-              FROM Account account
-             WHERE LOWER(account.name) LIKE LOWER(CONCAT('%', :query, '%'))
-                OR account.email LIKE CONCAT('%', LOWER(:query), '%')
+             FROM Account account
+             WHERE account.id IN :candidateIds
+               AND account.status = site.omagotchi.identityservice.account.domain.AccountStatus.ACTIVE
+               AND (LOWER(account.name) LIKE LOWER(CONCAT('%', :query, '%')) ESCAPE '!'
+                OR account.email LIKE CONCAT('%', LOWER(:query), '%') ESCAPE '!')
              ORDER BY account.name ASC, account.email ASC, account.id ASC
             """)
-    List<Account> searchByNameOrEmail(@Param("query") String query, Pageable pageable);
+    List<Account> searchByNameOrEmail(
+            @Param("query") String query,
+            @Param("candidateIds") Collection<UUID> candidateIds,
+            Pageable pageable
+    );
 }
