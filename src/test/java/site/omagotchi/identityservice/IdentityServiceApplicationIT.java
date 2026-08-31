@@ -24,7 +24,7 @@ class IdentityServiceApplicationIT {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("PostgreSQL 18.1 Flyway V1·V2·V4")
+    @DisplayName("PostgreSQL 18.1 Flyway V1·V2·V3")
     void appliesMigrationsOnProjectPostgreSqlVersion() {
         // Given
         String expectedVersionPrefix = "18.1";
@@ -156,7 +156,7 @@ class IdentityServiceApplicationIT {
             );
             softly.then(usableAdministratorIndex)
                     .contains("global_role", "SYSTEM_ADMIN", "ACTIVE", "LOCKED");
-            softly.then(migrationVersions).containsExactly("1", "2", "4");
+            softly.then(migrationVersions).containsExactly("1", "2", "3");
         });
     }
 }
