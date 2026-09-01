@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.BDDAssertions.then;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -85,17 +86,20 @@ class AdminAccountApiIT {
         // Then
         response.andExpectAll(
                 status().isOk(),
-                jsonPath("$.page").value(0),
-                jsonPath("$.size").value(2),
-                jsonPath("$.totalElements").value(3),
-                jsonPath("$.totalPages").value(2),
-                jsonPath("$.content.length()").value(2),
+                jsonPath("$.page.number").value(0),
+                jsonPath("$.page.size").value(2),
+                jsonPath("$.page.totalElements").value(3),
+                jsonPath("$.page.totalPages").value(2),
+                jsonPath("$.items.length()").value(2),
                 // 가장 마지막에 가입한 관리자 계정이 첫 행
-                jsonPath("$.content[0].email").value("admin@example.com"),
-                jsonPath("$.content[0].role").value(GlobalRole.SYSTEM_ADMIN.name()),
-                jsonPath("$.content[0].status").value(AccountStatus.ACTIVE.name()),
-                jsonPath("$.content[0].createdAt").isNotEmpty(),
-                jsonPath("$.content[1].email").value("second@example.com")
+                jsonPath("$.items[0].email").value("admin@example.com"),
+                jsonPath("$.items[0].role").value(GlobalRole.SYSTEM_ADMIN.name()),
+                jsonPath("$.items[0].status").value(AccountStatus.ACTIVE.name()),
+                jsonPath("$.items[0].createdAt").isNotEmpty(),
+                jsonPath("$.items[0].failedLoginAttempts").value(0),
+                jsonPath("$.items[0].lockedUntil").value(nullValue()),
+                jsonPath("$.items[0].withdrawnAt").value(nullValue()),
+                jsonPath("$.items[1].email").value("second@example.com")
         );
     }
 
@@ -232,13 +236,13 @@ class AdminAccountApiIT {
         // Then
         byName.andExpectAll(
                 status().isOk(),
-                jsonPath("$.totalElements").value(1),
-                jsonPath("$.content[0].email").value("gildong@example.com")
+                jsonPath("$.page.totalElements").value(1),
+                jsonPath("$.items[0].email").value("gildong@example.com")
         );
         byEmail.andExpectAll(
                 status().isOk(),
-                jsonPath("$.totalElements").value(1),
-                jsonPath("$.content[0].email").value("chulsoo@example.com")
+                jsonPath("$.page.totalElements").value(1),
+                jsonPath("$.items[0].email").value("chulsoo@example.com")
         );
     }
 
@@ -256,8 +260,8 @@ class AdminAccountApiIT {
         // Then
         response.andExpectAll(
                 status().isOk(),
-                jsonPath("$.totalElements").value(1),
-                jsonPath("$.content[0].email").value("percent@example.com")
+                jsonPath("$.page.totalElements").value(1),
+                jsonPath("$.items[0].email").value("percent@example.com")
         );
     }
 
@@ -277,13 +281,13 @@ class AdminAccountApiIT {
         // Then
         byStatus.andExpectAll(
                 status().isOk(),
-                jsonPath("$.totalElements").value(1),
-                jsonPath("$.content[0].email").value("disabled@example.com")
+                jsonPath("$.page.totalElements").value(1),
+                jsonPath("$.items[0].email").value("disabled@example.com")
         );
         byRole.andExpectAll(
                 status().isOk(),
-                jsonPath("$.totalElements").value(1),
-                jsonPath("$.content[0].email").value("admin@example.com")
+                jsonPath("$.page.totalElements").value(1),
+                jsonPath("$.items[0].email").value("admin@example.com")
         );
     }
 
@@ -307,9 +311,9 @@ class AdminAccountApiIT {
                     .andReturn()
                     .getResponse()
                     .getContentAsString();
-            JsonNode content = objectMapper.readTree(body).get("content");
-            for (int index = 0; index < content.size(); index++) {
-                collected.add(content.get(index).get("accountId").asString());
+            JsonNode items = objectMapper.readTree(body).get("items");
+            for (int index = 0; index < items.size(); index++) {
+                collected.add(items.get(index).get("accountId").asString());
             }
         }
 

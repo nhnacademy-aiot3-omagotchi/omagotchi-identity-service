@@ -1,24 +1,28 @@
 package site.omagotchi.identityservice.account.presentation.response;
 
 import site.omagotchi.identityservice.account.application.port.AccountPage;
+import site.omagotchi.identityservice.global.presentation.response.PageInfo;
 
 import java.util.List;
 
 public record AdminAccountPageResponse(
-        List<AdminAccountResponse> content,
-        int page,
-        int size,
-        long totalElements,
-        int totalPages
+        List<AdminAccountResponse> items,
+        PageInfo page
 ) {
+
+    public AdminAccountPageResponse {
+        items = List.copyOf(items);
+    }
 
     public static AdminAccountPageResponse of(AccountPage accountPage, int page, int size) {
         return new AdminAccountPageResponse(
                 accountPage.content().stream().map(AdminAccountResponse::from).toList(),
-                page,
-                size,
-                accountPage.totalElements(),
-                totalPages(accountPage.totalElements(), size)
+                new PageInfo(
+                        page,
+                        size,
+                        accountPage.totalElements(),
+                        totalPages(accountPage.totalElements(), size)
+                )
         );
     }
 
