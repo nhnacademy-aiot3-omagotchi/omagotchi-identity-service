@@ -4,7 +4,7 @@
 
 ## 담당 범위
 
-- 계정: 회원가입, 본인 정보 조회
+- 계정: 이메일 인증 회원가입, 본인 정보 조회·수정·탈퇴
 - 인증: 이메일·비밀번호 검증, Access JWT 발급
 - 세션: Refresh Token 회전, 재사용 탐지, 로그아웃
 - 전역 권한: `USER`, `SYSTEM_ADMIN`
@@ -17,6 +17,7 @@
 - Java 21, Spring Boot 4.1
 - Spring Security, OAuth2 Resource Server
 - Spring Data JPA, PostgreSQL 18.1
+- Resend HTTP API
 - Flyway, Eureka Client
 - Testcontainers PostgreSQL 18.1
 
@@ -67,7 +68,7 @@ chmod 644 secrets/jwt-public.pem
 
 ### Frontend Credential
 
-- 용도: Frontend 프로세스의 `/api/v1/auth/**` 호출 인증
+- 용도: Frontend 프로세스의 `/api/v1/auth/**`, `/api/v2/auth/**` 호출 인증
 - 설정: Frontend와 Identity에 동일 값 주입
 - Browser 사용자 Credential과의 분리
 - 형식: URL-safe 문자 32~72자
@@ -87,6 +88,19 @@ chmod 644 secrets/jwt-public.pem
 - `LOGIN_LOCK_DURATION`: 잠금 유지 기간의 ISO-8601 Duration
 - 로컬·개발 예제 정책: `5`, `PT10M`
 - 두 값 모두 필수이며 누락·범위 오류 시 애플리케이션 시작 실패
+
+### 이메일 인증 설정
+
+- `EMAIL_VERIFICATION_CODE_TTL`: 인증번호 유효시간 (`PT5M` 권장)
+- `EMAIL_VERIFICATION_COOLDOWN`: 이메일·용도별 재발급 대기시간 (`PT1M` 권장)
+- `EMAIL_VERIFICATION_MAXIMUM_FAILED_ATTEMPTS`: Challenge당 최대 검증 실패 횟수 (`5` 권장)
+- `EMAIL_VERIFICATION_HMAC_SECRET`: 인증번호 HMAC용 32자 이상 비밀값
+
+### Resend 설정
+- `RESEND_API_KEY`, `RESEND_FROM_EMAIL`: Resend API Credential과 검증된 발신 주소
+- `RESEND_CONNECT_TIMEOUT`, `RESEND_READ_TIMEOUT`: 연결·전체 응답 시간 상한 (`PT2S`, `PT5S` 권장)
+- `RESEND_CONNECT_TIMEOUT ≤ RESEND_READ_TIMEOUT < EMAIL_VERIFICATION_CODE_TTL` 관계를 지켜야 기동됨
+- 인증번호 원문은 저장하지 않고, Redis·비동기 Executor는 이메일 인증 경로에서 사용하지 않음
 
 ### 실행
 
@@ -108,23 +122,35 @@ chmod 644 secrets/jwt-public.pem
 | Method | Path | 인증 | 용도 |
 |---|---|---|---|
 | `POST` | `/api/v1/auth/signup` | Frontend Credential | 회원가입 |
+| `POST` | `/api/v2/auth/signup/email-otp` | Frontend Credential | 회원가입 이메일 인증번호 발급 |
+| `POST` | `/api/v2/auth/signup` | Frontend Credential | 이메일 인증 회원가입 |
 | `POST` | `/api/v1/auth/login` | Frontend Credential | 로그인·Token 발급 |
 | `POST` | `/api/v1/auth/refresh` | Frontend Credential | Refresh Token 회전 |
 | `POST` | `/api/v1/auth/logout` | Frontend Credential | Token Family 폐기 |
 | `GET` | `/api/v1/users/me` | Access JWT | 본인 정보 조회 |
 | `PATCH` | `/api/v1/users/me` | Access JWT | 본인 이름 변경 |
 | `PATCH` | `/api/v1/users/me/password` | Access JWT | 현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
+| `POST` | `/api/v2/users/me/password/email-otp` | Access JWT | 비밀번호 변경 이메일 인증번호 발급 |
+| `PATCH` | `/api/v2/users/me/password` | Access JWT | 이메일·현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
+| `DELETE` | `/api/v1/users/me` | Access JWT | 현재 비밀번호 확인 후 본인 탈퇴·전체 Refresh Session 폐기 |
+| `GET` | `/api/v1/admin/users` | Access JWT (`SYSTEM_ADMIN`) | 사용자 목록 페이지 조회·검색 |
+| `PATCH` | `/api/v1/admin/accounts/{user-id}/status` | SYSTEM_ADMIN Access JWT | 계정 활성화·비활성화와 영속 감사 기록 |
 | `GET` | `/api/v1/internal/accounts/{accountId}` | Learning Credential | 계정 상태·표시 이름 단건 조회 |
 | `POST` | `/api/v1/internal/accounts/batch` | Learning Credential | 계정 상태·표시 이름 일괄 조회 |
 | `POST` | `/api/v1/internal/accounts/search` | Learning Credential | Learning 후보 ID 범위 내 이름·이메일 검색(최대 20건) |
 
+- 관리자 목록: 기본 20건, 최대 100건, 기본 정렬 최신 가입순, 정렬 기준은 화이트리스트 고정
+- 관리자 목록 응답: `items`, `page.number`, `page.size`, `page.totalElements`, `page.totalPages`
+- 관리자 목록 인가: Filter Chain의 `role` Claim 검사 이후 요청 시점 DB 권한·상태 재검증
 - 일괄 조회: 특정 계정 ID 묶음의 단순 목록 응답, 요청당 최대 100개
 - 페이지 응답 제외: 전체 계정 목록 검색이 아닌 요청 ID 집합 조회
 
 ### 호출 경계
 
 - `/api/v1/auth/**`: Gateway Route 미등록
+- `/api/v2/auth/**`: Gateway Route 미등록
 - `/api/v1/internal/**`: Gateway Route 미등록
+- `/api/v1/admin/users`: Gateway Route 등록
 - 인증 API: Frontend → Identity 직접 호출
 - 계정 조회 API: Learning → Identity 직접 호출
 - Browser 보관값: Frontend Session Cookie
@@ -160,7 +186,9 @@ chmod 644 secrets/jwt-public.pem
 - Migration: `src/main/resources/db/migration/`
 - JPA 정책: `ddl-auto=validate`
 - `account`: 계정 생성·조회·인증 근거
+- `accountstate`: 본인 탈퇴·관리자 계정 상태 변경 조정과 감사 기록
 - `auth`: Access JWT·Refresh Token 수명주기
+- `emailverification`: PostgreSQL Challenge·쿨다운, HMAC 검증, 동기 Resend 호출
 - `global.config`: Service 공통 시간·Password Encoder 등 Framework 설정
 - `global.security.basic`: 서비스 Credential 인증 Provider 조립
 - `global.security.frontend`: Frontend 전용 HTTP Basic 경계
@@ -176,6 +204,14 @@ chmod 644 secrets/jwt-public.pem
 - Password·Token·Cookie·Private Key의 기록 금지
 - 필수 설정·RSA Key 오류의 애플리케이션 시작 실패
 - Request ID 공통 적용 전 상태
+- 본인 탈퇴와 계정 비활성화는 Refresh Session만 즉시 폐기하며, 기존 Access JWT는 최대 15분간 유효할 수 있음
+- `SYSTEM_ADMIN`의 자기 비활성화와 마지막 이용 가능 관리자(`ACTIVE`·`LOCKED`)의 소실 방지
+- 마지막 관리자 보호는 감소 작업만 단일 보호 행으로 직렬화하며, 계정 조회나 일반 사용자 상태 변경은 해당 행을 잠그지 않음
+- 최초 `SYSTEM_ADMIN` 승격은 관리자 수를 늘리는 통제된 DB 작업으로 수행
+- 직접 SQL 역할 강등·`DISABLED`·`WITHDRAWN` 전환은 애플리케이션 보호를 우회하므로 서비스 쓰기 트래픽과 동시에 수행하지 않음
+- 운영 SQL에서 관리자 감소가 불가피하면 동일 트랜잭션에서 대상 Account 행을 UUID 순으로 잠근 뒤 보호 행을 잠금
+- 보호 행 획득 후 `ACTIVE`·`LOCKED` SYSTEM_ADMIN 수를 다시 계산하고, 예정 변경 적용 뒤 한 명도 남지 않으면 전체 Rollback
+- 운영 SQL에서도 보호 행보다 Account 행을 먼저 잠그며, 역순 잠금 금지
 
 ## 관련 문서
 
@@ -184,3 +220,5 @@ chmod 644 secrets/jwt-public.pem
 - [HTTP Request ID](https://github.com/nhnacademy-aiot3-omagotchi/docs/blob/main/50-guides/08-http-request-id.md)
 - [Refresh Token 회전 동시성 정책](docs/adr/0001-refresh-token-rotation-concurrency.md)
 - [계정 인증·Refresh Session 직렬화](docs/adr/0002-account-authentication-refresh-session-serialization.md)
+- [PostgreSQL 기반 이메일 인증 경계](docs/adr/0003-postgresql-email-verification.md)
+- [이메일 인증 재작성 구현 계획](docs/email-verification-rebuild-plan.md)

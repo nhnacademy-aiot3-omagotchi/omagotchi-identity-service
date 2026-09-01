@@ -1,0 +1,85 @@
+package site.omagotchi.identityservice.emailverification.application;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import site.omagotchi.identityservice.emailverification.application.port.EmailVerificationRepository;
+import site.omagotchi.identityservice.emailverification.application.result.PreparedEmailVerification;
+import site.omagotchi.identityservice.emailverification.domain.EmailVerificationChallenge;
+import site.omagotchi.identityservice.emailverification.domain.EmailVerificationScope;
+import site.omagotchi.identityservice.emailverification.domain.EmailVerificationStatus;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+
+@Service
+@RequiredArgsConstructor
+public class EmailVerificationDeliveryTransaction {
+
+    private final EmailVerificationRepository repository;
+    private final Clock clock;
+
+    @Transactional
+    public boolean markAccepted(PreparedEmailVerification prepared) {
+        Instant now = now();
+        EmailVerificationScope scope = repository.createIfAbsentAndLockScope(
+                prepared.email(),
+                prepared.purpose(),
+                now
+        );
+        EmailVerificationChallenge challenge = repository.lockChallenge(prepared.challengeId())
+                .orElseThrow(() -> new IllegalStateException("전달 성공 Challenge를 찾을 수 없습니다."));
+
+        challenge.markDeliveryAccepted(now);
+        return scope.isCurrentChallenge(prepared.challengeId())
+                && challenge.getStatus() == EmailVerificationStatus.OPEN;
+    }
+
+    @Transactional
+    public void markFailedAndReleaseCooldown(PreparedEmailVerification prepared) {
+        Instant now = now();
+        // 발급과 같은 Scope → Challenge 잠금 순서를 유지한다.
+        EmailVerificationScope scope = repository.createIfAbsentAndLockScope(
+                prepared.email(),
+                prepared.purpose(),
+                now
+        );
+        EmailVerificationChallenge challenge = repository.lockChallenge(prepared.challengeId())
+                .orElseThrow(() -> new IllegalStateException("전달 실패 Challenge를 찾을 수 없습니다."));
+
+        challenge.markDeliveryFailed(now);
+        scope.releaseCooldownForCurrentChallenge(prepared.challengeId(), now);
+    }
+
+    @Transactional
+    public long markFailedKeepingCooldown(PreparedEmailVerification prepared) {
+        Instant now = now();
+        EmailVerificationScope scope = repository.createIfAbsentAndLockScope(
+                prepared.email(),
+                prepared.purpose(),
+                now
+        );
+        EmailVerificationChallenge challenge = repository.lockChallenge(prepared.challengeId())
+                .orElseThrow(() -> new IllegalStateException("전달 실패 Challenge를 찾을 수 없습니다."));
+
+        // Provider 제한에서는 FAILED만 기록하고 기존 nextIssueAt을 변경하지 않는다.
+        challenge.markDeliveryFailed(now);
+        return scope.retryAfterSecondsAt(now);
+    }
+
+    @Transactional
+    public void releaseCooldown(PreparedEmailVerification prepared) {
+        Instant now = now();
+        EmailVerificationScope scope = repository.createIfAbsentAndLockScope(
+                prepared.email(),
+                prepared.purpose(),
+                now
+        );
+        scope.releaseCooldownForCurrentChallenge(prepared.challengeId(), now);
+    }
+
+    private Instant now() {
+        return clock.instant().truncatedTo(ChronoUnit.MICROS);
+    }
+}

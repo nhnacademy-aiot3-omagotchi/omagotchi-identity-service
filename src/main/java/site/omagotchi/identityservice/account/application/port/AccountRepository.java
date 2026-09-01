@@ -14,9 +14,28 @@ public interface AccountRepository {
 
     Optional<Account> lockById(UUID accountId);
 
+    List<Account> lockAllByIdInOrder(Collection<UUID> accountIds);
+
+    void lockSystemAdministratorGuard();
+
+    long countUsableSystemAdministrators();
+
     List<Account> findAllById(Collection<UUID> accountIds);
 
     List<Account> searchByNameOrEmail(String query, Collection<UUID> candidateIds, int limit);
+
+    /**
+     * 관리자 사용자 목록의 조건부 페이지 조회다.
+     *
+     * @param page 0-based 페이지 번호
+     * @param size 페이지당 건수
+     */
+    AccountPage searchAccounts(
+            AccountSearchCriteria criteria,
+            int page,
+            int size,
+            AccountSortOption sortOption
+    );
 
     Optional<Account> findByEmail(String email);
 

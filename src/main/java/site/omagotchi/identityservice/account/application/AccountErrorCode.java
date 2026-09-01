@@ -41,6 +41,31 @@ public enum AccountErrorCode implements ErrorCode {
             "ACCOUNT_NAME_CHANGE_NOT_ALLOWED",
             "현재 계정 상태에서는 이름을 변경할 수 없습니다."
     ),
+    WITHDRAWAL_NOT_ALLOWED(
+            ErrorType.CONFLICT,
+            "ACCOUNT_WITHDRAWAL_NOT_ALLOWED",
+            "현재 계정 상태에서는 탈퇴할 수 없습니다."
+    ),
+    STATUS_TRANSITION_NOT_ALLOWED(
+            ErrorType.CONFLICT,
+            "ACCOUNT_STATUS_TRANSITION_NOT_ALLOWED",
+            "허용되지 않은 계정 상태 전이입니다."
+    ),
+    ADMIN_OPERATION_NOT_ALLOWED(
+            ErrorType.AUTHORIZATION,
+            "ACCOUNT_ADMIN_OPERATION_NOT_ALLOWED",
+            "현재 계정은 시스템 관리자 작업을 수행할 수 없습니다."
+    ),
+    SELF_DISABLE_NOT_ALLOWED(
+            ErrorType.CONFLICT,
+            "ACCOUNT_SELF_DISABLE_NOT_ALLOWED",
+            "시스템 관리자는 자신의 계정을 비활성화할 수 없습니다."
+    ),
+    LAST_SYSTEM_ADMIN(
+            ErrorType.CONFLICT,
+            "ACCOUNT_LAST_SYSTEM_ADMIN",
+            "마지막 이용 가능 시스템 관리자는 비활성화하거나 탈퇴할 수 없습니다."
+    ),
     INVALID_NAME(
             ErrorType.INVALID_INPUT,
             "ACCOUNT_INVALID_NAME",
@@ -55,6 +80,11 @@ public enum AccountErrorCode implements ErrorCode {
             ErrorType.NOT_FOUND,
             "ACCOUNT_NOT_FOUND",
             "계정을 찾을 수 없습니다."
+    ),
+    ADMIN_ACCESS_NOT_ALLOWED(
+            ErrorType.AUTHORIZATION,
+            "ACCOUNT_ADMIN_ACCESS_NOT_ALLOWED",
+            "관리자 권한이 필요합니다."
     );
 
     private final ErrorType type;

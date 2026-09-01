@@ -31,6 +31,9 @@ class FrontendCredentialPropertiesTest {
             String[] configuredProperties,
             String expectedMessage
     ) {
+        // Given
+        // MethodSource에서 잘못된 Credential 설정을 제공한다.
+
         // When
         contextRunner
                 .withPropertyValues(configuredProperties)
@@ -45,28 +48,34 @@ class FrontendCredentialPropertiesTest {
     @Test
     @DisplayName("잘못된 Frontend 비밀번호를 기동 실패 메시지에 노출하지 않음")
     void doesNotExposeInvalidPassword() {
+        // Given
+        String invalidPassword = "too-short";
+
         // When
         contextRunner
                 .withPropertyValues(
                         "auth.frontend.username=frontend",
-                        "auth.frontend.password=too-short"
+                        "auth.frontend.password=" + invalidPassword
                 )
                 .run(context -> {
                     // Then
                     Throwable failure = context.getStartupFailure();
                     then(failure).isNotNull();
-                    then(stackTrace(failure)).doesNotContain("too-short");
+                    then(stackTrace(failure)).doesNotContain(invalidPassword);
                 });
     }
 
     @Test
     @DisplayName("바인딩된 Frontend 비밀번호 마스킹")
     void redactsBoundPassword() {
+        // Given
+        String passwordProperty = "auth.frontend.password=" + VALID_PASSWORD;
+
         // When
         contextRunner
                 .withPropertyValues(
                         "auth.frontend.username=frontend",
-                        "auth.frontend.password=" + VALID_PASSWORD
+                        passwordProperty
                 )
                 .run(context -> {
                     // Then
@@ -81,11 +90,14 @@ class FrontendCredentialPropertiesTest {
     @Test
     @DisplayName("URL-safe ASCII 32자 Frontend 비밀번호 허용")
     void acceptsMinimumPasswordLength() {
+        // Given
+        String minimumLengthPassword = "a".repeat(32);
+
         // When
         contextRunner
                 .withPropertyValues(
                         "auth.frontend.username=frontend",
-                        "auth.frontend.password=" + "a".repeat(32)
+                        "auth.frontend.password=" + minimumLengthPassword
                 )
                 .run(context -> {
                     // Then
@@ -97,11 +109,14 @@ class FrontendCredentialPropertiesTest {
     @Test
     @DisplayName("URL-safe ASCII 31자 Frontend 비밀번호 거부")
     void rejectsPasswordBelowMinimumLength() {
+        // Given
+        String belowMinimumPassword = "a".repeat(31);
+
         // When
         contextRunner
                 .withPropertyValues(
                         "auth.frontend.username=frontend",
-                        "auth.frontend.password=" + "a".repeat(31)
+                        "auth.frontend.password=" + belowMinimumPassword
                 )
                 .run(context -> {
                     // Then
@@ -116,11 +131,14 @@ class FrontendCredentialPropertiesTest {
     @Test
     @DisplayName("URL-safe ASCII 72자 Frontend 비밀번호 허용")
     void acceptsMaximumPasswordLength() {
+        // Given
+        String maximumLengthPassword = "a".repeat(72);
+
         // When
         contextRunner
                 .withPropertyValues(
                         "auth.frontend.username=frontend",
-                        "auth.frontend.password=" + "a".repeat(72)
+                        "auth.frontend.password=" + maximumLengthPassword
                 )
                 .run(context -> {
                     // Then

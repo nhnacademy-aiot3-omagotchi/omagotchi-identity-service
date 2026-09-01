@@ -15,6 +15,8 @@ public final class ErrorHttpStatusMapper {
             case CONFLICT -> HttpStatus.CONFLICT;
             case AUTHENTICATION -> HttpStatus.UNAUTHORIZED;
             case AUTHORIZATION -> HttpStatus.FORBIDDEN;
+            case RATE_LIMIT -> HttpStatus.TOO_MANY_REQUESTS;
+            case DEPENDENCY_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
             case INTERNAL -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
     }

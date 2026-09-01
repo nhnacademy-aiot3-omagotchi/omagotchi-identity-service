@@ -407,10 +407,13 @@ class AuthApiIT {
     @Test
     @DisplayName("회원가입 비밀번호 정책 위반의 공개 오류")
     void rejectsInvalidSignupPassword() throws Exception {
+        // Given
+        String invalidPassword = " ".repeat(15);
+
         // When
         ResultActions response = api.signUp(
                 "user@example.com",
-                " ".repeat(15),
+                invalidPassword,
                 "홍길동"
         );
 
@@ -428,11 +431,14 @@ class AuthApiIT {
     @Test
     @DisplayName("회원가입 이름 정책 위반의 공개 오류")
     void rejectsInvalidSignupName() throws Exception {
+        // Given
+        String invalidName = "가".repeat(31);
+
         // When
         ResultActions response = api.signUp(
                 "user@example.com",
                 "password-passphrase",
-                "가".repeat(31)
+                invalidName
         );
 
         // Then
@@ -448,14 +454,17 @@ class AuthApiIT {
     @Test
     @DisplayName("Spring MVC 기본 오류 상태와 Header 유지")
     void preservesSpringMvcErrorStatusAndHeaders() throws Exception {
+        // Given
+        String signupPath = "/api/v1/auth/signup";
+
         // When
-        ResultActions methodNotAllowed = mockMvc.perform(get("/api/v1/auth/signup")
+        ResultActions methodNotAllowed = mockMvc.perform(get(signupPath)
                 .with(httpBasic(
                         AuthApiTestClient.FRONTEND_USERNAME,
                         AuthApiTestClient.FRONTEND_PASSWORD
                 ))
                 .accept(MediaType.APPLICATION_JSON));
-        ResultActions unsupportedMediaType = mockMvc.perform(post("/api/v1/auth/signup")
+        ResultActions unsupportedMediaType = mockMvc.perform(post(signupPath)
                 .with(httpBasic(
                         AuthApiTestClient.FRONTEND_USERNAME,
                         AuthApiTestClient.FRONTEND_PASSWORD
@@ -479,6 +488,9 @@ class AuthApiIT {
     @Test
     @DisplayName("읽을 수 없는 JSON 오류 계약 유지")
     void preservesMalformedRequestContract() throws Exception {
+        // Given
+        String malformedJson = "{";
+
         // When
         ResultActions response = mockMvc.perform(post("/api/v1/auth/signup")
                 .with(httpBasic(
@@ -487,7 +499,7 @@ class AuthApiIT {
                 ))
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
-                .content("{"));
+                .content(malformedJson));
 
         // Then
         response.andExpectAll(
