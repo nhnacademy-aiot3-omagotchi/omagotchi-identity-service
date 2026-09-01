@@ -140,6 +140,7 @@ chmod 644 secrets/jwt-public.pem
 | `POST` | `/api/v1/internal/accounts/search` | Learning Credential | Learning 후보 ID 범위 내 이름·이메일 검색(최대 20건) |
 
 - 관리자 목록: 기본 20건, 최대 100건, 기본 정렬 최신 가입순, 정렬 기준은 화이트리스트 고정
+- 관리자 목록 응답: `items`, `page.number`, `page.size`, `page.totalElements`, `page.totalPages`
 - 관리자 목록 인가: Filter Chain의 `role` Claim 검사 이후 요청 시점 DB 권한·상태 재검증
 - 일괄 조회: 특정 계정 ID 묶음의 단순 목록 응답, 요청당 최대 100개
 - 페이지 응답 제외: 전체 계정 목록 검색이 아닌 요청 ID 집합 조회
