@@ -40,14 +40,17 @@ class AccountAuditQueryServiceTest {
     void resolvesAccountNamesInSingleLookup() {
         // Given: 같은 두 사람이 등장하는 감사 두 줄
         Fixture fixture = fixture();
-        given(fixture.auditRepository().findRecent(0, 20)).willReturn(
-                new AccountPermissionChangeAuditPage(List.of(audit(), audit()), 2)
+        // 헬퍼가 내부에서 stubbing 하므로 given(...) 인자 안에서 부르면 안 된다.
+        // 인자가 먼저 평가되면서 바깥 stubbing 이 끝나기 전에 새 stubbing 이 시작된다.
+        List<AccountPermissionChangeAudit> audits = List.of(audit(), audit());
+        List<Account> accounts = List.of(
+                account(ACTOR_ID, "시스템 관리자"),
+                account(TARGET_ID, "문재민")
         );
+        given(fixture.auditRepository().findRecent(0, 20))
+                .willReturn(new AccountPermissionChangeAuditPage(audits, 2));
         given(fixture.accountRepository().findAllById(Set.of(ACTOR_ID, TARGET_ID)))
-                .willReturn(List.of(
-                        account(ACTOR_ID, "시스템 관리자"),
-                        account(TARGET_ID, "문재민")
-                ));
+                .willReturn(accounts);
 
         // When
         AccountPermissionAuditPage page = fixture.service().findRecent(0, 20);
@@ -70,9 +73,9 @@ class AccountAuditQueryServiceTest {
     void keepsAuditRowWhenAccountLookupMisses() {
         // Given: 계정이 하나도 조회되지 않는 상황
         Fixture fixture = fixture();
-        given(fixture.auditRepository().findRecent(0, 20)).willReturn(
-                new AccountPermissionChangeAuditPage(List.of(audit()), 1)
-        );
+        List<AccountPermissionChangeAudit> audits = List.of(audit());
+        given(fixture.auditRepository().findRecent(0, 20))
+                .willReturn(new AccountPermissionChangeAuditPage(audits, 1));
         given(fixture.accountRepository().findAllById(Set.of(ACTOR_ID, TARGET_ID)))
                 .willReturn(List.of());
 
