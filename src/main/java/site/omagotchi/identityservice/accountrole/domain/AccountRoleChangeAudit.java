@@ -1,16 +1,6 @@
 package site.omagotchi.identityservice.accountrole.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import site.omagotchi.identityservice.accountstate.domain.AccountStatusChangeReason;
 
 import java.time.Instant;
@@ -23,43 +13,19 @@ import java.util.UUID;
  * <p>사유 규칙은 계정 상태 변경과 같으므로 {@link AccountStatusChangeReason}을 재사용한다.
  * 전이 규칙은 다르므로 테이블과 CHECK는 분리한다.</p>
  */
-@Entity
-@Table(name = "account_role_change_audits", schema = "identity_service")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AccountRoleChangeAudit {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(name = "actor_user_id", nullable = false)
-    private UUID actorUserId;
-
-    @Column(name = "target_user_id", nullable = false)
-    private UUID targetUserId;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 40)
-    private AccountRoleChangeAction action;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "before_role", nullable = false, length = 20)
-    private RecordedGlobalRole beforeRole;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "after_role", nullable = false, length = 20)
-    private RecordedGlobalRole afterRole;
-
-    @Column(nullable = false, length = AccountStatusChangeReason.MAX_LENGTH)
-    private String reason;
-
-    @Column(name = "occurred_at", nullable = false)
-    private Instant occurredAt;
+    private final UUID actorUserId;
+    private final UUID targetUserId;
+    private final AccountRoleChangeAction action;
+    private final RecordedGlobalRole beforeRole;
+    private final RecordedGlobalRole afterRole;
+    private final String reason;
+    private final Instant occurredAt;
 
     // 향후 Request ID 연계를 위한 null 허용 예약 필드
-    @Column(name = "request_id", length = 32)
-    private String requestId;
+    private final String requestId;
 
     private AccountRoleChangeAudit(
             UUID actorUserId,

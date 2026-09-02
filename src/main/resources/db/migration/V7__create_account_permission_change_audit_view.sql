@@ -35,7 +35,7 @@ FROM identity_service.account_role_change_audits;
 
 -- 통합 뷰는 두 테이블을 occurred_at 으로 정렬한다. 상태 감사에는 그 인덱스가 없어
 -- 전량 정렬로 떨어지므로 역할 감사(V6)와 같은 인덱스를 맞춰 준다.
-CREATE INDEX IF NOT EXISTS idx_account_status_change_audits_occurred_at
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_account_status_change_audits_occurred_at
     ON identity_service.account_status_change_audits (occurred_at DESC, id DESC);
-CREATE INDEX IF NOT EXISTS idx_account_role_change_audits_occurred_at
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_account_role_change_audits_occurred_at
     ON identity_service.account_role_change_audits (occurred_at DESC, id DESC);

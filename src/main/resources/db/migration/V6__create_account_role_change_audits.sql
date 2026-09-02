@@ -54,3 +54,7 @@ CREATE TABLE identity_service.account_role_change_audits (
 -- "이 사용자의 권한이 언제 누구에 의해 바뀌었나"가 가장 잦은 조회다
 CREATE INDEX idx_account_role_change_audits_target
     ON identity_service.account_role_change_audits (target_user_id, occurred_at DESC);
+
+-- FK 검증 시 감사 테이블 전체 스캔을 피한다
+CREATE INDEX idx_account_role_change_audits_actor
+    ON identity_service.account_role_change_audits (actor_user_id);

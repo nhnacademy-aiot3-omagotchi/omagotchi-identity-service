@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import site.omagotchi.identityservice.account.application.port.AccountRepository;
-import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.accountaudit.application.port.AccountPermissionChangeAuditPage;
 import site.omagotchi.identityservice.accountaudit.application.port.AccountPermissionChangeAuditRepository;
 import site.omagotchi.identityservice.accountaudit.application.result.AccountPermissionAuditEntry;
@@ -14,6 +13,7 @@ import site.omagotchi.identityservice.accountaudit.domain.AccountPermissionChang
 import site.omagotchi.identityservice.global.exception.BusinessException;
 import site.omagotchi.identityservice.global.exception.CommonErrorCode;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,6 +29,7 @@ public class AccountAuditQueryService {
 
     public static final int PAGE_SIZE_DEFAULT = 20;
     public static final int PAGE_SIZE_MAX = 100;
+    private static final int ACCOUNT_LOOKUP_BATCH_SIZE = 100;
 
     private final AccountPermissionChangeAuditRepository auditRepository;
     private final AccountRepository accountRepository;
@@ -40,7 +41,7 @@ public class AccountAuditQueryService {
         }
 
         AccountPermissionChangeAuditPage found = auditRepository.findRecent(page, size);
-        // 행마다 계정을 조회하면 페이지당 최대 2N 번이 된다. 한 번에 모아 온다.
+        // 행마다 조회하지 않고 ID를 모으되, 계정 API의 요청당 최대 개수는 지킨다.
         Map<UUID, String> namesByUserId = resolveNames(found.content());
 
         List<AccountPermissionAuditEntry> entries = found.content().stream()
@@ -65,8 +66,18 @@ public class AccountAuditQueryService {
         if (userIds.isEmpty()) {
             return Map.of();
         }
-        return accountRepository.findAllById(userIds).stream()
-                .collect(Collectors.toMap(Account::getId, Account::getName, (first, second) -> first));
+
+        List<UUID> userIdList = List.copyOf(userIds);
+        Map<UUID, String> namesByUserId = new HashMap<>();
+        for (int fromIndex = 0; fromIndex < userIdList.size();
+             fromIndex += ACCOUNT_LOOKUP_BATCH_SIZE) {
+            int toIndex = Math.min(fromIndex + ACCOUNT_LOOKUP_BATCH_SIZE, userIdList.size());
+            accountRepository.findAllById(userIdList.subList(fromIndex, toIndex))
+                    .forEach(account -> namesByUserId.putIfAbsent(
+                            account.getId(), account.getName()
+                    ));
+        }
+        return Map.copyOf(namesByUserId);
     }
 
     // FK 가 계정 존재를 보장하지만, 조회에 실패해도 감사 한 줄을 통째로 잃지는 않는다.

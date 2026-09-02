@@ -15,13 +15,17 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.BDDAssertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -49,14 +53,16 @@ class AccountAuditQueryServiceTest {
         );
         given(fixture.auditRepository().findRecent(0, 20))
                 .willReturn(new AccountPermissionChangeAuditPage(audits, 2));
-        given(fixture.accountRepository().findAllById(Set.of(ACTOR_ID, TARGET_ID)))
+        given(fixture.accountRepository().findAllById(anyCollection()))
                 .willReturn(accounts);
 
         // When
         AccountPermissionAuditPage page = fixture.service().findRecent(0, 20);
 
         // Then: 행마다 조회하면 페이지당 최대 2N 번이 된다. 중복을 제거해 한 번만 부른다.
-        verify(fixture.accountRepository()).findAllById(Set.of(ACTOR_ID, TARGET_ID));
+        verify(fixture.accountRepository()).findAllById(argThat(
+                ids -> ids.size() == 2 && ids.containsAll(Set.of(ACTOR_ID, TARGET_ID))
+        ));
         thenSoftly(softly -> {
             softly.then(page.content()).hasSize(2);
             softly.then(page.content().get(0).actor().name()).isEqualTo("시스템 관리자");
@@ -66,6 +72,30 @@ class AccountAuditQueryServiceTest {
             softly.then(page.content().get(0).afterValue()).isEqualTo("SYSTEM_ADMIN");
             softly.then(page.totalElements()).isEqualTo(2L);
         });
+    }
+
+    @Test
+    @DisplayName("계정 ID가 100개를 넘으면 일괄 조회를 분할한다")
+    void splitsAccountLookupIntoBatchesOfOneHundred() {
+        // Given: 감사 51줄에 모두 다른 actor/target이 있어 계정 ID가 102개다
+        Fixture fixture = fixture();
+        List<AccountPermissionChangeAudit> audits = IntStream.range(0, 51)
+                .mapToObj(index -> audit(
+                        new UUID(0, index * 2L + 1),
+                        new UUID(0, index * 2L + 2)
+                ))
+                .toList();
+        given(fixture.auditRepository().findRecent(0, 100))
+                .willReturn(new AccountPermissionChangeAuditPage(audits, audits.size()));
+        given(fixture.accountRepository().findAllById(anyCollection())).willReturn(List.of());
+
+        // When
+        fixture.service().findRecent(0, 100);
+
+        // Then: 각 요청은 계정 일괄 조회 상한인 100개를 넘지 않는다
+        verify(fixture.accountRepository(), times(2)).findAllById(
+                argThat(ids -> !ids.isEmpty() && ids.size() <= 100)
+        );
     }
 
     @Test
@@ -131,11 +161,15 @@ class AccountAuditQueryServiceTest {
     }
 
     private static AccountPermissionChangeAudit audit() {
+        return audit(ACTOR_ID, TARGET_ID);
+    }
+
+    private static AccountPermissionChangeAudit audit(UUID actorId, UUID targetId) {
         AccountPermissionChangeAudit audit = mock(AccountPermissionChangeAudit.class);
         given(audit.getAuditType())
                 .willReturn(AccountPermissionChangeAuditType.ACCOUNT_ROLE);
-        given(audit.getActorUserId()).willReturn(ACTOR_ID);
-        given(audit.getTargetUserId()).willReturn(TARGET_ID);
+        given(audit.getActorUserId()).willReturn(actorId);
+        given(audit.getTargetUserId()).willReturn(targetId);
         given(audit.getAction()).willReturn("ROLE_GRANTED");
         given(audit.getBeforeValue()).willReturn("USER");
         given(audit.getAfterValue()).willReturn("SYSTEM_ADMIN");
