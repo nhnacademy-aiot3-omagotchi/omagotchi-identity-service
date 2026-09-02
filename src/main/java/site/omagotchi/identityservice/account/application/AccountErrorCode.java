@@ -61,10 +61,20 @@ public enum AccountErrorCode implements ErrorCode {
             "ACCOUNT_SELF_DISABLE_NOT_ALLOWED",
             "시스템 관리자는 자신의 계정을 비활성화할 수 없습니다."
     ),
+    SELF_ROLE_CHANGE_NOT_ALLOWED(
+            ErrorType.CONFLICT,
+            "ACCOUNT_SELF_ROLE_CHANGE_NOT_ALLOWED",
+            "시스템 관리자는 자신의 전역 역할을 변경할 수 없습니다."
+    ),
+    ROLE_CHANGE_NOT_ALLOWED(
+            ErrorType.CONFLICT,
+            "ACCOUNT_ROLE_CHANGE_NOT_ALLOWED",
+            "현재 계정 상태에서는 전역 역할을 변경할 수 없습니다."
+    ),
     LAST_SYSTEM_ADMIN(
             ErrorType.CONFLICT,
             "ACCOUNT_LAST_SYSTEM_ADMIN",
-            "마지막 이용 가능 시스템 관리자는 비활성화하거나 탈퇴할 수 없습니다."
+            "마지막 이용 가능 시스템 관리자는 비활성화·탈퇴하거나 권한을 회수할 수 없습니다."
     ),
     INVALID_NAME(
             ErrorType.INVALID_INPUT,

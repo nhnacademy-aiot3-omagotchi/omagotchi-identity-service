@@ -426,6 +426,52 @@ class AccountTest {
         then(account.getStatus()).isEqualTo(AccountStatus.WITHDRAWN);
     }
 
+    @Test
+    @DisplayName("ACTIVE·LOCKED 계정의 전역 역할 변경 허용")
+    void changesGlobalRoleOnUsableAccount() {
+        // Given
+        Account active = account();
+        Account locked = lockedAccount();
+
+        // When
+        active.changeGlobalRole(GlobalRole.SYSTEM_ADMIN);
+        locked.changeGlobalRole(GlobalRole.SYSTEM_ADMIN);
+
+        // Then: 잠금은 로그인 실패 누적일 뿐 권한 운영과 무관하다
+        thenSoftly(softly -> {
+            softly.then(active.getGlobalRole()).isEqualTo(GlobalRole.SYSTEM_ADMIN);
+            softly.then(locked.getGlobalRole()).isEqualTo(GlobalRole.SYSTEM_ADMIN);
+        });
+    }
+
+    @Test
+    @DisplayName("비활성·탈퇴 계정의 전역 역할 변경 거부")
+    void rejectsGlobalRoleChangeOnUnusableAccount() {
+        // Given
+        Account disabled = account();
+        disabled.disable();
+        Account withdrawn = account();
+        withdrawn.withdraw(Instant.parse("2026-08-30T12:00:00Z"));
+
+        // When
+        Throwable disabledFailure = catchThrowable(
+                () -> disabled.changeGlobalRole(GlobalRole.SYSTEM_ADMIN)
+        );
+        Throwable withdrawnFailure = catchThrowable(
+                () -> withdrawn.changeGlobalRole(GlobalRole.SYSTEM_ADMIN)
+        );
+
+        // Then: 쓸 수 없는 계정에 권한을 남기거나 주지 않는다
+        thenSoftly(softly -> {
+            softly.then(disabled.isGlobalRoleChangeAllowed()).isFalse();
+            softly.then(withdrawn.isGlobalRoleChangeAllowed()).isFalse();
+            softly.then(disabledFailure).isInstanceOf(IllegalStateException.class);
+            softly.then(withdrawnFailure).isInstanceOf(IllegalStateException.class);
+            softly.then(disabled.getGlobalRole()).isEqualTo(GlobalRole.USER);
+            softly.then(withdrawn.getGlobalRole()).isEqualTo(GlobalRole.USER);
+        });
+    }
+
     private Account account() {
         return Account.register(
                 "state-user@example.com",

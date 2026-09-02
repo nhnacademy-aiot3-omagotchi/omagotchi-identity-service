@@ -126,6 +126,25 @@ public class Account {
                 || status == AccountStatus.DISABLED;
     }
 
+    /**
+     * 전역 역할을 바꾼다.
+     *
+     * <p>탈퇴·비활성 계정에 권한을 주거나 남겨 두지 않는다. 마지막 관리자 보호와
+     * 자기 자신 변경 금지는 호출부(Use Case)의 잠금 구간에서 확인한다.</p>
+     */
+    public void changeGlobalRole(GlobalRole newGlobalRole) {
+        if (!isGlobalRoleChangeAllowed()) {
+            throw new IllegalStateException("현재 계정 상태에서는 전역 역할을 변경할 수 없습니다.");
+        }
+
+        globalRole = Objects.requireNonNull(newGlobalRole, "newGlobalRole");
+    }
+
+    // 명세에서 허용한 역할 변경 시작 상태. WITHDRAWN·DISABLED 는 대상이 아니다.
+    public boolean isGlobalRoleChangeAllowed() {
+        return status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED;
+    }
+
     public void changeName(String newName) {
         if (!isNameChangeAllowed()) {
             throw new IllegalStateException("현재 계정 상태에서는 이름을 변경할 수 없습니다.");
