@@ -6,6 +6,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import site.omagotchi.identityservice.account.application.port.AccountRepository;
 import site.omagotchi.identityservice.account.application.port.PasswordHasher;
+import site.omagotchi.identityservice.account.application.result.AccountRoleChangeResult;
+import site.omagotchi.identityservice.account.domain.GlobalRole;
 import site.omagotchi.identityservice.account.application.result.AccountStateChangeResult;
 import site.omagotchi.identityservice.account.application.result.AccountStateValue;
 import site.omagotchi.identityservice.account.domain.Account;
@@ -119,6 +121,53 @@ public class AccountLifecycleService {
                 targetAccountId,
                 target.activate()
         );
+    }
+
+    /**
+     * 관리자가 다른 계정의 전역 역할을 바꾼다.
+     *
+     * <p>강등은 이용 가능한 SYSTEM_ADMIN 수를 줄이므로
+     * {@link SystemAdministratorReductionGuard}로 보호 행을 잠근 뒤 재조회한다.
+     * 잠금 뒤에 세기 때문에 두 관리자가 서로를 동시에 강등해도 뒤 요청이 막힌다.</p>
+     *
+     * <p>자기 자신은 바꿀 수 없다. 마지막 관리자 검사만으로는 관리자가 2명일 때
+     * 스스로 강등해 운영에서 빠지는 실수를 막지 못한다.</p>
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public AccountRoleChangeResult changeGlobalRoleByAdministrator(
+            UUID actorAccountId,
+            UUID targetAccountId,
+            GlobalRole newGlobalRole
+    ) {
+        List<Account> lockedAccounts = lockAccounts(actorAccountId, targetAccountId);
+        // JWT의 역할 정보가 아닌 DB에서 잠근 계정의 역할·상태 기준 권한 재확인
+        Account actor = requireAuthorizedActor(lockedAccounts, actorAccountId);
+        Account target = requireAccount(
+                lockedAccounts,
+                targetAccountId,
+                AccountErrorCode.NOT_FOUND
+        );
+
+        GlobalRole before = target.getGlobalRole();
+        // 후속 처리 생략을 위한 변경 없음 결과 반환
+        if (before == newGlobalRole) {
+            return new AccountRoleChangeResult(targetAccountId, before, before);
+        }
+        // 관리자 자신의 역할 변경 방지
+        if (actor.getId().equals(target.getId())) {
+            throw new BusinessException(AccountErrorCode.SELF_ROLE_CHANGE_NOT_ALLOWED);
+        }
+        if (!target.isGlobalRoleChangeAllowed()) {
+            throw new BusinessException(AccountErrorCode.ROLE_CHANGE_NOT_ALLOWED);
+        }
+
+        // 계정 행 잠금 뒤 마지막 이용 가능 SYSTEM_ADMIN 보존 검증
+        if (newGlobalRole == GlobalRole.USER) {
+            administratorReductionGuard.requireAnotherUsableAdministrator(target);
+        }
+
+        target.changeGlobalRole(newGlobalRole);
+        return new AccountRoleChangeResult(targetAccountId, before, newGlobalRole);
     }
 
     private List<Account> lockAccounts(UUID actorAccountId, UUID targetAccountId) {

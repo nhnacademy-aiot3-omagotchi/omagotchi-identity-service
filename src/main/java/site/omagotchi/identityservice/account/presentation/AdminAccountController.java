@@ -24,13 +24,12 @@ import java.util.UUID;
 /*
  * 전역 운영 관리자의 사용자 목록 조회 경계
  *
- * TODO(admin-command): 권한·상태 변경 API를 추가할 때 아래를 함께 넣지 않으면
- *   시스템에서 SYSTEM_ADMIN이 0명이 될 수 있다.
+ * 변경 API는 상태가 AdminAccountStatusController, 역할이 AdminAccountRoleController다.
+ * SYSTEM_ADMIN 0명 방어 세 가지는 AccountLifecycleService에 들어가 있다.
  *   1) 자기 자신의 role·status 변경 금지
- *   2) 활성 SYSTEM_ADMIN이 1명이면 강등·비활성 차단
- *   3) 관리자가 2명 이상이 되는 시점부터는 (1)(2)만으로 부족하다.
- *      서로를 동시에 강등하면 두 요청이 모두 인원수 검사를 통과하므로
- *      Advisory Lock 등으로 권한 변경 구간을 직렬화해야 한다.
+ *   2) 마지막 이용 가능 SYSTEM_ADMIN의 강등·비활성 차단
+ *   3) 서로를 동시에 강등하는 경합은 SystemAdministratorReductionGuard가
+ *      보호 행을 잠근 뒤 다시 세어 직렬화한다.
  */
 @Slf4j
 @RestController

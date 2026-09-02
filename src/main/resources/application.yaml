@@ -17,6 +17,9 @@ spring:
     create-schemas: true
     clean-disabled: true
     validate-on-migrate: true
+    postgresql:
+      # 비트랜잭션 concurrent index migration을 자체 schema lock으로 막지 않는다.
+      transactional-lock: false
   jpa:
     hibernate:
       ddl-auto: validate
