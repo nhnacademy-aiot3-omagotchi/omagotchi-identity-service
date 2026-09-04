@@ -53,8 +53,8 @@ public class Account {
     @Column(name = "locked_until")
     private Instant lockedUntil;
 
-    @Column(name = "withdrawn_at")
-    private Instant withdrawnAt;
+    @Column(name = "status_changed_at", nullable = false)
+    private Instant statusChangedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -62,18 +62,27 @@ public class Account {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    private Account(String email, String passwordHash, String name) {
+    private Account(String email, String passwordHash, String name, Instant registeredAt) {
         this.email = email;
         this.passwordHash = passwordHash;
         this.name = name;
         this.globalRole = GlobalRole.USER;
         this.status = AccountStatus.ACTIVE;
         this.failedLoginAttempts = 0;
+        this.statusChangedAt = registeredAt;
+        this.createdAt = registeredAt;
+        this.updatedAt = registeredAt;
     }
 
-    public static Account register(String email, String passwordHash, String name) {
+    public static Account register(
+            String email,
+            String passwordHash,
+            String name,
+            Instant registeredAt
+    ) {
         String normalizedEmail = EmailPolicy.normalize(email);
         String normalizedName = normalizeName(name);
+        Instant occurredAt = Objects.requireNonNull(registeredAt, "registeredAt");
 
         if (!isNormalizedRegistrationInputValid(
                 normalizedEmail,
@@ -84,7 +93,7 @@ public class Account {
             throw new IllegalArgumentException("회원가입 계정 값이 올바르지 않습니다.");
         }
 
-        return new Account(normalizedEmail, passwordHash, normalizedName);
+        return new Account(normalizedEmail, passwordHash, normalizedName, occurredAt);
     }
 
     public static boolean isNameValid(String name) {
@@ -92,39 +101,58 @@ public class Account {
     }
 
     public boolean isLoginAllowed() {
-        return status.isLoginAllowed();
+        return status == AccountStatus.ACTIVE && lockedUntil == null;
     }
 
-    public boolean isManagementAllowed() {
-        return status.isManagementAllowed();
+    public boolean isPasswordChangeAllowed() {
+        return status == AccountStatus.ACTIVE;
     }
 
-    // 마지막 관리자 보호 대상이 되는 역할과 상태
-    public boolean isUsableSystemAdministrator() {
-        return globalRole == GlobalRole.SYSTEM_ADMIN && isManagementAllowed();
+    public boolean isNameChangeAllowed() {
+        return status == AccountStatus.ACTIVE;
+    }
+
+    // 로그인 잠금과 무관한 마지막 활성 관리자 보호 대상
+    public boolean isActiveSystemAdministrator() {
+        return globalRole == GlobalRole.SYSTEM_ADMIN && status == AccountStatus.ACTIVE;
+    }
+
+    // 명세에서 허용한 본인 탈퇴 시작 상태
+    public boolean isWithdrawalAllowed() {
+        return status == AccountStatus.ACTIVE;
+    }
+
+    // 명세에서 허용한 관리자 비활성화 시작 상태
+    public boolean isDisableAllowed() {
+        return status == AccountStatus.ACTIVE;
     }
 
     // 명세에서 허용한 관리자 활성화 시작 상태
     public boolean isActivationAllowed() {
-        return status.isActivationAllowed();
+        return status == AccountStatus.ACTIVE || status == AccountStatus.DISABLED;
     }
 
     /**
      * 전역 역할을 바꾼다.
      *
      * <p>탈퇴·비활성 계정에 권한을 주거나 남겨 두지 않는다. 마지막 관리자 보호와
-     * 자기 자신 변경 금지는 호출부(Use Case)의 잠금 구간에서 확인한다.</p>
+     * 자기 자신 변경 금지는 호출부 유스케이스의 잠금 구간에서 확인한다.</p>
      */
     public void changeGlobalRole(GlobalRole newGlobalRole) {
-        if (!isManagementAllowed()) {
+        if (!isGlobalRoleChangeAllowed()) {
             throw new IllegalStateException("현재 계정 상태에서는 전역 역할을 변경할 수 없습니다.");
         }
 
         globalRole = Objects.requireNonNull(newGlobalRole, "newGlobalRole");
     }
 
+    // 명세에서 허용한 역할 변경 시작 상태: ACTIVE
+    public boolean isGlobalRoleChangeAllowed() {
+        return status == AccountStatus.ACTIVE;
+    }
+
     public void changeName(String newName) {
-        if (!isManagementAllowed()) {
+        if (!isNameChangeAllowed()) {
             throw new IllegalStateException("현재 계정 상태에서는 이름을 변경할 수 없습니다.");
         }
 
@@ -137,39 +165,32 @@ public class Account {
     }
 
     public void changePasswordHash(String newPasswordHash) {
-        if (!isManagementAllowed()) {
+        if (!isPasswordChangeAllowed()) {
             throw new IllegalStateException("현재 계정 상태에서는 비밀번호를 변경할 수 없습니다.");
         }
-        if (newPasswordHash == null || newPasswordHash.isBlank()) {
-            throw new IllegalArgumentException("비밀번호 Hash는 비어 있을 수 없습니다.");
-        }
-
+        requirePasswordHash(newPasswordHash);
         passwordHash = newPasswordHash;
     }
 
     public void resetPasswordHash(String newPasswordHash) {
-        if (!isManagementAllowed()) {
+        if (!isPasswordChangeAllowed()) {
             throw new IllegalStateException("현재 계정 상태에서는 비밀번호를 재설정할 수 없습니다.");
         }
-        if (newPasswordHash == null || newPasswordHash.isBlank()) {
-            throw new IllegalArgumentException("비밀번호 Hash는 비어 있을 수 없습니다.");
-        }
+        requirePasswordHash(newPasswordHash);
 
         passwordHash = newPasswordHash;
-        status = AccountStatus.ACTIVE;
         failedLoginAttempts = 0;
         lockedUntil = null;
     }
 
-    public AccountStatusTransition withdraw(Instant withdrawnAt) {
+    public boolean withdraw(Instant withdrawnAt) {
         Instant occurredAt = Objects.requireNonNull(withdrawnAt, "withdrawnAt");
-        AccountStatus before = status;
 
         // 도메인 객체의 중복 탈퇴 멱등 처리
         if (status == AccountStatus.WITHDRAWN) {
-            return AccountStatusTransition.unchanged(status);
+            return false;
         }
-        if (!isManagementAllowed()) {
+        if (!isWithdrawalAllowed()) {
             throw new IllegalStateException("현재 계정 상태에서는 탈퇴할 수 없습니다.");
         }
 
@@ -177,18 +198,18 @@ public class Account {
         status = AccountStatus.WITHDRAWN;
         failedLoginAttempts = 0;
         lockedUntil = null;
-        this.withdrawnAt = occurredAt;
-        return AccountStatusTransition.changed(before, status);
+        statusChangedAt = occurredAt;
+        return true;
     }
 
-    public AccountStatusTransition disable() {
-        AccountStatus before = status;
+    public boolean disable(Instant disabledAt) {
+        Instant occurredAt = Objects.requireNonNull(disabledAt, "disabledAt");
 
         // 도메인 객체의 중복 비활성화 멱등 처리
         if (status == AccountStatus.DISABLED) {
-            return AccountStatusTransition.unchanged(status);
+            return false;
         }
-        if (!isManagementAllowed()) {
+        if (!isDisableAllowed()) {
             throw new IllegalStateException("현재 계정 상태에서는 비활성화할 수 없습니다.");
         }
 
@@ -196,15 +217,16 @@ public class Account {
         status = AccountStatus.DISABLED;
         failedLoginAttempts = 0;
         lockedUntil = null;
-        return AccountStatusTransition.changed(before, status);
+        statusChangedAt = occurredAt;
+        return true;
     }
 
-    public AccountStatusTransition activate() {
-        AccountStatus before = status;
+    public boolean activate(Instant activatedAt) {
+        Instant occurredAt = Objects.requireNonNull(activatedAt, "activatedAt");
 
         // 도메인 객체의 중복 활성화 멱등 처리
         if (status == AccountStatus.ACTIVE) {
-            return AccountStatusTransition.unchanged(status);
+            return false;
         }
         if (!isActivationAllowed()) {
             throw new IllegalStateException("현재 계정 상태에서는 활성화할 수 없습니다.");
@@ -213,25 +235,64 @@ public class Account {
         status = AccountStatus.ACTIVE;
         failedLoginAttempts = 0;
         lockedUntil = null;
-        return AccountStatusTransition.changed(before, status);
+        statusChangedAt = occurredAt;
+        return true;
+    }
+
+    public void recover(
+            String newPasswordHash,
+            String newName,
+            Instant recoveredAt
+    ) {
+        Instant occurredAt = Objects.requireNonNull(recoveredAt, "recoveredAt");
+        String normalizedName = normalizeName(newName);
+        if (status != AccountStatus.WITHDRAWN) {
+            throw new IllegalStateException("탈퇴한 계정만 복구할 수 있습니다.");
+        }
+        requirePasswordHash(newPasswordHash);
+        if (!isNormalizedNameValid(normalizedName)) {
+            throw new IllegalArgumentException("이름은 앞뒤 공백을 제외하고 1~30자여야 합니다.");
+        }
+
+        passwordHash = newPasswordHash;
+        name = normalizedName;
+        status = AccountStatus.ACTIVE;
+        failedLoginAttempts = 0;
+        lockedUntil = null;
+        statusChangedAt = occurredAt;
     }
 
     public void recoverExpiredLoginLock(Instant now) {
         Instant checkedAt = Objects.requireNonNull(now, "now");
 
-        if (status != AccountStatus.LOCKED) {
+        if (status != AccountStatus.ACTIVE || lockedUntil == null) {
             return;
-        }
-        if (lockedUntil == null) {
-            throw new IllegalStateException("잠긴 계정에는 잠금 종료 시각이 필요합니다.");
         }
         if (checkedAt.isBefore(lockedUntil)) {
             return;
         }
 
-        status = AccountStatus.ACTIVE;
         failedLoginAttempts = 0;
         lockedUntil = null;
+    }
+
+    public boolean isLoginLockedAt(Instant now) {
+        Instant checkedAt = Objects.requireNonNull(now, "now");
+        return status == AccountStatus.ACTIVE
+                && lockedUntil != null
+                && checkedAt.isBefore(lockedUntil);
+    }
+
+    public boolean unlockLogin(Instant now) {
+        Instant checkedAt = Objects.requireNonNull(now, "now");
+        if (!isLoginLockedAt(checkedAt)) {
+            recoverExpiredLoginLock(checkedAt);
+            return false;
+        }
+
+        failedLoginAttempts = 0;
+        lockedUntil = null;
+        return true;
     }
 
     public void recordLoginFailure(
@@ -245,14 +306,13 @@ public class Account {
         if (maximumFailedAttempts < 1 || maximumFailedAttempts > Short.MAX_VALUE) {
             throw new IllegalArgumentException("최대 로그인 실패 횟수 범위가 올바르지 않습니다.");
         }
-        if (status != AccountStatus.ACTIVE) {
+        if (status != AccountStatus.ACTIVE || lockedUntil != null) {
             throw new IllegalStateException("활성 계정에만 로그인 실패를 기록할 수 있습니다.");
         }
 
         int nextFailedAttempts = failedLoginAttempts + 1;
         if (nextFailedAttempts >= maximumFailedAttempts) {
             failedLoginAttempts = (short) maximumFailedAttempts;
-            status = AccountStatus.LOCKED;
             lockedUntil = failedAt.plus(duration);
             return;
         }
@@ -271,6 +331,12 @@ public class Account {
 
     private static String normalizeName(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static void requirePasswordHash(String passwordHash) {
+        if (passwordHash == null || passwordHash.isBlank()) {
+            throw new IllegalArgumentException("비밀번호 Hash는 비어 있을 수 없습니다.");
+        }
     }
 
     private static Duration requireLockDuration(Duration lockDuration) {
@@ -299,9 +365,12 @@ public class Account {
 
     @PrePersist
     private void onCreate() {
-        Instant now = Instant.now();
-        this.createdAt = now;
-        this.updatedAt = now;
+        if (createdAt == null) {
+            Instant now = Instant.now();
+            createdAt = now;
+            updatedAt = now;
+            statusChangedAt = now;
+        }
     }
 
     @PreUpdate

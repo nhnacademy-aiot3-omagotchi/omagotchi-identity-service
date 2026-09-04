@@ -161,7 +161,7 @@ class PasswordResetIT {
     }
 
     @Test
-    @DisplayName("잠긴 계정 재설정 시 ACTIVE 복구와 로그인 실패 상태 초기화")
+    @DisplayName("로그인 잠금 계정 재설정 시 실패 상태 초기화")
     void unlocksAccountAfterPasswordReset() throws Exception {
         // Given
         String email = uniqueEmail("locked");
@@ -169,8 +169,7 @@ class PasswordResetIT {
         jdbcTemplate.update(
                 """
                 UPDATE identity_service.accounts
-                SET status = 'LOCKED',
-                    failed_login_attempts = 5,
+                SET failed_login_attempts = 5,
                     locked_until = CURRENT_TIMESTAMP + INTERVAL '10 minutes'
                 WHERE id = ?
                 """,

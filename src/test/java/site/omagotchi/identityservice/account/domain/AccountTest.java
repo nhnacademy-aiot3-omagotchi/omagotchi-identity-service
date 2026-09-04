@@ -12,6 +12,9 @@ import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 
 class AccountTest {
 
+    private static final Instant STATUS_CHANGED_AT =
+            Instant.parse("2026-08-30T12:00:00Z");
+
     @Test
     @DisplayName("가입 정보 정규화·기본 권한 및 상태")
     void registersAccount() {
@@ -23,7 +26,8 @@ class AccountTest {
         Account account = Account.register(
                 email,
                 "encoded-password",
-                name
+                name,
+                Instant.EPOCH
         );
 
         // Then
@@ -59,7 +63,8 @@ class AccountTest {
         Account account = Account.register(
                 "user@example.com",
                 "encoded-password",
-                "기존 이름"
+                "기존 이름",
+                Instant.EPOCH
         );
 
         // When
@@ -76,7 +81,8 @@ class AccountTest {
         Account account = Account.register(
                 "user@example.com",
                 "encoded-password",
-                "기존 이름"
+                "기존 이름",
+                Instant.EPOCH
         );
 
         // When
@@ -98,7 +104,8 @@ class AccountTest {
         Throwable thrown = catchThrowable(() -> Account.register(
                 "not-an-email",
                 passwordHash,
-                name
+                name,
+                Instant.EPOCH
         ));
 
         // Then
@@ -131,7 +138,8 @@ class AccountTest {
         Account account = Account.register(
                 "user@example.com",
                 "old-password-hash",
-                "사용자"
+                "사용자",
+                Instant.EPOCH
         );
 
         // When
@@ -184,7 +192,7 @@ class AccountTest {
     void rejectsPasswordResetForDisabledAccount() {
         // Given
         Account account = account();
-        account.disable();
+        account.disable(STATUS_CHANGED_AT);
 
         // When
         Throwable thrown = catchThrowable(() -> account.resetPasswordHash(
@@ -203,7 +211,8 @@ class AccountTest {
         Account account = Account.register(
                 "user@example.com",
                 "old-password-hash",
-                "사용자"
+                "사용자",
+                Instant.EPOCH
         );
 
         // When
@@ -231,7 +240,8 @@ class AccountTest {
         Account account = Account.register(
                 "user@example.com",
                 "encoded-password",
-                "사용자"
+                "사용자",
+                Instant.EPOCH
         );
         Instant failedAt = Instant.parse("2026-08-24T00:00:00Z");
         Duration lockDuration = Duration.ofMinutes(10);
@@ -244,7 +254,7 @@ class AccountTest {
         // Then
         thenSoftly(softly -> {
             softly.then(account.getFailedLoginAttempts()).isEqualTo((short) 5);
-            softly.then(account.getStatus()).isEqualTo(AccountStatus.LOCKED);
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
             softly.then(account.getLockedUntil()).isEqualTo(failedAt.plus(lockDuration));
             softly.then(account.isLoginAllowed()).isFalse();
         });
@@ -257,7 +267,8 @@ class AccountTest {
         Account account = Account.register(
                 "user@example.com",
                 "encoded-password",
-                "사용자"
+                "사용자",
+                Instant.EPOCH
         );
         Instant now = Instant.parse("2026-08-24T00:00:00Z");
         account.recordLoginFailure(now, 5, Duration.ofMinutes(10));
@@ -281,7 +292,8 @@ class AccountTest {
         Account account = Account.register(
                 "user@example.com",
                 "encoded-password",
-                "사용자"
+                "사용자",
+                Instant.EPOCH
         );
         Instant failedAt = Instant.parse("2026-08-24T00:00:00Z");
         Duration lockDuration = Duration.ofMinutes(10);
@@ -307,7 +319,8 @@ class AccountTest {
         Account account = Account.register(
                 "user@example.com",
                 "encoded-password",
-                "사용자"
+                "사용자",
+                Instant.EPOCH
         );
         Instant failedAt = Instant.parse("2026-08-24T00:00:00Z");
         Duration lockDuration = Duration.ofMinutes(10);
@@ -320,7 +333,7 @@ class AccountTest {
 
         // Then
         thenSoftly(softly -> {
-            softly.then(account.getStatus()).isEqualTo(AccountStatus.LOCKED);
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
             softly.then(account.getFailedLoginAttempts()).isEqualTo((short) 5);
             softly.then(account.getLockedUntil()).isEqualTo(failedAt.plus(lockDuration));
         });
@@ -334,15 +347,13 @@ class AccountTest {
         Instant withdrawnAt = Instant.parse("2026-08-30T12:00:00Z");
 
         // When
-        AccountStatusTransition transition = account.withdraw(withdrawnAt);
+        boolean changed = account.withdraw(withdrawnAt);
 
         // Then
         thenSoftly(softly -> {
-            softly.then(transition.before()).isEqualTo(AccountStatus.ACTIVE);
-            softly.then(transition.after()).isEqualTo(AccountStatus.WITHDRAWN);
-            softly.then(transition.changed()).isTrue();
+            softly.then(changed).isTrue();
             softly.then(account.getStatus()).isEqualTo(AccountStatus.WITHDRAWN);
-            softly.then(account.getWithdrawnAt()).isEqualTo(withdrawnAt);
+            softly.then(account.getStatusChangedAt()).isEqualTo(withdrawnAt);
             softly.then(account.getFailedLoginAttempts()).isZero();
             softly.then(account.getLockedUntil()).isNull();
         });
@@ -361,7 +372,7 @@ class AccountTest {
         // Then
         thenSoftly(softly -> {
             softly.then(account.getStatus()).isEqualTo(AccountStatus.WITHDRAWN);
-            softly.then(account.getWithdrawnAt()).isEqualTo(withdrawnAt);
+            softly.then(account.getStatusChangedAt()).isEqualTo(withdrawnAt);
             softly.then(account.getFailedLoginAttempts()).isZero();
             softly.then(account.getLockedUntil()).isNull();
         });
@@ -376,15 +387,15 @@ class AccountTest {
         account.withdraw(firstWithdrawal);
 
         // When
-        AccountStatusTransition transition = account.withdraw(
+        boolean changed = account.withdraw(
                 firstWithdrawal.plusSeconds(60)
         );
 
         // Then
         thenSoftly(softly -> {
-            softly.then(transition.changed()).isFalse();
+            softly.then(changed).isFalse();
             softly.then(account.getStatus()).isEqualTo(AccountStatus.WITHDRAWN);
-            softly.then(account.getWithdrawnAt()).isEqualTo(firstWithdrawal);
+            softly.then(account.getStatusChangedAt()).isEqualTo(firstWithdrawal);
         });
     }
 
@@ -393,7 +404,7 @@ class AccountTest {
     void rejectsWithdrawalOfDisabledAccount() {
         // Given
         Account account = account();
-        account.disable();
+        account.disable(STATUS_CHANGED_AT);
 
         // When
         Throwable thrown = catchThrowable(() -> account.withdraw(
@@ -406,57 +417,53 @@ class AccountTest {
     }
 
     @Test
-    @DisplayName("활성·잠금 계정 비활성화와 잠금 정보 정리")
+    @DisplayName("활성 계정 비활성화와 로그인 잠금 정보 정리")
     void disablesActiveAndLockedAccounts() {
         // Given
         Account active = account();
         Account locked = lockedAccount();
 
-        then(active.isManagementAllowed()).isTrue();
-        then(locked.isManagementAllowed()).isTrue();
+        then(active.isDisableAllowed()).isTrue();
+        then(locked.isDisableAllowed()).isTrue();
 
         // When
-        AccountStatusTransition activeTransition = active.disable();
-        AccountStatusTransition lockedTransition = locked.disable();
+        boolean activeChanged = active.disable(STATUS_CHANGED_AT);
+        boolean lockedChanged = locked.disable(STATUS_CHANGED_AT);
 
         // Then
         thenSoftly(softly -> {
-            softly.then(activeTransition.before()).isEqualTo(AccountStatus.ACTIVE);
-            softly.then(activeTransition.after()).isEqualTo(AccountStatus.DISABLED);
-            softly.then(lockedTransition.before()).isEqualTo(AccountStatus.LOCKED);
-            softly.then(lockedTransition.after()).isEqualTo(AccountStatus.DISABLED);
+            softly.then(activeChanged).isTrue();
+            softly.then(lockedChanged).isTrue();
             softly.then(locked.getFailedLoginAttempts()).isZero();
             softly.then(locked.getLockedUntil()).isNull();
-            softly.then(active.isManagementAllowed()).isFalse();
-            softly.then(locked.isManagementAllowed()).isFalse();
+            softly.then(active.isDisableAllowed()).isFalse();
+            softly.then(locked.isDisableAllowed()).isFalse();
         });
     }
 
     @Test
-    @DisplayName("잠금 해제·재활성화와 동일 상태 No-op")
-    void activatesLockedAndDisabledAccountsIdempotently() {
+    @DisplayName("ACTIVE 상태 요청은 로그인 잠금을 유지하고 DISABLED만 재활성화")
+    void activatesDisabledAccountWithoutUsingStatusToUnlockLogin() {
         // Given
         Account locked = lockedAccount();
         Account disabled = account();
-        disabled.disable();
+        disabled.disable(STATUS_CHANGED_AT);
 
         then(locked.isActivationAllowed()).isTrue();
         then(disabled.isActivationAllowed()).isTrue();
 
         // When
-        AccountStatusTransition unlocked = locked.activate();
-        AccountStatusTransition reactivated = disabled.activate();
-        AccountStatusTransition unchanged = disabled.activate();
+        boolean stillActive = locked.activate(STATUS_CHANGED_AT);
+        boolean reactivated = disabled.activate(STATUS_CHANGED_AT);
+        boolean unchanged = disabled.activate(STATUS_CHANGED_AT);
 
         // Then
         thenSoftly(softly -> {
-            softly.then(unlocked.before()).isEqualTo(AccountStatus.LOCKED);
-            softly.then(unlocked.after()).isEqualTo(AccountStatus.ACTIVE);
-            softly.then(reactivated.before()).isEqualTo(AccountStatus.DISABLED);
-            softly.then(reactivated.after()).isEqualTo(AccountStatus.ACTIVE);
-            softly.then(unchanged.changed()).isFalse();
-            softly.then(locked.getFailedLoginAttempts()).isZero();
-            softly.then(locked.getLockedUntil()).isNull();
+            softly.then(stillActive).isFalse();
+            softly.then(reactivated).isTrue();
+            softly.then(unchanged).isFalse();
+            softly.then(locked.getFailedLoginAttempts()).isEqualTo((short) 5);
+            softly.then(locked.getLockedUntil()).isNotNull();
         });
     }
 
@@ -468,13 +475,13 @@ class AccountTest {
         account.withdraw(Instant.parse("2026-08-30T12:00:00Z"));
 
         // When
-        boolean managementAllowed = account.isManagementAllowed();
+        boolean disableAllowed = account.isDisableAllowed();
         boolean activationAllowed = account.isActivationAllowed();
-        Throwable disableFailure = catchThrowable(account::disable);
-        Throwable activationFailure = catchThrowable(account::activate);
+        Throwable disableFailure = catchThrowable(() -> account.disable(STATUS_CHANGED_AT));
+        Throwable activationFailure = catchThrowable(() -> account.activate(STATUS_CHANGED_AT));
 
         // Then
-        then(managementAllowed).isFalse();
+        then(disableAllowed).isFalse();
         then(activationAllowed).isFalse();
         then(disableFailure).isInstanceOf(IllegalStateException.class);
         then(activationFailure).isInstanceOf(IllegalStateException.class);
@@ -482,7 +489,7 @@ class AccountTest {
     }
 
     @Test
-    @DisplayName("ACTIVE·LOCKED 계정의 전역 역할 변경 허용")
+    @DisplayName("ACTIVE 계정은 로그인 잠금 여부와 무관하게 전역 역할 변경 허용")
     void changesGlobalRoleOnUsableAccount() {
         // Given
         Account active = account();
@@ -504,7 +511,7 @@ class AccountTest {
     void rejectsGlobalRoleChangeOnUnusableAccount() {
         // Given
         Account disabled = account();
-        disabled.disable();
+        disabled.disable(STATUS_CHANGED_AT);
         Account withdrawn = account();
         withdrawn.withdraw(Instant.parse("2026-08-30T12:00:00Z"));
 
@@ -518,8 +525,8 @@ class AccountTest {
 
         // Then: 쓸 수 없는 계정에 권한을 남기거나 주지 않는다
         thenSoftly(softly -> {
-            softly.then(disabled.isManagementAllowed()).isFalse();
-            softly.then(withdrawn.isManagementAllowed()).isFalse();
+            softly.then(disabled.isGlobalRoleChangeAllowed()).isFalse();
+            softly.then(withdrawn.isGlobalRoleChangeAllowed()).isFalse();
             softly.then(disabledFailure).isInstanceOf(IllegalStateException.class);
             softly.then(withdrawnFailure).isInstanceOf(IllegalStateException.class);
             softly.then(disabled.getGlobalRole()).isEqualTo(GlobalRole.USER);
@@ -531,7 +538,8 @@ class AccountTest {
         return Account.register(
                 "state-user@example.com",
                 "encoded-password",
-                "사용자"
+                "사용자",
+                Instant.EPOCH
         );
     }
 

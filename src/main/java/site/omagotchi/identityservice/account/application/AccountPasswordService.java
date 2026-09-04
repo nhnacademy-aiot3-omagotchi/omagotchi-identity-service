@@ -71,7 +71,7 @@ public class AccountPasswordService {
     @Transactional
     public Optional<UUID> lockPasswordResetAccountId(String normalizedEmail) {
         return accountRepository.lockByEmail(normalizedEmail)
-                .filter(Account::isManagementAllowed)
+                .filter(Account::isPasswordChangeAllowed)
                 .map(Account::getId);
     }
 
@@ -79,7 +79,7 @@ public class AccountPasswordService {
     @Transactional
     public boolean replacePasswordHashForReset(UUID accountId, String newRawPassword) {
         Optional<Account> lockedAccount = accountRepository.lockById(accountId)
-                .filter(Account::isManagementAllowed);
+                .filter(Account::isPasswordChangeAllowed);
         if (lockedAccount.isEmpty()) {
             return false;
         }
@@ -101,7 +101,7 @@ public class AccountPasswordService {
         Account target = account.orElseThrow(
                 () -> new BusinessException(AccountErrorCode.NOT_FOUND)
         );
-        if (!target.isManagementAllowed()) {
+        if (!target.isPasswordChangeAllowed()) {
             throw new BusinessException(AccountErrorCode.PASSWORD_CHANGE_NOT_ALLOWED);
         }
         return target;

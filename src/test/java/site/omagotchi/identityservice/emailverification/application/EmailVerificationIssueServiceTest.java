@@ -220,6 +220,7 @@ class EmailVerificationIssueServiceTest {
             case SIGNUP -> service.issueSignupOtp(EMAIL);
             case PASSWORD_CHANGE -> service.issuePasswordChangeOtp(EMAIL);
             case PASSWORD_RESET -> service.issuePasswordResetOtp(EMAIL);
+            case ACCOUNT_RECOVERY -> service.issueAccountRecoveryOtp(EMAIL);
         };
     }
 }

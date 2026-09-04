@@ -1,9 +1,9 @@
-package site.omagotchi.identityservice.accountstate.infrastructure;
+package site.omagotchi.identityservice.account.infrastructure;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
-import site.omagotchi.identityservice.accountstate.application.port.AccountStatusChangeAuditRepository;
-import site.omagotchi.identityservice.accountstate.domain.AccountStatusChangeAudit;
+import site.omagotchi.identityservice.account.application.port.AccountStatusChangeAuditRepository;
+import site.omagotchi.identityservice.account.domain.AccountStatusChangeAudit;
 
 @Repository
 @RequiredArgsConstructor

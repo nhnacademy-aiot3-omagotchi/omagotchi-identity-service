@@ -1,6 +1,6 @@
 package site.omagotchi.identityservice.account.presentation.response;
 
-import site.omagotchi.identityservice.account.domain.Account;
+import site.omagotchi.identityservice.account.application.result.AdminAccountResult;
 import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.domain.GlobalRole;
 
@@ -15,22 +15,26 @@ public record AdminAccountResponse(
         GlobalRole role,
         AccountStatus status,
         short failedLoginAttempts,
+        boolean locked,
         Instant lockedUntil,
-        Instant withdrawnAt,
+        Instant statusChangedAt,
+        Instant recoveryDeadline,
         Instant createdAt
 ) {
 
-    public static AdminAccountResponse from(Account account) {
+    public static AdminAccountResponse from(AdminAccountResult account) {
         return new AdminAccountResponse(
-                account.getId(),
-                account.getEmail(),
-                account.getName(),
-                account.getGlobalRole(),
-                account.getStatus(),
-                account.getFailedLoginAttempts(),
-                account.getLockedUntil(),
-                account.getWithdrawnAt(),
-                account.getCreatedAt()
+                account.accountId(),
+                account.email(),
+                account.name(),
+                account.role(),
+                account.status(),
+                account.failedLoginAttempts(),
+                account.locked(),
+                account.lockedUntil(),
+                account.statusChangedAt(),
+                account.recoveryDeadline(),
+                account.createdAt()
         );
     }
 }

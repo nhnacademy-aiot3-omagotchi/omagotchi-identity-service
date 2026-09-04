@@ -207,6 +207,11 @@ class EmailVerificationUseServiceTest {
             case SIGNUP -> service.verifySignupOtp(challengeId, EMAIL, code);
             case PASSWORD_CHANGE -> service.verifyPasswordChangeOtp(challengeId, EMAIL, code);
             case PASSWORD_RESET -> service.verifyPasswordResetOtp(challengeId, EMAIL, code);
+            case ACCOUNT_RECOVERY -> service.verifyAccountRecoveryOtp(
+                    challengeId,
+                    EMAIL,
+                    code
+            );
         };
     }
 }

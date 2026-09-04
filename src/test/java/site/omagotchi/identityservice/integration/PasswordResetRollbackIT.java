@@ -85,7 +85,8 @@ class PasswordResetRollbackIT {
         Account account = accountJpaRepository.saveAndFlush(Account.register(
                 EMAIL,
                 passwordHasher.hash(CURRENT_PASSWORD),
-                "사용자"
+                "사용자",
+                Instant.EPOCH
         ));
         Instant issuedAt = Instant.parse("2026-09-03T00:00:00Z");
         RefreshToken refreshToken = refreshTokenJpaRepository.saveAndFlush(

@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.accountstate.domain;
+package site.omagotchi.identityservice.account.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -36,21 +36,13 @@ public class AccountStatusChangeAudit {
     @Column(nullable = false, length = 40)
     private AccountStatusChangeAction action;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "before_status", nullable = false, length = 20)
-    private RecordedAccountStatus beforeStatus;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "after_status", nullable = false, length = 20)
-    private RecordedAccountStatus afterStatus;
-
-    @Column(nullable = false, length = AccountStatusChangeReason.MAX_LENGTH)
+    @Column(nullable = false, length = 500)
     private String reason;
 
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt;
 
-    // 향후 Request ID 연계를 위한 null 허용 예약 필드
+    // 향후 요청 ID 연계를 위해 null을 허용하는 예약 필드
     @Column(name = "request_id", length = 32)
     private String requestId;
 
@@ -58,56 +50,30 @@ public class AccountStatusChangeAudit {
             UUID actorUserId,
             UUID targetUserId,
             AccountStatusChangeAction action,
-            RecordedAccountStatus beforeStatus,
-            RecordedAccountStatus afterStatus,
-            AccountStatusChangeReason reason,
+            String reason,
             Instant occurredAt
     ) {
         this.actorUserId = Objects.requireNonNull(actorUserId, "actorUserId");
         this.targetUserId = Objects.requireNonNull(targetUserId, "targetUserId");
         this.action = Objects.requireNonNull(action, "action");
-        this.beforeStatus = Objects.requireNonNull(beforeStatus, "beforeStatus");
-        this.afterStatus = Objects.requireNonNull(afterStatus, "afterStatus");
-        this.reason = Objects.requireNonNull(reason, "reason").value();
+        this.reason = Objects.requireNonNull(reason, "reason");
         this.occurredAt = Objects.requireNonNull(occurredAt, "occurredAt");
         this.requestId = null;
-        // 잘못된 상태 전이의 감사 기록 생성 방지
-        requireMatchingTransition();
     }
 
-    public static AccountStatusChangeAudit record(
+    public static AccountStatusChangeAudit create(
             UUID actorUserId,
             UUID targetUserId,
             AccountStatusChangeAction action,
-            RecordedAccountStatus beforeStatus,
-            RecordedAccountStatus afterStatus,
-            AccountStatusChangeReason reason,
+            String reason,
             Instant occurredAt
     ) {
         return new AccountStatusChangeAudit(
                 actorUserId,
                 targetUserId,
                 action,
-                beforeStatus,
-                afterStatus,
                 reason,
                 occurredAt
         );
-    }
-
-    private void requireMatchingTransition() {
-        boolean matches = switch (action) {
-            case ACCOUNT_DISABLED ->
-                    (beforeStatus == RecordedAccountStatus.ACTIVE
-                            || beforeStatus == RecordedAccountStatus.LOCKED)
-                            && afterStatus == RecordedAccountStatus.DISABLED;
-            case ACCOUNT_UNLOCKED -> beforeStatus == RecordedAccountStatus.LOCKED
-                    && afterStatus == RecordedAccountStatus.ACTIVE;
-            case ACCOUNT_REACTIVATED -> beforeStatus == RecordedAccountStatus.DISABLED
-                    && afterStatus == RecordedAccountStatus.ACTIVE;
-        };
-        if (!matches) {
-            throw new IllegalArgumentException("감사 action과 계정 상태 전이가 일치하지 않습니다.");
-        }
     }
 }

@@ -3,9 +3,11 @@ package site.omagotchi.identityservice.account.presentation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import site.omagotchi.identityservice.account.application.AccountRegistrationV2Service;
+import site.omagotchi.identityservice.account.application.result.AccountRegistrationResult;
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.presentation.request.SignupV2Request;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.BDDAssertions.then;
@@ -25,10 +27,15 @@ class AccountRegistrationV2ControllerTest {
         AccountRegistrationV2Service service = mock(AccountRegistrationV2Service.class);
         AccountRegistrationV2Controller controller = new AccountRegistrationV2Controller(service);
         UUID challengeId = CHALLENGE_ID;
-        Account account = Account.register("member@example.com", "password-hash", "member");
+        Account account = Account.register(
+                "member@example.com", "password-hash", "member", Instant.EPOCH
+        );
         given(service.signUp(
                 "member@example.com", "long-enough-password", "member", challengeId, "123456"
-        )).willReturn(account);
+        )).willReturn(new AccountRegistrationResult(
+                account,
+                AccountRegistrationResult.Outcome.CREATED
+        ));
 
         // When
         var response = controller.signUp(new SignupV2Request(

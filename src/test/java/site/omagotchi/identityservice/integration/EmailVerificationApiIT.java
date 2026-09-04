@@ -115,6 +115,56 @@ class EmailVerificationApiIT {
     }
 
     @Test
+    @DisplayName("탈퇴 계정은 ACCOUNT_RECOVERY OTP로 같은 userId를 복구")
+    void recoversWithdrawnAccountWithPurposeIsolatedOtp() throws Exception {
+        String email = uniqueEmail("account-recovery");
+        AuthApiTestClient api = new AuthApiTestClient(mockMvc, objectMapper);
+        UUID accountId = api.signupSuccessfully(email);
+        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(email, PASSWORD);
+        api.withdraw(login.accessToken(), PASSWORD).andExpect(status().isOk());
+        ArgumentCaptor<String> codeCaptor = ArgumentCaptor.forClass(String.class);
+
+        String issueResponse = issueSignupOtp(email)
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        UUID challengeId = UUID.fromString(
+                objectMapper.readTree(issueResponse).get("challengeId").asString()
+        );
+        verify(mailSender).sendVerificationCode(
+                eq(challengeId),
+                eq(email),
+                codeCaptor.capture(),
+                eq(Duration.ofMinutes(5))
+        );
+
+        signup(email, challengeId, codeCaptor.getValue()).andExpectAll(
+                status().isOk(),
+                jsonPath("$.userId").value(accountId.toString()),
+                jsonPath("$.status").value("ACTIVE")
+        );
+
+        String purpose = jdbcTemplate.queryForObject(
+                "SELECT purpose FROM identity_service.email_verification_challenges WHERE id = ?",
+                String.class,
+                challengeId
+        );
+        String action = jdbcTemplate.queryForObject(
+                """
+                        SELECT action
+                        FROM identity_service.account_status_change_audits
+                        WHERE target_user_id = ?
+                        ORDER BY occurred_at DESC, id DESC
+                        LIMIT 1
+                        """,
+                String.class,
+                accountId
+        );
+        then(purpose).isEqualTo("ACCOUNT_RECOVERY");
+        then(action).isEqualTo("ACCOUNT_RECOVERED");
+        then(api.loginSuccessfully(email, PASSWORD).userId()).isEqualTo(accountId);
+    }
+
+    @Test
     @DisplayName("잘못된 OTP 응답 뒤 실패 횟수 Commit")
     void commitsFailedAttemptBeforeErrorResponse() throws Exception {
         // Given

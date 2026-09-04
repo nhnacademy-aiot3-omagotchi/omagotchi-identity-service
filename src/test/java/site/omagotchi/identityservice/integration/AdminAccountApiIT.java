@@ -96,9 +96,11 @@ class AdminAccountApiIT {
                 jsonPath("$.items[0].role").value(GlobalRole.SYSTEM_ADMIN.name()),
                 jsonPath("$.items[0].status").value(AccountStatus.ACTIVE.name()),
                 jsonPath("$.items[0].createdAt").isNotEmpty(),
+                jsonPath("$.items[0].statusChangedAt").isNotEmpty(),
                 jsonPath("$.items[0].failedLoginAttempts").value(0),
+                jsonPath("$.items[0].locked").value(false),
                 jsonPath("$.items[0].lockedUntil").value(nullValue()),
-                jsonPath("$.items[0].withdrawnAt").value(nullValue()),
+                jsonPath("$.items[0].recoveryDeadline").value(nullValue()),
                 jsonPath("$.items[1].email").value("second@example.com")
         );
     }

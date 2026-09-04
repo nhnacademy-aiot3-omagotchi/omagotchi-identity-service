@@ -161,7 +161,7 @@ class AuthApiIT {
     }
 
     @ParameterizedTest
-    @EnumSource(value = AccountStatus.class, names = {"LOCKED", "DISABLED", "WITHDRAWN"})
+    @EnumSource(value = AccountStatus.class, names = {"DISABLED", "WITHDRAWN"})
     @DisplayName("로그인 불가 계정 상태 거부")
     void rejectsLoginForUnavailableAccount(AccountStatus accountStatus) throws Exception {
         // Given
@@ -227,13 +227,13 @@ class AuthApiIT {
         thenSoftly(softly -> {
             softly.then(beforeLock.getStatus()).isEqualTo(AccountStatus.ACTIVE);
             softly.then(beforeLock.getFailedLoginAttempts()).isEqualTo((short) 4);
-            softly.then(lockedAccount.getStatus()).isEqualTo(AccountStatus.LOCKED);
+            softly.then(lockedAccount.getStatus()).isEqualTo(AccountStatus.ACTIVE);
             softly.then(lockedAccount.getFailedLoginAttempts()).isEqualTo((short) 5);
             softly.then(lockedAccount.getLockedUntil()).isBetween(
                     fifthAttemptStartedAt.plus(Duration.ofMinutes(10)),
                     fifthAttemptFinishedAt.plus(Duration.ofMinutes(10))
             );
-            softly.then(stillLockedAccount.getStatus()).isEqualTo(AccountStatus.LOCKED);
+            softly.then(stillLockedAccount.getStatus()).isEqualTo(AccountStatus.ACTIVE);
             softly.then(stillLockedAccount.getFailedLoginAttempts()).isEqualTo((short) 5);
             softly.then(stillLockedAccount.getLockedUntil())
                     .isEqualTo(lockedAccount.getLockedUntil());
@@ -299,12 +299,14 @@ class AuthApiIT {
         accountJpaRepository.saveAndFlush(Account.register(
                 "user@example.com",
                 "encoded-password",
-                "첫 계정"
+                "첫 계정",
+                Instant.EPOCH
         ));
         Account duplicate = Account.register(
                 "user@example.com",
                 "encoded-password",
-                "두 번째 계정"
+                "두 번째 계정",
+                Instant.EPOCH
         );
 
         // When

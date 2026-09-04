@@ -16,7 +16,7 @@ public enum AccountRefreshAccess {
 
     public static AccountRefreshAccess from(AccountStatus accountStatus) {
         return switch (accountStatus) {
-            case ACTIVE, LOCKED -> ALLOWED;
+            case ACTIVE -> ALLOWED;
             case DISABLED -> ACCOUNT_DISABLED;
             case WITHDRAWN -> ACCOUNT_WITHDRAWN;
         };

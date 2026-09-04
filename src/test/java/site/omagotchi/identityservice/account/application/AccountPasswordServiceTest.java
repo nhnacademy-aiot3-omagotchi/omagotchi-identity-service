@@ -8,6 +8,7 @@ import site.omagotchi.identityservice.account.application.port.PasswordHasher;
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -238,7 +239,7 @@ class AccountPasswordServiceTest {
         // Given
         Account account = mock(Account.class);
         Fixture fixture = fixture(Optional.of(account));
-        given(account.isManagementAllowed()).willReturn(false);
+        given(account.isPasswordChangeAllowed()).willReturn(false);
 
         // When
         Throwable thrown = catchThrowable(() -> fixture.service()
@@ -278,7 +279,7 @@ class AccountPasswordServiceTest {
         Account account = mock(Account.class);
         Fixture fixture = fixture(Optional.empty());
         given(account.getId()).willReturn(ACCOUNT_ID);
-        given(account.isManagementAllowed()).willReturn(true);
+        given(account.isPasswordChangeAllowed()).willReturn(true);
         given(fixture.accountRepository().lockByEmail("user@example.com"))
                 .willReturn(Optional.of(account));
 
@@ -298,7 +299,7 @@ class AccountPasswordServiceTest {
         // Given
         Account account = mock(Account.class);
         Fixture fixture = fixture(Optional.empty());
-        given(account.isManagementAllowed()).willReturn(false);
+        given(account.isPasswordChangeAllowed()).willReturn(false);
         given(fixture.accountRepository().lockByEmail("user@example.com"))
                 .willReturn(Optional.of(account));
 
@@ -318,7 +319,7 @@ class AccountPasswordServiceTest {
         // Given
         Account account = mock(Account.class);
         Fixture fixture = fixture(Optional.of(account));
-        given(account.isManagementAllowed()).willReturn(true);
+        given(account.isPasswordChangeAllowed()).willReturn(true);
         given(account.getPasswordHash()).willReturn(CURRENT_PASSWORD_HASH);
         given(fixture.passwordHasher().matches(NEW_PASSWORD, CURRENT_PASSWORD_HASH))
                 .willReturn(false);
@@ -342,7 +343,7 @@ class AccountPasswordServiceTest {
         // Given
         Account account = mock(Account.class);
         Fixture fixture = fixture(Optional.of(account));
-        given(account.isManagementAllowed()).willReturn(true);
+        given(account.isPasswordChangeAllowed()).willReturn(true);
         given(account.getPasswordHash()).willReturn(CURRENT_PASSWORD_HASH);
         given(fixture.passwordHasher().matches(NEW_PASSWORD, CURRENT_PASSWORD_HASH))
                 .willReturn(true);
@@ -374,7 +375,8 @@ class AccountPasswordServiceTest {
         return Account.register(
                 "user@example.com",
                 CURRENT_PASSWORD_HASH,
-                "사용자"
+                "사용자",
+                Instant.EPOCH
         );
     }
 

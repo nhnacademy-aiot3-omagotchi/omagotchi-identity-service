@@ -6,6 +6,7 @@ import site.omagotchi.identityservice.account.application.port.AccountRepository
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -34,7 +35,8 @@ class AccountProfileServiceTest {
         Account account = Account.register(
                 "user@example.com",
                 "encoded-password",
-                "기존 이름"
+                "기존 이름",
+                Instant.EPOCH
         );
         given(accountRepository.lockById(accountId)).willReturn(Optional.of(account));
 
@@ -95,7 +97,7 @@ class AccountProfileServiceTest {
         UUID accountId = ACCOUNT_ID;
         Account account = mock(Account.class);
         given(accountRepository.lockById(accountId)).willReturn(Optional.of(account));
-        given(account.isManagementAllowed()).willReturn(false);
+        given(account.isNameChangeAllowed()).willReturn(false);
 
         // When
         Throwable thrown = catchThrowable(() -> accountProfileService.changeName(
@@ -109,6 +111,6 @@ class AccountProfileServiceTest {
                 exception -> then(exception.getErrorCode())
                         .isEqualTo(AccountErrorCode.NAME_CHANGE_NOT_ALLOWED)
         );
-        verify(account).isManagementAllowed();
+        verify(account).isNameChangeAllowed();
     }
 }

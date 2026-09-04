@@ -75,7 +75,7 @@ public class RefreshTokenRotation {
             return Optional.empty();
         }
 
-        // LOCKED 계정의 기존 로그인 유지와 DISABLED·WITHDRAWN 계정의 갱신 차단 정책
+        // 로그인 잠금 중인 ACTIVE 계정은 유지하고 DISABLED·WITHDRAWN만 갱신 차단
         Optional<RefreshTokenRevocationReason> revocationReason = switch (account.refreshAccess()) {
             case ALLOWED -> Optional.empty();
             case ACCOUNT_DISABLED -> Optional.of(RefreshTokenRevocationReason.ACCOUNT_DISABLED);

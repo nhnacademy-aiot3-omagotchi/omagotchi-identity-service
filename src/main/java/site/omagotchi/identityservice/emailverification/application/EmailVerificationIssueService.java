@@ -41,6 +41,11 @@ public class EmailVerificationIssueService {
         return issue(normalizedEmail, EmailVerificationPurpose.PASSWORD_RESET);
     }
 
+    /** 탈퇴 계정 복구용 이메일 OTP를 발급한다. */
+    public IssuedEmailVerification issueAccountRecoveryOtp(String normalizedEmail) {
+        return issue(normalizedEmail, EmailVerificationPurpose.ACCOUNT_RECOVERY);
+    }
+
     /** 지정된 목적의 OTP를 준비하고 메일 전달 결과를 처리한다. */
     private IssuedEmailVerification issue(
             String normalizedEmail,

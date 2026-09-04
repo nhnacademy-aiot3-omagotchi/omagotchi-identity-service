@@ -33,6 +33,14 @@ final class AccountSpecifications {
             if (criteria.role() != null) {
                 predicates.add(builder.equal(root.get("globalRole"), criteria.role()));
             }
+            if (Boolean.TRUE.equals(criteria.locked())) {
+                predicates.add(builder.greaterThan(root.get("lockedUntil"), criteria.checkedAt()));
+            } else if (Boolean.FALSE.equals(criteria.locked())) {
+                predicates.add(builder.or(
+                        builder.isNull(root.get("lockedUntil")),
+                        builder.lessThanOrEqualTo(root.get("lockedUntil"), criteria.checkedAt())
+                ));
+            }
             if (criteria.keyword() != null) {
                 // email은 정규화된 소문자로 저장되므로 양쪽 모두 소문자 기준으로 비교한다.
                 String pattern = "%"
@@ -44,7 +52,7 @@ final class AccountSpecifications {
                 ));
             }
 
-            // 조건이 없는 전체 조회도 유효한 관리자 Use Case다.
+            // 조건이 없는 전체 조회도 유효한 관리자 유스케이스
             return predicates.isEmpty()
                     ? builder.conjunction()
                     : builder.and(predicates.toArray(Predicate[]::new));

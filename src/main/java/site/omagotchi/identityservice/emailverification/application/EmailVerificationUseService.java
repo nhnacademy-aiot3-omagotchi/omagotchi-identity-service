@@ -67,6 +67,21 @@ public class EmailVerificationUseService {
         );
     }
 
+    /** 탈퇴 계정 복구용 OTP가 요청 문맥과 일치하는지 검증한다. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean verifyAccountRecoveryOtp(
+            UUID challengeId,
+            String normalizedEmail,
+            String code
+    ) {
+        return verify(
+                challengeId,
+                normalizedEmail,
+                EmailVerificationPurpose.ACCOUNT_RECOVERY,
+                code
+        );
+    }
+
     /** Challenge를 잠그고 이메일·목적·코드·유효성을 검증한다. */
     private boolean verify(
             UUID challengeId,
