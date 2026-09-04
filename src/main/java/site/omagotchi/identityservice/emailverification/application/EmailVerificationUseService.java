@@ -22,6 +22,7 @@ public class EmailVerificationUseService {
     private final EmailVerificationProperties properties;
     private final Clock clock;
 
+    // 인증 실패 횟수와 가입·복구 결과를 함께 확정하는 호출자 트랜잭션 참여
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean verify(
             UUID challengeId,
@@ -54,6 +55,7 @@ public class EmailVerificationUseService {
         return true;
     }
 
+    // 계정 생성·복구와 인증 사용 처리를 함께 확정하는 호출자 트랜잭션 참여
     @Transactional(propagation = Propagation.MANDATORY)
     public void consume(UUID challengeId) {
         EmailVerificationChallenge challenge = repository.lockChallenge(challengeId)

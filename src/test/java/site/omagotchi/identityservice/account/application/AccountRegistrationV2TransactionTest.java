@@ -6,10 +6,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import site.omagotchi.identityservice.account.application.result.AccountRegistrationAttempt;
+import site.omagotchi.identityservice.account.application.result.AccountRegistrationResult;
+import site.omagotchi.identityservice.account.application.port.AccountRepository;
 import site.omagotchi.identityservice.account.domain.Account;
+import site.omagotchi.identityservice.emailverification.application.AccountRecoveryEmailOtpService;
 import site.omagotchi.identityservice.emailverification.application.SignupEmailOtpService;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.BDDAssertions.then;
@@ -27,7 +33,17 @@ class AccountRegistrationV2TransactionTest {
     @Mock
     private AccountRegistrationService registrationService;
     @Mock
+    private AccountLifecycleService accountLifecycleService;
+    @Mock
     private SignupEmailOtpService emailOtpService;
+    @Mock
+    private AccountRecoveryEmailOtpService recoveryEmailOtpService;
+    @Mock
+    private AccountRepository accountRepository;
+    @Mock
+    private AccountRecoveryPolicy recoveryPolicy;
+    @Mock
+    private AccountStatusChangeAuditRecorder accountStatusChangeAuditRecorder;
 
     private AccountRegistrationV2Transaction transaction;
 
@@ -35,7 +51,13 @@ class AccountRegistrationV2TransactionTest {
     void setUp() {
         transaction = new AccountRegistrationV2Transaction(
                 registrationService,
-                emailOtpService
+                accountLifecycleService,
+                accountRepository,
+                emailOtpService,
+                recoveryEmailOtpService,
+                recoveryPolicy,
+                accountStatusChangeAuditRecorder,
+                Clock.fixed(Instant.parse("2026-09-03T00:00:00Z"), ZoneOffset.UTC)
         );
     }
 
@@ -44,6 +66,8 @@ class AccountRegistrationV2TransactionTest {
     void returnsFailureWithoutRegistration() {
         // Given
         UUID challengeId = CHALLENGE_ID;
+        given(accountRepository.lockByEmail("member@example.com"))
+                .willReturn(Optional.empty());
         given(emailOtpService.verify(
                 challengeId,
                 "member@example.com",
@@ -51,7 +75,7 @@ class AccountRegistrationV2TransactionTest {
         )).willReturn(false);
 
         // When
-        AccountRegistrationAttempt attempt = transaction.signUp(
+        Optional<AccountRegistrationResult> result = transaction.signUp(
                 " Member@Example.com ",
                 "long-enough-password",
                 "member",
@@ -60,7 +84,7 @@ class AccountRegistrationV2TransactionTest {
         );
 
         // Then
-        then(attempt.emailVerified()).isFalse();
+        then(result).isEmpty();
         verify(registrationService).validateRegistrationInput(
                 " Member@Example.com ", "long-enough-password", "member"
         );
@@ -75,8 +99,13 @@ class AccountRegistrationV2TransactionTest {
     void registersAndConsumesChallenge() {
         // Given
         UUID challengeId = CHALLENGE_ID;
+        given(accountRepository.lockByEmail("member@example.com"))
+                .willReturn(Optional.empty());
         Account account = Account.register(
-                "member@example.com", "password-hash", "member"
+                "member@example.com",
+                "password-hash",
+                "member",
+                Instant.EPOCH
         );
         given(emailOtpService.verify(
                 challengeId,
@@ -88,16 +117,17 @@ class AccountRegistrationV2TransactionTest {
         )).willReturn(account);
 
         // When
-        AccountRegistrationAttempt attempt = transaction.signUp(
+        AccountRegistrationResult result = transaction.signUp(
                 "member@example.com",
                 "long-enough-password",
                 "member",
                 challengeId,
                 "123456"
-        );
+        ).orElseThrow();
 
         // Then
-        then(attempt.account()).isSameAs(account);
+        then(result.account()).isSameAs(account);
+        then(result.outcome()).isEqualTo(AccountRegistrationResult.Outcome.CREATED);
         verify(emailOtpService).consume(challengeId);
     }
 }

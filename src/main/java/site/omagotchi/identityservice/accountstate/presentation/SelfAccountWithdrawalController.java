@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import site.omagotchi.identityservice.accountstate.application.SelfAccountWithdrawalService;
 import site.omagotchi.identityservice.accountstate.presentation.request.SelfAccountWithdrawalRequest;
+import site.omagotchi.identityservice.accountstate.presentation.response.SelfAccountWithdrawalResponse;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -24,16 +25,18 @@ public class SelfAccountWithdrawalController {
     private final SelfAccountWithdrawalService selfAccountWithdrawalService;
 
     @DeleteMapping
-    public ResponseEntity<Void> withdraw(
+    public ResponseEntity<SelfAccountWithdrawalResponse> withdraw(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody SelfAccountWithdrawalRequest request
     ) {
-        selfAccountWithdrawalService.withdraw(
-                UUID.fromString(Objects.requireNonNull(jwt.getSubject())),
-                request.currentPassword()
+        SelfAccountWithdrawalResponse response = new SelfAccountWithdrawalResponse(
+                selfAccountWithdrawalService.withdraw(
+                        UUID.fromString(Objects.requireNonNull(jwt.getSubject())),
+                        request.currentPassword()
+                )
         );
-        return ResponseEntity.noContent()
+        return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
-                .build();
+                .body(response);
     }
 }
