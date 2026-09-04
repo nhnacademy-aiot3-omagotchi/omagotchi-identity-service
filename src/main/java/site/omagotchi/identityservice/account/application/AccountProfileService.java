@@ -25,7 +25,7 @@ public class AccountProfileService {
         Account account = accountRepository.lockById(accountId)
                 .orElseThrow(() -> new BusinessException(AccountErrorCode.NOT_FOUND));
 
-        if (!account.isNameChangeAllowed()) {
+        if (!account.isManagementAllowed()) {
             throw new BusinessException(AccountErrorCode.NAME_CHANGE_NOT_ALLOWED);
         }
         account.changeName(newName);

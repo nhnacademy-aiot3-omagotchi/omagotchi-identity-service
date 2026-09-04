@@ -4,6 +4,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import site.omagotchi.identityservice.emailverification.application.port.EmailVerificationMailSender;
@@ -67,18 +69,18 @@ class EmailVerificationIssueServiceTest {
                 "123456",
                 NOW.plusSeconds(300)
         );
-        given(issuanceTransaction.prepare(EMAIL, EmailVerificationPurpose.SIGNUP))
-                .willReturn(prepared);
     }
 
-    @Test
-    @DisplayName("DB Commit 뒤 동기 메일 전송과 ACCEPTED 상태 기록")
-    void sendsAndMarksAccepted() {
+    @ParameterizedTest
+    @EnumSource(EmailVerificationPurpose.class)
+    @DisplayName("목적별 공개 발급 메서드가 DB Commit 뒤 메일 전송과 ACCEPTED 상태를 기록")
+    void sendsAndMarksAccepted(EmailVerificationPurpose purpose) {
         // Given
+        givenPrepared(purpose);
         given(deliveryTransaction.markAccepted(prepared)).willReturn(true);
 
         // When
-        IssuedEmailVerification issued = service.issue(EMAIL, EmailVerificationPurpose.SIGNUP);
+        IssuedEmailVerification issued = issueForPurpose(purpose);
 
         // Then
         then(issued.challengeId()).isEqualTo(prepared.challengeId());
@@ -93,6 +95,7 @@ class EmailVerificationIssueServiceTest {
     @DisplayName("메일 실패 시 FAILED 상태와 쿨다운 보상 후 503 예외")
     void compensatesDeliveryFailure() {
         // Given
+        givenPrepared(EmailVerificationPurpose.SIGNUP);
         EmailDeliveryException deliveryFailure = new EmailDeliveryException(
                 "delivery failed",
                 new IllegalStateException("provider unavailable")
@@ -103,7 +106,7 @@ class EmailVerificationIssueServiceTest {
 
         // When
         // Then
-        thenThrownBy(() -> service.issue(EMAIL, EmailVerificationPurpose.SIGNUP))
+        thenThrownBy(() -> service.issueSignupOtp(EMAIL))
                 .isInstanceOfSatisfying(
                         DependencyUnavailableException.class,
                         exception -> then(exception.getErrorCode())
@@ -116,6 +119,7 @@ class EmailVerificationIssueServiceTest {
     @DisplayName("Provider 429는 기존 쿨다운을 유지하고 남은 시간을 응답")
     void keepsCooldownAfterProviderRateLimit() {
         // Given
+        givenPrepared(EmailVerificationPurpose.SIGNUP);
         EmailDeliveryException deliveryFailure = EmailDeliveryException.rateLimited(
                 "provider rate limited",
                 new IllegalStateException("provider unavailable")
@@ -127,7 +131,7 @@ class EmailVerificationIssueServiceTest {
 
         // When
         // Then
-        thenThrownBy(() -> service.issue(EMAIL, EmailVerificationPurpose.SIGNUP))
+        thenThrownBy(() -> service.issueSignupOtp(EMAIL))
                 .isInstanceOfSatisfying(
                         EmailVerificationCooldownException.class,
                         exception -> then(exception.retryAfterSeconds()).isEqualTo(42)
@@ -140,11 +144,12 @@ class EmailVerificationIssueServiceTest {
     @DisplayName("메일 접수 후 상태 기록 실패여도 PENDING Challenge와 202 결과 유지")
     void keepsAcceptedResultWhenStatusRecordFails() {
         // Given
+        givenPrepared(EmailVerificationPurpose.SIGNUP);
         willThrow(new IllegalStateException("database unavailable"))
                 .given(deliveryTransaction).markAccepted(prepared);
 
         // When
-        IssuedEmailVerification issued = service.issue(EMAIL, EmailVerificationPurpose.SIGNUP);
+        IssuedEmailVerification issued = service.issueSignupOtp(EMAIL);
 
         // Then
         then(issued.challengeId()).isEqualTo(prepared.challengeId());
@@ -154,11 +159,12 @@ class EmailVerificationIssueServiceTest {
     @DisplayName("메일 응답 중 대체된 Challenge는 409 예외")
     void rejectsSupersededChallengeAfterDelivery() {
         // Given
+        givenPrepared(EmailVerificationPurpose.SIGNUP);
         given(deliveryTransaction.markAccepted(prepared)).willReturn(false);
 
         // When
         // Then
-        thenThrownBy(() -> service.issue(EMAIL, EmailVerificationPurpose.SIGNUP))
+        thenThrownBy(() -> service.issueSignupOtp(EMAIL))
                 .isInstanceOfSatisfying(
                         BusinessException.class,
                         exception -> then(exception.getErrorCode())
@@ -170,6 +176,7 @@ class EmailVerificationIssueServiceTest {
     @DisplayName("메일 처리 중 Challenge가 만료되면 쿨다운 해제 후 503 응답")
     void rejectsExpiredChallengeAfterDelivery() {
         // Given
+        givenPrepared(EmailVerificationPurpose.SIGNUP);
         given(deliveryTransaction.markAccepted(prepared)).willReturn(true);
         EmailVerificationProperties properties = new EmailVerificationProperties(
                 Duration.ofMinutes(5),
@@ -187,7 +194,7 @@ class EmailVerificationIssueServiceTest {
 
         // When
         // Then
-        thenThrownBy(() -> service.issue(EMAIL, EmailVerificationPurpose.SIGNUP))
+        thenThrownBy(() -> service.issueSignupOtp(EMAIL))
                 .isInstanceOfSatisfying(
                         DependencyUnavailableException.class,
                         exception -> then(exception.getErrorCode())
@@ -195,5 +202,24 @@ class EmailVerificationIssueServiceTest {
                 );
         verify(deliveryTransaction).markAccepted(prepared);
         verify(deliveryTransaction).releaseCooldown(prepared);
+    }
+
+    private void givenPrepared(EmailVerificationPurpose purpose) {
+        prepared = new PreparedEmailVerification(
+                CHALLENGE_ID,
+                EMAIL,
+                purpose,
+                "123456",
+                NOW.plusSeconds(300)
+        );
+        given(issuanceTransaction.prepare(EMAIL, purpose)).willReturn(prepared);
+    }
+
+    private IssuedEmailVerification issueForPurpose(EmailVerificationPurpose purpose) {
+        return switch (purpose) {
+            case SIGNUP -> service.issueSignupOtp(EMAIL);
+            case PASSWORD_CHANGE -> service.issuePasswordChangeOtp(EMAIL);
+            case PASSWORD_RESET -> service.issuePasswordResetOtp(EMAIL);
+        };
     }
 }

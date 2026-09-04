@@ -13,5 +13,17 @@ public enum AccountStatus {
     DISABLED,
 
     // 사용자에 의한 탈퇴 상태
-    WITHDRAWN
+    WITHDRAWN;
+
+    public boolean isLoginAllowed() {
+        return this == ACTIVE;
+    }
+
+    public boolean isManagementAllowed() {
+        return this == ACTIVE || this == LOCKED;
+    }
+
+    public boolean isActivationAllowed() {
+        return this != WITHDRAWN;
+    }
 }

@@ -45,7 +45,7 @@ public class AccountLifecycleService {
                     AccountStatusTransition.unchanged(AccountStatus.WITHDRAWN)
             );
         }
-        if (!account.isWithdrawalAllowed()) {
+        if (!account.isManagementAllowed()) {
             throw new BusinessException(AccountErrorCode.WITHDRAWAL_NOT_ALLOWED);
         }
         if (!passwordHasher.matches(
@@ -88,7 +88,7 @@ public class AccountLifecycleService {
         if (actor.getId().equals(target.getId())) {
             throw new BusinessException(AccountErrorCode.SELF_DISABLE_NOT_ALLOWED);
         }
-        if (!target.isDisableAllowed()) {
+        if (!target.isManagementAllowed()) {
             throw new BusinessException(AccountErrorCode.STATUS_TRANSITION_NOT_ALLOWED);
         }
 
@@ -157,7 +157,7 @@ public class AccountLifecycleService {
         if (actor.getId().equals(target.getId())) {
             throw new BusinessException(AccountErrorCode.SELF_ROLE_CHANGE_NOT_ALLOWED);
         }
-        if (!target.isGlobalRoleChangeAllowed()) {
+        if (!target.isManagementAllowed()) {
             throw new BusinessException(AccountErrorCode.ROLE_CHANGE_NOT_ALLOWED);
         }
 

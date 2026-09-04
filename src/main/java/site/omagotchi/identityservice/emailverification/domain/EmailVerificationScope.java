@@ -10,7 +10,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
@@ -35,9 +34,6 @@ public class EmailVerificationScope {
     @Column(name = "active_challenge_id")
     private UUID activeChallengeId;
 
-    @Column(name = "next_issue_at", nullable = false)
-    private Instant nextIssueAt;
-
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -54,7 +50,6 @@ public class EmailVerificationScope {
         this.email = Objects.requireNonNull(email, "email");
         this.purpose = Objects.requireNonNull(purpose, "purpose");
         Instant normalizedCreatedAt = Objects.requireNonNull(createdAt, "createdAt").truncatedTo(ChronoUnit.MICROS);
-        this.nextIssueAt = normalizedCreatedAt;
         this.createdAt = normalizedCreatedAt;
         this.updatedAt = normalizedCreatedAt;
     }
@@ -68,47 +63,13 @@ public class EmailVerificationScope {
         return new EmailVerificationScope(id, email, purpose, createdAt);
     }
 
-    public boolean canIssueAt(Instant now) {
-        Instant checkedAt = Objects.requireNonNull(now, "now").truncatedTo(ChronoUnit.MICROS);
-        return !checkedAt.isBefore(nextIssueAt);
-    }
-
-    public long retryAfterSecondsAt(Instant now) {
-        Instant checkedAt = Objects.requireNonNull(now, "now").truncatedTo(ChronoUnit.MICROS);
-        if (canIssueAt(checkedAt)) {
-            return 0;
-        }
-
-        long remainingMillis = Duration.between(checkedAt, nextIssueAt).toMillis();
-        return Math.max(1, (remainingMillis + 999) / 1_000);
-    }
-
-    public void startChallenge(UUID challengeId, Instant now, Duration cooldown) {
+    public void startChallenge(UUID challengeId, Instant now) {
         Instant startedAt = Objects.requireNonNull(now, "now").truncatedTo(ChronoUnit.MICROS);
-        Duration requiredCooldown = Objects.requireNonNull(cooldown, "cooldown");
-        if (!canIssueAt(startedAt)) {
-            throw new IllegalStateException("쿨다운 중에는 새 이메일 인증을 시작할 수 없습니다.");
-        }
-        if (requiredCooldown.isZero() || requiredCooldown.isNegative()) {
-            throw new IllegalArgumentException("이메일 인증 쿨다운은 0보다 커야 합니다.");
-        }
-
         activeChallengeId = Objects.requireNonNull(challengeId, "challengeId");
-        nextIssueAt = startedAt.plus(requiredCooldown);
         updatedAt = startedAt;
     }
 
     public boolean isCurrentChallenge(UUID challengeId) {
         return Objects.equals(activeChallengeId, challengeId);
-    }
-
-    public void releaseCooldownForCurrentChallenge(UUID challengeId, Instant now) {
-        if (!isCurrentChallenge(Objects.requireNonNull(challengeId, "challengeId"))) {
-            return;
-        }
-
-        Instant releasedAt = Objects.requireNonNull(now, "now").truncatedTo(ChronoUnit.MICROS);
-        nextIssueAt = releasedAt;
-        updatedAt = releasedAt;
     }
 }

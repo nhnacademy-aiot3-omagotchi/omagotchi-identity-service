@@ -8,7 +8,7 @@ import site.omagotchi.identityservice.account.application.result.SignupEmailOtpR
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.domain.EmailPolicy;
 import site.omagotchi.identityservice.emailverification.application.EmailVerificationErrorCode;
-import site.omagotchi.identityservice.emailverification.application.SignupEmailOtpService;
+import site.omagotchi.identityservice.emailverification.application.EmailVerificationIssueService;
 import site.omagotchi.identityservice.emailverification.application.result.IssuedEmailVerification;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
@@ -21,7 +21,7 @@ public class AccountRegistrationV2Service {
     private final AccountRegistrationV2Transaction transaction;
     private final AccountRegistrationService accountRegistrationService;
     private final AccountRepository accountRepository;
-    private final SignupEmailOtpService emailOtpService;
+    private final EmailVerificationIssueService emailVerificationIssueService;
 
     public SignupEmailOtpResult issueEmailOtp(
             String email,
@@ -33,7 +33,9 @@ public class AccountRegistrationV2Service {
         if (accountRepository.findByEmail(normalizedEmail).isPresent()) {
             throw new BusinessException(AccountErrorCode.DUPLICATE_EMAIL);
         }
-        IssuedEmailVerification issued = emailOtpService.issue(normalizedEmail);
+        IssuedEmailVerification issued = emailVerificationIssueService.issueSignupOtp(
+                normalizedEmail
+        );
         return new SignupEmailOtpResult(issued.challengeId(), issued.expiresInSeconds());
     }
 

@@ -24,7 +24,7 @@ class IdentityServiceApplicationIT {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("PostgreSQL 18.1 Flyway V1·V2·V3·V4·V5")
+    @DisplayName("PostgreSQL 18.1 Flyway V1·V2·V3·V4·V5·V6·V7·V8")
     void appliesMigrationsOnProjectPostgreSqlVersion() {
         // Given
         String expectedVersionPrefix = "18.1";
@@ -34,6 +34,8 @@ class IdentityServiceApplicationIT {
                 "identity_service.account_status_change_audits";
         String expectedSystemAdministratorGuardsTable =
                 "identity_service.system_administrator_guards";
+        String expectedEmailDeliveryCooldownsTable =
+                "identity_service.email_delivery_cooldowns";
 
         // When
         String serverVersion = jdbcTemplate.queryForObject(
@@ -54,6 +56,10 @@ class IdentityServiceApplicationIT {
         );
         String systemAdministratorGuardsTable = jdbcTemplate.queryForObject(
                 "SELECT to_regclass('identity_service.system_administrator_guards')::text",
+                String.class
+        );
+        String emailDeliveryCooldownsTable = jdbcTemplate.queryForObject(
+                "SELECT to_regclass('identity_service.email_delivery_cooldowns')::text",
                 String.class
         );
         Integer systemAdministratorGuardCount = jdbcTemplate.queryForObject(
@@ -120,6 +126,18 @@ class IdentityServiceApplicationIT {
                   AND tablename = 'accounts'
                   AND indexname = 'idx_accounts_usable_system_admin'
                 """, String.class);
+        String emailVerificationScopePurposeConstraint = jdbcTemplate.queryForObject("""
+                SELECT pg_get_constraintdef(oid)
+                FROM pg_constraint
+                WHERE conname = 'ck_email_verification_scopes_purpose'
+                  AND conrelid = 'identity_service.email_verification_scopes'::regclass
+                """, String.class);
+        String emailVerificationChallengePurposeConstraint = jdbcTemplate.queryForObject("""
+                SELECT pg_get_constraintdef(oid)
+                FROM pg_constraint
+                WHERE conname = 'ck_email_verification_challenges_purpose'
+                  AND conrelid = 'identity_service.email_verification_challenges'::regclass
+                """, String.class);
         List<String> migrationVersions = jdbcTemplate.queryForList("""
                 SELECT version
                 FROM identity_service.flyway_schema_history
@@ -137,6 +155,8 @@ class IdentityServiceApplicationIT {
                     .isEqualTo(expectedAccountStatusAuditsTable);
             softly.then(systemAdministratorGuardsTable)
                     .isEqualTo(expectedSystemAdministratorGuardsTable);
+            softly.then(emailDeliveryCooldownsTable)
+                    .isEqualTo(expectedEmailDeliveryCooldownsTable);
             softly.then(systemAdministratorGuardCount).isEqualTo(1);
             softly.then(systemAdministratorGuardId).isEqualTo(1);
             softly.then(accountIdType).isEqualTo("uuid");
@@ -156,7 +176,12 @@ class IdentityServiceApplicationIT {
             );
             softly.then(usableAdministratorIndex)
                     .contains("global_role", "SYSTEM_ADMIN", "ACTIVE", "LOCKED");
-            softly.then(migrationVersions).containsExactly("1", "2", "3", "4", "5", "6", "7");
+            softly.then(emailVerificationScopePurposeConstraint)
+                    .contains("SIGNUP", "PASSWORD_CHANGE", "PASSWORD_RESET");
+            softly.then(emailVerificationChallengePurposeConstraint)
+                    .contains("SIGNUP", "PASSWORD_CHANGE", "PASSWORD_RESET");
+            softly.then(migrationVersions)
+                    .containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
         });
     }
 }
