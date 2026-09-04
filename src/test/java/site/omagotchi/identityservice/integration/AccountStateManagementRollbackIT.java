@@ -19,9 +19,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.domain.GlobalRole;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
-import site.omagotchi.identityservice.accountstate.application.port.AccountStatusChangeAuditRepository;
-import site.omagotchi.identityservice.accountstate.domain.AccountStatusChangeAudit;
-import site.omagotchi.identityservice.accountstate.infrastructure.AccountStatusChangeAuditJpaRepository;
+import site.omagotchi.identityservice.account.application.port.AccountStatusChangeAuditRepository;
+import site.omagotchi.identityservice.account.domain.AccountStatusChangeAudit;
+import site.omagotchi.identityservice.account.infrastructure.AccountStatusChangeAuditJpaRepository;
 import site.omagotchi.identityservice.auth.application.port.RefreshTokenRepository;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
@@ -135,7 +135,7 @@ class AccountStateManagementRollbackIT {
         // When: 실패 조건 해제 후 탈퇴 재요청
         failingRefreshTokenRepository.reset();
         api.withdraw(login.accessToken(), PASSWORD)
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
 
         // Then: 롤백 후 보호 행 잠금 해제
         thenSoftly(softly -> {
@@ -143,7 +143,7 @@ class AccountStateManagementRollbackIT {
                     .isEqualTo(AccountStatus.WITHDRAWN);
             softly.then(accountJpaRepository.findById(remainingAdministratorId)
                             .orElseThrow()
-                            .isUsableSystemAdministrator())
+                            .isActiveSystemAdministrator())
                     .isTrue();
         });
     }

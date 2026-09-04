@@ -19,7 +19,7 @@ import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepositor
 import site.omagotchi.identityservice.accountstate.application.AdminAccountStatus;
 import site.omagotchi.identityservice.accountstate.application.AdminAccountStatusChangeService;
 import site.omagotchi.identityservice.accountstate.application.SelfAccountWithdrawalService;
-import site.omagotchi.identityservice.accountstate.infrastructure.AccountStatusChangeAuditJpaRepository;
+import site.omagotchi.identityservice.account.infrastructure.AccountStatusChangeAuditJpaRepository;
 import site.omagotchi.identityservice.auth.application.AuthErrorCode;
 import site.omagotchi.identityservice.auth.application.AuthenticationService;
 import site.omagotchi.identityservice.auth.application.result.TokenIssueResult;
@@ -211,7 +211,8 @@ class AccountStateManagementConcurrencyIT {
                                     .isEqualTo(AccountErrorCode.LAST_SYSTEM_ADMIN)
                     );
             softly.then(usableAdministratorCount()).isEqualTo(1);
-            softly.then(auditJpaRepository.count()).isZero();
+            // 성공한 한 건의 탈퇴만 감사로 남고, 마지막 관리자 거절은 기록하지 않는다.
+            softly.then(auditJpaRepository.count()).isEqualTo(1);
             softly.then(refreshTokenJpaRepository.findAll()).hasSize(2);
             softly.then(refreshTokenJpaRepository.findAll())
                     .filteredOn(token -> token.isRevoked())
@@ -387,7 +388,7 @@ class AccountStateManagementConcurrencyIT {
                         SELECT COUNT(*)
                         FROM identity_service.accounts
                         WHERE global_role = 'SYSTEM_ADMIN'
-                          AND status IN ('ACTIVE', 'LOCKED')
+                          AND status = 'ACTIVE'
                         """,
                 Long.class
         );

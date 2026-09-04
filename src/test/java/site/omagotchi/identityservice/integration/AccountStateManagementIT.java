@@ -18,9 +18,9 @@ import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.domain.GlobalRole;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
-import site.omagotchi.identityservice.accountstate.domain.AccountStatusChangeAction;
-import site.omagotchi.identityservice.accountstate.domain.AccountStatusChangeAudit;
-import site.omagotchi.identityservice.accountstate.infrastructure.AccountStatusChangeAuditJpaRepository;
+import site.omagotchi.identityservice.account.domain.AccountStatusChangeAction;
+import site.omagotchi.identityservice.account.domain.AccountStatusChangeAudit;
+import site.omagotchi.identityservice.account.infrastructure.AccountStatusChangeAuditJpaRepository;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
@@ -96,7 +96,8 @@ class AccountStateManagementIT {
         // When
         api.withdraw(firstLogin.accessToken(), PASSWORD)
                 .andExpectAll(
-                        status().isNoContent(),
+                        status().isOk(),
+                        jsonPath("$.recoveryDeadline").isNotEmpty(),
                         header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store"))
                 );
 
@@ -105,13 +106,15 @@ class AccountStateManagementIT {
         List<RefreshToken> tokens = tokensFor(accountId);
         thenSoftly(softly -> {
             softly.then(withdrawn.getStatus()).isEqualTo(AccountStatus.WITHDRAWN);
-            softly.then(withdrawn.getWithdrawnAt()).isNotNull();
+            softly.then(withdrawn.getStatusChangedAt()).isNotNull();
             softly.then(tokens).hasSize(2).allSatisfy(token -> {
                 softly.then(token.isRevoked()).isTrue();
                 softly.then(token.getRevocationReason())
                         .isEqualTo(RefreshTokenRevocationReason.ACCOUNT_WITHDRAWN);
             });
-            softly.then(auditJpaRepository.count()).isZero();
+            softly.then(auditJpaRepository.count()).isEqualTo(1);
+            softly.then(auditJpaRepository.findAll().getFirst().getAction())
+                    .isEqualTo(AccountStatusChangeAction.ACCOUNT_WITHDRAWN);
         });
         api.me(firstLogin.accessToken())
                 .andExpectAll(
@@ -143,7 +146,7 @@ class AccountStateManagementIT {
         Account account = accountJpaRepository.findById(accountId).orElseThrow();
         thenSoftly(softly -> {
             softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
-            softly.then(account.getWithdrawnAt()).isNull();
+            softly.then(account.getStatusChangedAt()).isEqualTo(account.getCreatedAt());
             softly.then(tokensFor(accountId)).hasSize(1).allSatisfy(token ->
                     softly.then(token.isRevoked()).isFalse()
             );
@@ -151,7 +154,7 @@ class AccountStateManagementIT {
     }
 
     @Test
-    @DisplayName("LOCKED 계정도 본인 탈퇴와 Refresh 폐기 허용")
+    @DisplayName("로그인 잠금 중인 ACTIVE 계정도 본인 탈퇴와 Refresh 폐기 허용")
     void withdrawsLockedAccount() throws Exception {
         // Given
         UUID accountId = api.signupSuccessfully("locked-withdrawal@example.com");
@@ -159,10 +162,10 @@ class AccountStateManagementIT {
                 "locked-withdrawal@example.com",
                 PASSWORD
         );
-        fixture.changeStatus(accountId, AccountStatus.LOCKED);
+        fixture.lockLogin(accountId);
 
         // When
-        api.withdraw(login.accessToken(), PASSWORD).andExpect(status().isNoContent());
+        api.withdraw(login.accessToken(), PASSWORD).andExpect(status().isOk());
 
         // Then
         Account withdrawn = accountJpaRepository.findById(accountId).orElseThrow();
@@ -209,7 +212,7 @@ class AccountStateManagementIT {
     }
 
     @Test
-    @DisplayName("이미 탈퇴한 계정의 재요청은 부수효과 없는 204")
+    @DisplayName("이미 탈퇴한 계정의 재요청은 최초 복구 기한을 반환하는 No-op")
     void treatsRepeatedWithdrawalAsNoOp() throws Exception {
         // Given
         UUID accountId = api.signupSuccessfully("repeat-withdrawal@example.com");
@@ -217,19 +220,19 @@ class AccountStateManagementIT {
                 "repeat-withdrawal@example.com",
                 PASSWORD
         );
-        api.withdraw(login.accessToken(), PASSWORD).andExpect(status().isNoContent());
+        api.withdraw(login.accessToken(), PASSWORD).andExpect(status().isOk());
         Account firstState = accountJpaRepository.findById(accountId).orElseThrow();
-        Instant firstWithdrawnAt = firstState.getWithdrawnAt();
+        Instant firstWithdrawnAt = firstState.getStatusChangedAt();
         Instant firstRevokedAt = tokensFor(accountId).getFirst().getRevokedAt();
 
         // When
-        api.withdraw(login.accessToken(), PASSWORD).andExpect(status().isNoContent());
+        api.withdraw(login.accessToken(), PASSWORD).andExpect(status().isOk());
 
         // Then
         Account repeatedState = accountJpaRepository.findById(accountId).orElseThrow();
         RefreshToken repeatedToken = tokensFor(accountId).getFirst();
         thenSoftly(softly -> {
-            softly.then(repeatedState.getWithdrawnAt()).isEqualTo(firstWithdrawnAt);
+            softly.then(repeatedState.getStatusChangedAt()).isEqualTo(firstWithdrawnAt);
             softly.then(repeatedToken.getRevokedAt()).isEqualTo(firstRevokedAt);
             softly.then(repeatedToken.getRevocationReason())
                     .isEqualTo(RefreshTokenRevocationReason.ACCOUNT_WITHDRAWN);
@@ -276,8 +279,6 @@ class AccountStateManagementIT {
             softly.then(audit.getTargetUserId()).isEqualTo(targetId);
             softly.then(audit.getAction())
                     .isEqualTo(AccountStatusChangeAction.ACCOUNT_DISABLED);
-            softly.then(audit.getBeforeStatus().name()).isEqualTo("ACTIVE");
-            softly.then(audit.getAfterStatus().name()).isEqualTo("DISABLED");
             softly.then(audit.getReason()).isEqualTo("보안 사고 대응");
             softly.then(audit.getRequestId()).isNull();
         });
@@ -289,7 +290,7 @@ class AccountStateManagementIT {
     }
 
     @Test
-    @DisplayName("잠금 해제는 Refresh를 유지하고 ACCOUNT_UNLOCKED 감사 기록")
+    @DisplayName("잠금 해제는 Refresh를 유지하고 LOGIN_LOCK_RELEASED 감사 기록")
     void unlocksAccountWithoutRevokingRefreshSession() throws Exception {
         // Given
         AuthApiTestClient.TokenBundle administrator = createAdministrator(
@@ -297,13 +298,12 @@ class AccountStateManagementIT {
         );
         UUID targetId = api.signupSuccessfully("locked-target@example.com");
         api.loginSuccessfully("locked-target@example.com", PASSWORD);
-        fixture.changeStatus(targetId, AccountStatus.LOCKED);
+        fixture.lockLogin(targetId);
 
         // When
-        api.changeAccountStatus(
+        api.unlockLogin(
                         administrator.accessToken(),
                         targetId,
-                        "ACTIVE",
                         "본인 확인 완료"
                 )
                 .andExpect(status().isNoContent());
@@ -319,8 +319,32 @@ class AccountStateManagementIT {
                     softly.then(token.isRevoked()).isFalse()
             );
             softly.then(audit.getAction())
-                    .isEqualTo(AccountStatusChangeAction.ACCOUNT_UNLOCKED);
+                    .isEqualTo(AccountStatusChangeAction.LOGIN_LOCK_RELEASED);
         });
+    }
+
+    @Test
+    @DisplayName("공백 로그인 잠금 해제 사유는 요청 검증 오류로 거부")
+    void rejectsBlankLoginUnlockReason() throws Exception {
+        AuthApiTestClient.TokenBundle administrator = createAdministrator(
+                "blank-unlock-reason-admin@example.com"
+        );
+        UUID targetId = api.signupSuccessfully("blank-unlock-reason-target@example.com");
+        fixture.lockLogin(targetId);
+
+        ResultActions response = api.unlockLogin(
+                administrator.accessToken(),
+                targetId,
+                "   "
+        );
+
+        response.andExpectAll(
+                status().isBadRequest(),
+                jsonPath("$.code").value("COMMON_INVALID_REQUEST")
+        );
+        Account target = accountJpaRepository.findById(targetId).orElseThrow();
+        then(target.getLockedUntil()).isNotNull();
+        then(auditJpaRepository.count()).isZero();
     }
 
     @Test
@@ -640,7 +664,7 @@ class AccountStateManagementIT {
                 .andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.code")
-                                .value("ACCOUNT_STATUS_CHANGE_INVALID_REASON")
+                                .value("COMMON_INVALID_REQUEST")
                 );
         api.changeAccountStatus(
                         administrator.accessToken(),
@@ -651,7 +675,7 @@ class AccountStateManagementIT {
                 .andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.code")
-                                .value("ACCOUNT_STATUS_CHANGE_INVALID_REASON")
+                                .value("COMMON_INVALID_REQUEST")
                 );
         api.changeAccountStatus(
                         administrator.accessToken(),
@@ -662,7 +686,7 @@ class AccountStateManagementIT {
                 .andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.code")
-                                .value("ACCOUNT_STATUS_CHANGE_INVALID_REASON")
+                                .value("COMMON_INVALID_REQUEST")
                 );
 
         String acceptedReason = "나".repeat(500);
@@ -734,7 +758,7 @@ class AccountStateManagementIT {
     }
 
     @Test
-    @DisplayName("LOCKED 관리자도 이용 가능한 관리자로 계산해 다른 관리자 탈퇴 허용")
+    @DisplayName("로그인 잠금 중인 ACTIVE 관리자도 이용 가능한 관리자로 계산")
     void countsLockedAdministratorAsUsable() throws Exception {
         // Given
         AuthApiTestClient.TokenBundle withdrawingAdministrator = createAdministrator(
@@ -743,11 +767,11 @@ class AccountStateManagementIT {
         AuthApiTestClient.TokenBundle lockedAdministrator = createAdministrator(
                 "locked-admin@example.com"
         );
-        fixture.changeStatus(lockedAdministrator.userId(), AccountStatus.LOCKED);
+        fixture.lockLogin(lockedAdministrator.userId());
 
         // When
         api.withdraw(withdrawingAdministrator.accessToken(), PASSWORD)
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
 
         // Then
         thenSoftly(softly -> {
@@ -756,7 +780,7 @@ class AccountStateManagementIT {
                     .isEqualTo(AccountStatus.WITHDRAWN);
             softly.then(accountJpaRepository.findById(lockedAdministrator.userId())
                             .orElseThrow().getStatus())
-                    .isEqualTo(AccountStatus.LOCKED);
+                    .isEqualTo(AccountStatus.ACTIVE);
         });
     }
 
