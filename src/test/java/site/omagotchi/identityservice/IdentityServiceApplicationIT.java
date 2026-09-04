@@ -24,7 +24,7 @@ class IdentityServiceApplicationIT {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("PostgreSQL 18.1 Flyway V1·V2·V3·V4·V5·V6·V7·V8")
+    @DisplayName("PostgreSQL 18.1 Flyway V1·V2·V3·V4·V5·V6·V7·V8·V9")
     void appliesMigrationsOnProjectPostgreSqlVersion() {
         // Given
         String expectedVersionPrefix = "18.1";
@@ -138,6 +138,13 @@ class IdentityServiceApplicationIT {
                 WHERE conname = 'ck_email_verification_challenges_purpose'
                   AND conrelid = 'identity_service.email_verification_challenges'::regclass
                 """, String.class);
+        Integer legacyScopeCooldownColumnCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_schema = 'identity_service'
+                  AND table_name = 'email_verification_scopes'
+                  AND column_name = 'next_issue_at'
+                """, Integer.class);
         List<String> migrationVersions = jdbcTemplate.queryForList("""
                 SELECT version
                 FROM identity_service.flyway_schema_history
@@ -180,8 +187,9 @@ class IdentityServiceApplicationIT {
                     .contains("SIGNUP", "PASSWORD_CHANGE", "PASSWORD_RESET");
             softly.then(emailVerificationChallengePurposeConstraint)
                     .contains("SIGNUP", "PASSWORD_CHANGE", "PASSWORD_RESET");
+            softly.then(legacyScopeCooldownColumnCount).isZero();
             softly.then(migrationVersions)
-                    .containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
+                    .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
         });
     }
 }
