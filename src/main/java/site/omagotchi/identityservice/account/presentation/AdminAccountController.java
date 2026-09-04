@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import site.omagotchi.identityservice.account.application.AccountAdminQueryService;
 import site.omagotchi.identityservice.account.application.AccountErrorCode;
 import site.omagotchi.identityservice.account.application.AdminAccessGuard;
-import site.omagotchi.identityservice.account.application.port.AccountPage;
+import site.omagotchi.identityservice.account.application.result.AdminAccountPageResult;
 import site.omagotchi.identityservice.account.presentation.request.AdminAccountSearchRequest;
 import site.omagotchi.identityservice.account.presentation.response.AdminAccountPageResponse;
 import site.omagotchi.identityservice.global.exception.BusinessException;
@@ -25,7 +25,7 @@ import java.util.UUID;
  * 전역 운영 관리자의 사용자 목록 조회 경계
  *
  * 변경 API는 상태가 AdminAccountStatusController, 역할이 AdminAccountRoleController다.
- * SYSTEM_ADMIN 0명 방어 세 가지는 AccountLifecycleService에 들어가 있다.
+ * SYSTEM_ADMIN 0명 방어는 AccountAdministrationService와 AccountLifecycleService가 담당한다.
  *   1) 자기 자신의 role·status 변경 금지
  *   2) 마지막 이용 가능 SYSTEM_ADMIN의 강등·비활성 차단
  *   3) 서로를 동시에 강등하는 경합은 SystemAdministratorReductionGuard가
@@ -50,9 +50,10 @@ public class AdminAccountController {
 
         int page = request.pageOrDefault();
         int size = request.sizeOrDefault();
-        AccountPage accountPage = accountAdminQueryService.search(
+        AdminAccountPageResult accountPage = accountAdminQueryService.search(
                 request.query(),
                 request.status(),
+                request.locked(),
                 request.role(),
                 page,
                 size,

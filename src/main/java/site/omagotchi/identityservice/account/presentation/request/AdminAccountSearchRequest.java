@@ -22,6 +22,7 @@ public record AdminAccountSearchRequest(
         )
         String query,
         AccountStatus status,
+        Boolean locked,
         GlobalRole role,
         @Min(value = 0, message = "page는 0 이상이어야 합니다.")
         Integer page,

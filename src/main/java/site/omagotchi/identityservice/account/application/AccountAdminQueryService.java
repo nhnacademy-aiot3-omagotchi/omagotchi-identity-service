@@ -7,14 +7,18 @@ import site.omagotchi.identityservice.account.application.port.AccountPage;
 import site.omagotchi.identityservice.account.application.port.AccountRepository;
 import site.omagotchi.identityservice.account.application.port.AccountSearchCriteria;
 import site.omagotchi.identityservice.account.application.port.AccountSortOption;
+import site.omagotchi.identityservice.account.application.result.AdminAccountPageResult;
+import site.omagotchi.identityservice.account.application.result.AdminAccountResult;
 import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.domain.GlobalRole;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 import site.omagotchi.identityservice.global.exception.CommonErrorCode;
 
-/** 전역 운영 관리자의 계정 목록 조회 Use Case다. */
+import java.time.Clock;
+import java.time.Instant;
+
+/** 전역 운영 관리자를 위한 계정 목록 조회 유스케이스. */
 @Service
-@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class AccountAdminQueryService {
 
@@ -23,15 +27,19 @@ public class AccountAdminQueryService {
     public static final int KEYWORD_MAX_LENGTH = 100;
 
     private final AccountRepository accountRepository;
+    private final AccountRecoveryPolicy accountRecoveryPolicy;
+    private final Clock clock;
 
     /**
      * Bean Validation을 우회한 호출까지 막기 위해 Application 경계에서 상한을 다시 검증한다.
      *
      * @param keyword null이면 검색어 조건을 적용하지 않는다.
      */
-    public AccountPage search(
+    @Transactional(readOnly = true)
+    public AdminAccountPageResult search(
             String keyword,
             AccountStatus status,
+            Boolean locked,
             GlobalRole role,
             int page,
             int size,
@@ -44,11 +52,31 @@ public class AccountAdminQueryService {
         AccountSortOption resolvedSortOption =
                 sortOption == null ? AccountSortOption.CREATED_AT_DESC : sortOption;
 
-        return accountRepository.searchAccounts(
-                new AccountSearchCriteria(normalizeKeyword(keyword), status, role),
+        Instant checkedAt = clock.instant();
+        AccountPage accountPage = accountRepository.searchAccounts(
+                new AccountSearchCriteria(
+                        normalizeKeyword(keyword),
+                        status,
+                        locked,
+                        role,
+                        checkedAt
+                ),
                 page,
                 size,
                 resolvedSortOption
+        );
+
+        return new AdminAccountPageResult(
+                accountPage.content().stream()
+                        .map(account -> AdminAccountResult.from(
+                                account,
+                                checkedAt,
+                                account.getStatus() == AccountStatus.WITHDRAWN
+                                        ? accountRecoveryPolicy.recoveryDeadline(account)
+                                        : null
+                        ))
+                        .toList(),
+                accountPage.totalElements()
         );
     }
 
