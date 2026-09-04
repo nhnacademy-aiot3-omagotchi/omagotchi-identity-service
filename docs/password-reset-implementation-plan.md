@@ -146,7 +146,7 @@ OTP 발급 요청은 이메일을 받고, 성공 응답은 기존 v2 발급 응�
 
 - 변경:
   - `EmailVerificationPurpose.PASSWORD_RESET` 추가
-  - 기존 V5를 수정하지 않고 단일 V8 Migration에서 Scope·Challenge purpose CHECK 제약 갱신
+  - 기존 V5를 수정하지 않고 maintenance 단계의 V9 Migration에서 Scope·Challenge purpose CHECK 제약 갱신
 - 비변경: 발급 흐름, Controller, Account
 - 집중 검증:
   - Purpose 격리 Domain/Application 테스트
@@ -156,7 +156,9 @@ OTP 발급 요청은 이메일을 받고, 성공 응답은 기존 v2 발급 응�
 ### 단계 3. 이메일 전체 공유 쿨다운 저장 모델
 
 - 변경:
-  - 단일 V8 Migration에서 `email_delivery_cooldowns` 추가·기존 Scope 쿨다운 백필·이관
+  - V8 Migration에서 `email_delivery_cooldowns` 추가·기존 Scope 쿨다운 사전 백필
+  - OTP 트래픽을 중지한 maintenance 단계의 V9 Migration에서 최종 백필, purpose CHECK 갱신 후
+    기존 `next_issue_at` 제약·컬럼 제거
   - 공유 쿨다운 Domain, Repository port, JPA adapter 추가
   - 생성 후 잠금과 발송 예약 소유권 계약 추가
 - 비변경: 기존 발급 서비스 연결
@@ -165,7 +167,22 @@ OTP 발급 요청은 이메일을 받고, 성공 응답은 기존 v2 발급 응�
   - 다음 발급 시각 전 거절
   - 최초 동시 생성 직렬화
   - 용도별 Scope 독립성
+  - V9가 5초 안에 배타 잠금을 얻지 못하면 전체 Rollback하고 blocker 확인 후 재시도
 - 완료 조건: 사용자 승인.
+
+운영 적용 순서는 다음과 같다.
+
+1. 구버전 인스턴스를 유지한 채 `spring.flyway.target=8`로 V8까지만 사전 적용한다.
+2. OTP 트래픽을 차단하고 구버전 인스턴스의 진행 중 Transaction이 끝날 때까지 기다린다.
+3. V9를 적용하고 새 버전 인스턴스를 기동한 뒤 OTP 트래픽을 재개한다.
+
+V8과 V9 사이에는 구버전만 실행한다. 구버전은 Scope의 `next_issue_at`, 새 버전은
+`email_delivery_cooldowns`를 사용하므로 두 버전을 혼합 운영하면 공유 쿨다운이 서로 달라질 수 있다.
+Flyway target을 제한하지 않는 기본 기동은 V9까지 연속 적용하므로 처음부터 maintenance 단계에서 수행한다.
+
+V9 재시도 중에는 OTP 트래픽 중지 상태를 유지한다. 잠금 실패 시 5초, 15초 간격으로 최대 두 번
+다시 실행하며, 총 세 번 실패하면 배포를 중단하고 장기 Transaction과 `idle in transaction` 세션을
+확인한다. PostgreSQL Transaction Rollback이 확인되지 않은 상태에서 `flyway repair`를 실행하지 않는다.
 
 ### 단계 4. 기존 이메일 발급 흐름에 공유 쿨다운 연결
 

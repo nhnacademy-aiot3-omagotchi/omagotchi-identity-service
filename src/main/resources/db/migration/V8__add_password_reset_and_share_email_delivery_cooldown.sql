@@ -1,17 +1,3 @@
-ALTER TABLE identity_service.email_verification_scopes
-    DROP CONSTRAINT ck_email_verification_scopes_purpose;
-
-ALTER TABLE identity_service.email_verification_scopes
-    ADD CONSTRAINT ck_email_verification_scopes_purpose
-        CHECK (purpose IN ('SIGNUP', 'PASSWORD_CHANGE', 'PASSWORD_RESET'));
-
-ALTER TABLE identity_service.email_verification_challenges
-    DROP CONSTRAINT ck_email_verification_challenges_purpose;
-
-ALTER TABLE identity_service.email_verification_challenges
-    ADD CONSTRAINT ck_email_verification_challenges_purpose
-        CHECK (purpose IN ('SIGNUP', 'PASSWORD_CHANGE', 'PASSWORD_RESET'));
-
 CREATE TABLE identity_service.email_delivery_cooldowns (
     email VARCHAR(254) PRIMARY KEY,
     active_challenge_id UUID,
@@ -40,9 +26,3 @@ SELECT DISTINCT ON (email)
     updated_at
 FROM identity_service.email_verification_scopes
 ORDER BY email, next_issue_at DESC, updated_at DESC, id;
-
-ALTER TABLE identity_service.email_verification_scopes
-    DROP CONSTRAINT ck_email_verification_scopes_next_issue;
-
-ALTER TABLE identity_service.email_verification_scopes
-    DROP COLUMN next_issue_at;
