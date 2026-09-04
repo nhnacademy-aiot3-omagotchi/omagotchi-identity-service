@@ -4,13 +4,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import site.omagotchi.identityservice.account.domain.Account;
@@ -30,15 +26,9 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-@Import({TestcontainersConfig.class, TestJwtConfig.class})
-class LearningAccountSecurityIT {
+class LearningAccountSecurityIT extends BaseIntegrationTest {
 
     private static final String LEARNING_USERNAME = "learning-service";
     private static final String LEARNING_PASSWORD = "test-only-learning-identity-password";
@@ -80,8 +70,7 @@ class LearningAccountSecurityIT {
     @BeforeEach
     void setUp() {
         accountStateFixture = new AccountStateTestFixture(jdbcTemplate);
-        refreshTokenJpaRepository.deleteAll();
-        accountJpaRepository.deleteAll();
+        cleanDatabase();
     }
 
     @Test
@@ -221,17 +210,17 @@ class LearningAccountSecurityIT {
 
         // When
         ResultActions response = mockMvc.perform(
-                        post("/api/v1/internal/accounts/batch")
-                                .with(httpBasic(LEARNING_USERNAME, LEARNING_PASSWORD))
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"accountIds\":[" + accountIds + "]}")
-                );
+                post("/api/v1/internal/accounts/batch")
+                        .with(httpBasic(LEARNING_USERNAME, LEARNING_PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountIds\":[" + accountIds + "]}")
+        );
 
         // Then
         response.andExpectAll(
-                        status().isOk(),
-                        jsonPath("$").isArray()
-                );
+                status().isOk(),
+                jsonPath("$").isArray()
+        );
     }
 
     @Test
@@ -244,17 +233,17 @@ class LearningAccountSecurityIT {
 
         // When
         ResultActions response = mockMvc.perform(
-                        post("/api/v1/internal/accounts/batch")
-                                .with(httpBasic(LEARNING_USERNAME, LEARNING_PASSWORD))
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"accountIds\":[" + accountIds + "]}")
-                );
+                post("/api/v1/internal/accounts/batch")
+                        .with(httpBasic(LEARNING_USERNAME, LEARNING_PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountIds\":[" + accountIds + "]}")
+        );
 
         // Then
         response.andExpectAll(
-                        status().isBadRequest(),
-                        jsonPath("$.code").value("COMMON_INVALID_REQUEST")
-                );
+                status().isBadRequest(),
+                jsonPath("$.code").value("COMMON_INVALID_REQUEST")
+        );
     }
 
     @Test

@@ -5,13 +5,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import site.omagotchi.identityservice.account.domain.Account;
@@ -34,15 +30,9 @@ import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-@Import({TestcontainersConfig.class, TestJwtConfig.class})
-class AccountStateManagementIT {
+class AccountStateManagementIT extends BaseIntegrationTest {
 
     private static final String PASSWORD = "password-passphrase";
 
@@ -464,11 +454,11 @@ class AccountStateManagementIT {
 
         // When
         ResultActions response = api.changeAccountStatus(
-                        administrator.accessToken(),
-                        UUID.randomUUID(),
-                        "DISABLED",
-                        "존재하지 않는 대상"
-                );
+                administrator.accessToken(),
+                UUID.randomUUID(),
+                "DISABLED",
+                "존재하지 않는 대상"
+        );
 
         // Then
         response
@@ -491,11 +481,11 @@ class AccountStateManagementIT {
 
         // When
         ResultActions response = api.changeAccountStatus(
-                        administrator.accessToken(),
-                        targetId,
-                        "LOCKED",
-                        "허용하지 않는 목표 상태"
-                );
+                administrator.accessToken(),
+                targetId,
+                "LOCKED",
+                "허용하지 않는 목표 상태"
+        );
 
         // Then
         response
@@ -542,16 +532,16 @@ class AccountStateManagementIT {
 
         // When
         ResultActions response = mockMvc.perform(patch(
-                                "/api/v1/admin/accounts/{user-id}/status",
-                                targetId
-                        )
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "status": "DISABLED",
-                                  "reason": "권한 없는 요청"
-                                }
-                                """));
+                "/api/v1/admin/accounts/{user-id}/status",
+                targetId
+        )
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "status": "DISABLED",
+                          "reason": "권한 없는 요청"
+                        }
+                        """));
 
         // Then
         response
@@ -805,11 +795,5 @@ class AccountStateManagementIT {
                     .isEqualTo(AccountStatus.ACTIVE);
             softly.then(auditJpaRepository.count()).isZero();
         });
-    }
-
-    private void cleanDatabase() {
-        auditJpaRepository.deleteAll();
-        refreshTokenJpaRepository.deleteAll();
-        accountJpaRepository.deleteAll();
     }
 }

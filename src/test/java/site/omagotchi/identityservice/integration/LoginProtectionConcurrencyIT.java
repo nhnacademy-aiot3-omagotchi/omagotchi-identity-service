@@ -5,10 +5,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.domain.AccountStatus;
@@ -23,20 +19,12 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import static org.assertj.core.api.BDDAssertions.catchThrowable;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-@Import({TestcontainersConfig.class, TestJwtConfig.class})
-class LoginProtectionConcurrencyIT {
+class LoginProtectionConcurrencyIT extends BaseIntegrationTest {
 
     private static final int CONCURRENT_ATTEMPTS = 5;
     private static final Duration TEST_TIMEOUT = Duration.ofSeconds(10);
@@ -63,8 +51,7 @@ class LoginProtectionConcurrencyIT {
     @BeforeEach
     void setUp() {
         api = new AuthApiTestClient(mockMvc, objectMapper);
-        refreshTokenJpaRepository.deleteAll();
-        accountJpaRepository.deleteAll();
+        cleanDatabase();
     }
 
     @AfterEach

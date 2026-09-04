@@ -8,13 +8,9 @@ import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -31,33 +27,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-@Import({TestcontainersConfig.class, TestJwtConfig.class})
 @Execution(ExecutionMode.SAME_THREAD)
-class PasswordResetIT {
+class PasswordResetIT extends BaseIntegrationTest {
 
     private static final String CURRENT_PASSWORD = "password-passphrase";
     private static final String NEW_PASSWORD = "new-password-passphrase";
@@ -144,10 +128,10 @@ class PasswordResetIT {
 
         Map<String, Object> account = jdbcTemplate.queryForMap(
                 """
-                SELECT status, failed_login_attempts, locked_until
-                FROM identity_service.accounts
-                WHERE id = ?
-                """,
+                        SELECT status, failed_login_attempts, locked_until
+                        FROM identity_service.accounts
+                        WHERE id = ?
+                        """,
                 accountId
         );
         String challengeStatus = challengeStatus(issued.challengeId());
@@ -168,12 +152,12 @@ class PasswordResetIT {
         UUID accountId = authApi.signupSuccessfully(email);
         jdbcTemplate.update(
                 """
-                UPDATE identity_service.accounts
-                SET status = 'LOCKED',
-                    failed_login_attempts = 5,
-                    locked_until = CURRENT_TIMESTAMP + INTERVAL '10 minutes'
-                WHERE id = ?
-                """,
+                        UPDATE identity_service.accounts
+                        SET status = 'LOCKED',
+                            failed_login_attempts = 5,
+                            locked_until = CURRENT_TIMESTAMP + INTERVAL '10 minutes'
+                        WHERE id = ?
+                        """,
                 accountId
         );
         IssuedOtp issued = issuePasswordResetOtp(email);
@@ -185,10 +169,10 @@ class PasswordResetIT {
         // Then
         Map<String, Object> account = jdbcTemplate.queryForMap(
                 """
-                SELECT status, failed_login_attempts, locked_until
-                FROM identity_service.accounts
-                WHERE id = ?
-                """,
+                        SELECT status, failed_login_attempts, locked_until
+                        FROM identity_service.accounts
+                        WHERE id = ?
+                        """,
                 accountId
         );
         then(account)
@@ -280,10 +264,10 @@ class PasswordResetIT {
         // Then
         Integer failedAttempts = jdbcTemplate.queryForObject(
                 """
-                SELECT failed_attempts
-                FROM identity_service.email_verification_challenges
-                WHERE id = ?
-                """,
+                        SELECT failed_attempts
+                        FROM identity_service.email_verification_challenges
+                        WHERE id = ?
+                        """,
                 Integer.class,
                 issued.challengeId()
         );
@@ -453,10 +437,10 @@ class PasswordResetIT {
     private String challengeStatus(UUID challengeId) {
         return jdbcTemplate.queryForObject(
                 """
-                SELECT status
-                FROM identity_service.email_verification_challenges
-                WHERE id = ?
-                """,
+                        SELECT status
+                        FROM identity_service.email_verification_challenges
+                        WHERE id = ?
+                        """,
                 String.class,
                 challengeId
         );
@@ -471,11 +455,11 @@ class PasswordResetIT {
     private void deleteTestData(String email) {
         jdbcTemplate.update(
                 """
-                DELETE FROM identity_service.refresh_tokens
-                WHERE account_id IN (
-                    SELECT id FROM identity_service.accounts WHERE email = ?
-                )
-                """,
+                        DELETE FROM identity_service.refresh_tokens
+                        WHERE account_id IN (
+                            SELECT id FROM identity_service.accounts WHERE email = ?
+                        )
+                        """,
                 email
         );
         jdbcTemplate.update(

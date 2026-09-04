@@ -6,12 +6,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import site.omagotchi.identityservice.account.domain.AccountStatus;
@@ -37,11 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * - 전체 계정을 열람할 수 있는 유일한 경로이므로 인가 회귀를 우선 고정
  * - Access JWT의 role Claim이 낡았을 때의 DB 재검증까지 포함
  */
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-@Import({TestcontainersConfig.class, TestJwtConfig.class})
-class AdminAccountApiIT {
+class AdminAccountApiIT extends BaseIntegrationTest {
 
     private static final String ADMIN_USERS_PATH = "/api/v1/admin/users";
     private static final String PASSWORD = "password-passphrase";
@@ -68,8 +60,7 @@ class AdminAccountApiIT {
     void setUp() {
         api = new AuthApiTestClient(mockMvc, objectMapper);
         accountStateFixture = new AccountStateTestFixture(jdbcTemplate);
-        refreshTokenJpaRepository.deleteAll();
-        accountJpaRepository.deleteAll();
+        cleanDatabase();
     }
 
     @Test

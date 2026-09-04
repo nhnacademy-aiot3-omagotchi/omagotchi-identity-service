@@ -1,56 +1,69 @@
 package site.omagotchi.identityservice.integration;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.restdocs.test.autoconfigure.AutoConfigureRestDocs;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.http.MediaType;
 import org.springframework.restdocs.headers.RequestHeadersSnippet;
 import org.springframework.restdocs.headers.ResponseHeadersSnippet;
 import org.springframework.restdocs.operation.preprocess.OperationRequestPreprocessor;
 import org.springframework.restdocs.operation.preprocess.OperationResponsePreprocessor;
 import org.springframework.restdocs.payload.ResponseFieldsSnippet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
-import site.omagotchi.identityservice.account.domain.AccountStatus;
-import site.omagotchi.identityservice.account.domain.GlobalRole;
-import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
-import site.omagotchi.identityservice.accountstate.infrastructure.AccountStatusChangeAuditJpaRepository;
-import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
-import tools.jackson.databind.ObjectMapper;
+import site.omagotchi.identityservice.account.application.AccountErrorCode;
+import site.omagotchi.identityservice.accountstate.application.AccountStateErrorCode;
+import site.omagotchi.identityservice.accountstate.application.AdminAccountStatus;
+import site.omagotchi.identityservice.accountstate.application.AdminAccountStatusChangeService;
+import site.omagotchi.identityservice.accountstate.application.SelfAccountWithdrawalService;
+import site.omagotchi.identityservice.accountstate.presentation.AdminAccountStatusController;
+import site.omagotchi.identityservice.accountstate.presentation.SelfAccountWithdrawalController;
+import site.omagotchi.identityservice.auth.infrastructure.JwtAccessTokenIssuer;
+import site.omagotchi.identityservice.global.exception.BusinessException;
+import site.omagotchi.identityservice.global.security.error.SecurityErrorResponseHandler;
+import site.omagotchi.identityservice.global.security.jwt.JwtAuthorityConfig;
+import site.omagotchi.identityservice.global.security.jwt.JwtConfig;
+import site.omagotchi.identityservice.global.security.jwt.JwtProperties;
+import site.omagotchi.identityservice.global.security.jwt.JwtSecurityConfig;
 
+import java.time.Clock;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-import static org.springframework.restdocs.headers.HeaderDocumentation.headerWithName;
-import static org.springframework.restdocs.headers.HeaderDocumentation.requestHeaders;
-import static org.springframework.restdocs.headers.HeaderDocumentation.responseHeaders;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.verify;
+import static org.springframework.restdocs.headers.HeaderDocumentation.*;
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
-import static org.springframework.restdocs.operation.preprocess.Preprocessors.modifyHeaders;
-import static org.springframework.restdocs.operation.preprocess.Preprocessors.preprocessRequest;
-import static org.springframework.restdocs.operation.preprocess.Preprocessors.preprocessResponse;
-import static org.springframework.restdocs.operation.preprocess.Preprocessors.prettyPrint;
-import static org.springframework.restdocs.operation.preprocess.Preprocessors.replacePattern;
-import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
-import static org.springframework.restdocs.payload.PayloadDocumentation.requestFields;
-import static org.springframework.restdocs.payload.PayloadDocumentation.responseFields;
+import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.delete;
+import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.patch;
+import static org.springframework.restdocs.operation.preprocess.Preprocessors.*;
+import static org.springframework.restdocs.payload.PayloadDocumentation.*;
 import static org.springframework.restdocs.request.RequestDocumentation.parameterWithName;
 import static org.springframework.restdocs.request.RequestDocumentation.pathParameters;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@WebMvcTest(controllers = {
+        SelfAccountWithdrawalController.class,
+        AdminAccountStatusController.class
+})
+@Import({
+        JwtSecurityConfig.class,
+        JwtConfig.class,
+        JwtAuthorityConfig.class,
+        SecurityErrorResponseHandler.class,
+        TestJwtConfig.class
+})
+@EnableConfigurationProperties(JwtProperties.class)
 @ActiveProfiles("test")
-@AutoConfigureMockMvc
 @AutoConfigureRestDocs(outputDir = "target/generated-snippets")
-@Import({TestcontainersConfig.class, TestJwtConfig.class})
 @DisplayName("계정 상태 변경 API 문서")
 class AccountStateApiDocumentationIT {
 
@@ -58,55 +71,42 @@ class AccountStateApiDocumentationIT {
     private static final Pattern CURRENT_PASSWORD_JSON = Pattern.compile(
             "\"currentPassword\"\\s*:\\s*\"[^\"]*\""
     );
+    private static final UUID USER_ACCOUNT_ID = UUID.fromString(
+            "00000000-0000-0000-0000-000000000101"
+    );
+    private static final UUID ADMIN_ACCOUNT_ID = UUID.fromString(
+            "00000000-0000-0000-0000-000000000102"
+    );
+    private static final UUID TARGET_ACCOUNT_ID = UUID.fromString(
+            "00000000-0000-0000-0000-000000000103"
+    );
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
-    private ObjectMapper objectMapper;
+    private JwtEncoder jwtEncoder;
 
     @Autowired
-    private JdbcTemplate jdbcTemplate;
+    private JwtProperties jwtProperties;
 
-    @Autowired
-    private AccountJpaRepository accountJpaRepository;
+    @MockitoBean
+    private SelfAccountWithdrawalService selfAccountWithdrawalService;
 
-    @Autowired
-    private RefreshTokenJpaRepository refreshTokenJpaRepository;
-
-    @Autowired
-    private AccountStatusChangeAuditJpaRepository auditJpaRepository;
-
-    private AuthApiTestClient api;
-    private AccountStateTestFixture fixture;
-
-    @BeforeEach
-    void setUp() {
-        api = new AuthApiTestClient(mockMvc, objectMapper);
-        fixture = new AccountStateTestFixture(jdbcTemplate);
-        cleanDatabase();
-    }
-
-    @AfterEach
-    void tearDown() {
-        cleanDatabase();
-    }
+    @MockitoBean
+    private AdminAccountStatusChangeService accountStatusChangeService;
 
     @Test
     @DisplayName("본인 탈퇴 성공 계약")
     void documentsSelfWithdrawal() throws Exception {
         // Given
-        api.signupSuccessfully("withdraw-docs@example.com");
-        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
-                "withdraw-docs@example.com",
-                PASSWORD
-        );
+        String token = userAccessToken();
 
-        // When
-        ResultActions response = api.withdraw(login.accessToken(), PASSWORD);
-
-        // Then
-        response
+        // When & Then
+        mockMvc.perform(delete("/api/v1/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(withdrawalBody(PASSWORD)))
                 .andExpect(status().isNoContent())
                 .andDo(document(
                         "account/withdrawal/success",
@@ -119,26 +119,24 @@ class AccountStateApiDocumentationIT {
                                         .description("탈퇴 의사를 재확인할 현재 비밀번호")
                         )
                 ));
+
+        verify(selfAccountWithdrawalService).withdraw(USER_ACCOUNT_ID, PASSWORD);
     }
 
     @Test
     @DisplayName("본인 탈퇴의 현재 비밀번호 불일치 계약")
     void documentsWithdrawalPasswordMismatch() throws Exception {
         // Given
-        api.signupSuccessfully("withdraw-mismatch-docs@example.com");
-        AuthApiTestClient.TokenBundle login = api.loginSuccessfully(
-                "withdraw-mismatch-docs@example.com",
-                PASSWORD
-        );
+        String token = userAccessToken();
+        willThrow(new BusinessException(AccountErrorCode.CURRENT_PASSWORD_MISMATCH))
+                .given(selfAccountWithdrawalService)
+                .withdraw(USER_ACCOUNT_ID, "wrong-password-passphrase");
 
-        // When
-        ResultActions response = api.withdraw(
-                login.accessToken(),
-                "wrong-password-passphrase"
-        );
-
-        // Then
-        response
+        // When & Then
+        mockMvc.perform(delete("/api/v1/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(withdrawalBody("wrong-password-passphrase")))
                 .andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.code").value("ACCOUNT_CURRENT_PASSWORD_MISMATCH")
@@ -155,21 +153,16 @@ class AccountStateApiDocumentationIT {
     @DisplayName("SYSTEM_ADMIN 계정 비활성화 성공 계약")
     void documentsAdministrativeDisable() throws Exception {
         // Given
-        AuthApiTestClient.TokenBundle administrator = createAdministrator(
-                "admin-docs@example.com"
-        );
-        UUID targetAccountId = api.signupSuccessfully("disable-target-docs@example.com");
+        String token = adminAccessToken();
 
-        // When
-        ResultActions response = api.changeAccountStatus(
-                        administrator.accessToken(),
-                        targetAccountId,
-                        "DISABLED",
-                        "보안 사고 대응"
-                );
-
-        // Then
-        response
+        // When & Then
+        mockMvc.perform(patch(
+                        "/api/v1/admin/accounts/{user-id}/status",
+                        TARGET_ACCOUNT_ID
+                )
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(accountStatusBody("DISABLED", "보안 사고 대응")))
                 .andExpect(status().isNoContent())
                 .andDo(document(
                         "admin/accounts/status/disable-success",
@@ -188,28 +181,32 @@ class AccountStateApiDocumentationIT {
                                         .description("앞뒤 공백을 제외한 1~500자 변경 사유. NUL 제외")
                         )
                 ));
+
+        verify(accountStatusChangeService).changeStatus(
+                ADMIN_ACCOUNT_ID,
+                TARGET_ACCOUNT_ID,
+                AdminAccountStatus.DISABLED,
+                "보안 사고 대응"
+        );
     }
 
     @Test
     @DisplayName("허용되지 않은 관리자 상태 전이 계약")
     void documentsRejectedAdministrativeTransition() throws Exception {
         // Given
-        AuthApiTestClient.TokenBundle administrator = createAdministrator(
-                "transition-admin-docs@example.com"
-        );
-        UUID targetAccountId = api.signupSuccessfully("withdrawn-target-docs@example.com");
-        fixture.changeStatus(targetAccountId, AccountStatus.WITHDRAWN);
+        String token = adminAccessToken();
+        willThrow(new BusinessException(AccountErrorCode.STATUS_TRANSITION_NOT_ALLOWED))
+                .given(accountStatusChangeService)
+                .changeStatus(ADMIN_ACCOUNT_ID, TARGET_ACCOUNT_ID, AdminAccountStatus.ACTIVE, "복구 시도");
 
-        // When
-        ResultActions response = api.changeAccountStatus(
-                        administrator.accessToken(),
-                        targetAccountId,
-                        "ACTIVE",
-                        "복구 시도"
-                );
-
-        // Then
-        response
+        // When & Then
+        mockMvc.perform(patch(
+                        "/api/v1/admin/accounts/{user-id}/status",
+                        TARGET_ACCOUNT_ID
+                )
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(accountStatusBody("ACTIVE", "복구 시도")))
                 .andExpectAll(
                         status().isConflict(),
                         jsonPath("$.code")
@@ -227,21 +224,19 @@ class AccountStateApiDocumentationIT {
     @DisplayName("필수 상태 변경 사유 오류 계약")
     void documentsInvalidAdministrativeReason() throws Exception {
         // Given
-        AuthApiTestClient.TokenBundle administrator = createAdministrator(
-                "reason-admin-docs@example.com"
-        );
-        UUID targetAccountId = api.signupSuccessfully("reason-target-docs@example.com");
+        String token = adminAccessToken();
+        willThrow(new BusinessException(AccountStateErrorCode.INVALID_REASON))
+                .given(accountStatusChangeService)
+                .changeStatus(ADMIN_ACCOUNT_ID, TARGET_ACCOUNT_ID, AdminAccountStatus.DISABLED, "   ");
 
-        // When
-        ResultActions response = api.changeAccountStatus(
-                        administrator.accessToken(),
-                        targetAccountId,
-                        "DISABLED",
-                        "   "
-                );
-
-        // Then
-        response
+        // When & Then
+        mockMvc.perform(patch(
+                        "/api/v1/admin/accounts/{user-id}/status",
+                        TARGET_ACCOUNT_ID
+                )
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(accountStatusBody("DISABLED", "   ")))
                 .andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.code")
@@ -259,20 +254,20 @@ class AccountStateApiDocumentationIT {
     @DisplayName("존재하지 않는 대상 계정 오류 계약")
     void documentsMissingTargetAccount() throws Exception {
         // Given
-        AuthApiTestClient.TokenBundle administrator = createAdministrator(
-                "missing-target-admin-docs@example.com"
-        );
+        String token = adminAccessToken();
+        UUID missingAccountId = UUID.fromString("00000000-0000-0000-0000-000000000404");
+        willThrow(new BusinessException(AccountErrorCode.NOT_FOUND))
+                .given(accountStatusChangeService)
+                .changeStatus(ADMIN_ACCOUNT_ID, missingAccountId, AdminAccountStatus.DISABLED, "존재하지 않는 대상");
 
-        // When
-        ResultActions response = api.changeAccountStatus(
-                        administrator.accessToken(),
-                        UUID.fromString("00000000-0000-0000-0000-000000000404"),
-                        "DISABLED",
-                        "존재하지 않는 대상"
-                );
-
-        // Then
-        response
+        // When & Then
+        mockMvc.perform(patch(
+                        "/api/v1/admin/accounts/{user-id}/status",
+                        missingAccountId
+                )
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(accountStatusBody("DISABLED", "존재하지 않는 대상")))
                 .andExpectAll(
                         status().isNotFound(),
                         jsonPath("$.code").value("ACCOUNT_NOT_FOUND")
@@ -289,23 +284,16 @@ class AccountStateApiDocumentationIT {
     @DisplayName("허용하지 않는 목표 상태의 요청 본문 오류 계약")
     void documentsMalformedTargetStatus() throws Exception {
         // Given
-        AuthApiTestClient.TokenBundle administrator = createAdministrator(
-                "malformed-status-admin-docs@example.com"
-        );
-        UUID targetAccountId = api.signupSuccessfully(
-                "malformed-status-target-docs@example.com"
-        );
+        String token = adminAccessToken();
 
-        // When
-        ResultActions response = api.changeAccountStatus(
-                        administrator.accessToken(),
-                        targetAccountId,
-                        "LOCKED",
-                        "허용하지 않는 목표 상태"
-                );
-
-        // Then
-        response
+        // When & Then
+        mockMvc.perform(patch(
+                        "/api/v1/admin/accounts/{user-id}/status",
+                        TARGET_ACCOUNT_ID
+                )
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(accountStatusBody("LOCKED", "허용하지 않는 목표 상태")))
                 .andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.code").value("COMMON_MALFORMED_REQUEST")
@@ -318,10 +306,37 @@ class AccountStateApiDocumentationIT {
                 ));
     }
 
-    private AuthApiTestClient.TokenBundle createAdministrator(String email) throws Exception {
-        UUID accountId = api.signupSuccessfully(email);
-        fixture.changeGlobalRole(accountId, GlobalRole.SYSTEM_ADMIN);
-        return api.loginSuccessfully(email, PASSWORD);
+    private String userAccessToken() {
+        return new JwtAccessTokenIssuer(
+                jwtEncoder,
+                jwtProperties,
+                Clock.systemUTC()
+        ).issue(USER_ACCOUNT_ID, "USER").value();
+    }
+
+    private String adminAccessToken() {
+        return new JwtAccessTokenIssuer(
+                jwtEncoder,
+                jwtProperties,
+                Clock.systemUTC()
+        ).issue(ADMIN_ACCOUNT_ID, "SYSTEM_ADMIN").value();
+    }
+
+    private String withdrawalBody(String currentPassword) {
+        return """
+                {
+                  "currentPassword": "%s"
+                }
+                """.formatted(currentPassword);
+    }
+
+    private String accountStatusBody(String status, String reason) {
+        return """
+                {
+                  "status": "%s",
+                  "reason": "%s"
+                }
+                """.formatted(status, reason);
     }
 
     private RequestHeadersSnippet bearerTokenHeader() {
@@ -369,11 +384,5 @@ class AccountStateApiDocumentationIT {
 
     private OperationResponsePreprocessor documentedResponse() {
         return preprocessResponse(prettyPrint());
-    }
-
-    private void cleanDatabase() {
-        auditJpaRepository.deleteAll();
-        refreshTokenJpaRepository.deleteAll();
-        accountJpaRepository.deleteAll();
     }
 }

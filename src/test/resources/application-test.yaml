@@ -9,6 +9,8 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
 
 auth:
+  password-encoder:
+    strength: 4
   login-protection:
     maximum-failed-attempts: 5
     lock-duration: PT10M

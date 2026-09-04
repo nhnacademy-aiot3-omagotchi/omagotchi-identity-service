@@ -4,49 +4,37 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import site.omagotchi.identityservice.emailverification.application.port.EmailVerificationMailSender;
 import site.omagotchi.identityservice.emailverification.application.EmailVerificationCooldownException;
 import site.omagotchi.identityservice.emailverification.application.EmailVerificationIssuanceTransaction;
+import site.omagotchi.identityservice.emailverification.application.port.EmailVerificationMailSender;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationPurpose;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.catchThrowable;
+import static org.assertj.core.api.BDDAssertions.then;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-@Import({TestcontainersConfig.class, TestJwtConfig.class})
-class EmailVerificationIssueConcurrencyIT {
+class EmailVerificationIssueConcurrencyIT extends BaseIntegrationTest {
 
     private static final Duration TEST_TIMEOUT = Duration.ofSeconds(5);
     private static final Instant STARTED_AT = Instant.parse("2026-08-31T00:00:00Z");
@@ -123,10 +111,10 @@ class EmailVerificationIssueConcurrencyIT {
 
         Map<String, Object> firstChallenge = jdbcTemplate.queryForMap(
                 """
-                SELECT status, delivery_status
-                FROM identity_service.email_verification_challenges
-                WHERE id = ?
-                """,
+                        SELECT status, delivery_status
+                        FROM identity_service.email_verification_challenges
+                        WHERE id = ?
+                        """,
                 firstChallengeId.get()
         );
         then(firstChallenge)

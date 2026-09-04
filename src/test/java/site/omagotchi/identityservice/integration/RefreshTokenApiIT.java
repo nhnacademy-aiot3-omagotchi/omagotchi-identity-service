@@ -6,18 +6,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
+import site.omagotchi.identityservice.auth.application.RefreshSessionRevocationReason;
+import site.omagotchi.identityservice.auth.application.RefreshSessionRevocationService;
 import site.omagotchi.identityservice.auth.application.session.RefreshTokenHasher;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
@@ -27,19 +25,15 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-@Import({TestcontainersConfig.class, TestJwtConfig.class})
-class RefreshTokenApiIT {
+class RefreshTokenApiIT extends BaseIntegrationTest {
 
     private static final UUID EXPIRED_TOKEN_FAMILY_ID = UUID.fromString(
             "00000000-0000-0000-0000-000000700001"
@@ -61,6 +55,9 @@ class RefreshTokenApiIT {
     private RefreshTokenHasher refreshTokenHasher;
 
     @Autowired
+    private RefreshSessionRevocationService refreshSessionRevocationService;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -73,8 +70,7 @@ class RefreshTokenApiIT {
     void setUp() {
         api = new AuthApiTestClient(mockMvc, objectMapper);
         accountStateFixture = new AccountStateTestFixture(jdbcTemplate);
-        refreshTokenJpaRepository.deleteAll();
-        accountJpaRepository.deleteAll();
+        cleanDatabase();
     }
 
     @Test
@@ -303,4 +299,97 @@ class RefreshTokenApiIT {
                 .orElseThrow();
     }
 
+    @Test
+    @DisplayName("사용자의 모든 Refresh Token Family 폐기와 다른 사용자 격리")
+    void revokesAllFamiliesForOnlyTargetAccount() throws Exception {
+        // Given
+        UUID targetAccountId = api.signupSuccessfully("target@example.com");
+        AuthApiTestClient.TokenBundle firstFamily = api.loginSuccessfully(
+                "target@example.com",
+                "password-passphrase"
+        );
+        AuthApiTestClient.TokenBundle rotatedFirstFamily = api.refreshSuccessfully(
+                firstFamily.refreshToken()
+        );
+        AuthApiTestClient.TokenBundle secondFamily = api.loginSuccessfully(
+                "target@example.com",
+                "password-passphrase"
+        );
+
+        UUID otherAccountId = api.signupSuccessfully("other@example.com");
+        AuthApiTestClient.TokenBundle otherFamily = api.loginSuccessfully(
+                "other@example.com",
+                "password-passphrase"
+        );
+
+        // When
+        refreshSessionRevocationService.revokeAllForAccount(
+                targetAccountId,
+                RefreshSessionRevocationReason.PASSWORD_CHANGED
+        );
+        Map<Long, RevocationState> firstRevocationStates = revocationStates(
+                tokensFor(targetAccountId)
+        );
+
+        // 다른 사유의 반복 호출에도 최초 폐기 상태를 보존하는 멱등 경계
+        refreshSessionRevocationService.revokeAllForAccount(
+                targetAccountId,
+                RefreshSessionRevocationReason.ACCOUNT_DISABLED
+        );
+
+        List<RefreshToken> targetTokens = tokensFor(targetAccountId);
+        List<RefreshToken> otherTokens = tokensFor(otherAccountId);
+
+        // Then
+        api.refresh(rotatedFirstFamily.refreshToken()).andExpectAll(
+                status().isUnauthorized(),
+                jsonPath("$.code").value("AUTH_INVALID_REFRESH_TOKEN")
+        );
+        api.refresh(secondFamily.refreshToken()).andExpectAll(
+                status().isUnauthorized(),
+                jsonPath("$.code").value("AUTH_INVALID_REFRESH_TOKEN")
+        );
+        AuthApiTestClient.TokenBundle refreshedOther = api.refreshSuccessfully(
+                otherFamily.refreshToken()
+        );
+
+        thenSoftly(softly -> {
+            softly.then(targetTokens).hasSize(3);
+            softly.then(targetTokens).allSatisfy(token -> {
+                RevocationState firstState = firstRevocationStates.get(token.getId());
+
+                softly.then(firstState).isNotNull();
+                softly.then(token.isRevoked()).isTrue();
+                softly.then(token.getRevokedAt()).isEqualTo(firstState.revokedAt());
+                softly.then(token.getRevocationReason())
+                        .isEqualTo(firstState.reason())
+                        .isEqualTo(RefreshTokenRevocationReason.PASSWORD_CHANGED);
+            });
+            softly.then(otherTokens).hasSize(1);
+            softly.then(otherTokens.getFirst().isRevoked()).isFalse();
+            softly.then(refreshedOther.userId()).isEqualTo(otherAccountId);
+        });
+    }
+
+    private List<RefreshToken> tokensFor(UUID accountId) {
+        return refreshTokenJpaRepository.findAll().stream()
+                .filter(token -> token.getAccountId().equals(accountId))
+                .toList();
+    }
+
+    private Map<Long, RevocationState> revocationStates(List<RefreshToken> tokens) {
+        return tokens.stream().collect(Collectors.toMap(
+                RefreshToken::getId,
+                token -> new RevocationState(
+                        token.getRevokedAt(),
+                        token.getRevocationReason()
+                )
+        ));
+    }
+
+    private record RevocationState(
+            Instant revokedAt,
+            RefreshTokenRevocationReason reason
+    ) {
+    }
 }

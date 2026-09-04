@@ -11,8 +11,10 @@ import site.omagotchi.identityservice.emailverification.application.EmailVerific
 
 import java.util.UUID;
 
+import static org.assertj.core.api.BDDAssertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -98,5 +100,32 @@ class PasswordChangeV2TransactionTest {
                 ACCOUNT_ID, RefreshSessionRevocationReason.PASSWORD_CHANGED
         );
         verify(emailVerificationUseService).consume(CHALLENGE_ID);
+    }
+
+    @Test
+    @DisplayName("Session 폐기 실패 시 예외를 전파하고 OTP 소비 생략 (트랜잭션 롤백 유도)")
+    void propagatesExceptionAndSkipsOtpConsumptionWhenRevocationFails() {
+        // Given
+        given(emailVerificationUseService.verifyPasswordChangeOtp(
+                CHALLENGE_ID,
+                "member@example.com",
+                "123456"
+        )).willReturn(true);
+        willThrow(new IllegalStateException("의도한 Refresh Session 폐기 실패"))
+                .given(revocationService)
+                .revokeAllForAccount(
+                        ACCOUNT_ID,
+                        RefreshSessionRevocationReason.PASSWORD_CHANGED
+                );
+
+        // When
+        Throwable thrown = catchThrowable(() -> transaction.changePassword(
+                ACCOUNT_ID, "current-password", "new-long-password", CHALLENGE_ID, "123456"
+        ));
+
+        // Then
+        then(thrown).isInstanceOf(IllegalStateException.class)
+                .hasMessage("의도한 Refresh Session 폐기 실패");
+        verify(emailVerificationUseService, never()).consume(CHALLENGE_ID);
     }
 }

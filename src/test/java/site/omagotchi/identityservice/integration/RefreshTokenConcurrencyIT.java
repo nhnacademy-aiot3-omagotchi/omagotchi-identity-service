@@ -5,19 +5,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
 import site.omagotchi.identityservice.auth.application.AuthErrorCode;
 import site.omagotchi.identityservice.auth.application.AuthenticationService;
-import site.omagotchi.identityservice.auth.application.result.TokenIssueResult;
 import site.omagotchi.identityservice.auth.application.RefreshSessionRevocationReason;
 import site.omagotchi.identityservice.auth.application.RefreshSessionRevocationService;
+import site.omagotchi.identityservice.auth.application.result.TokenIssueResult;
 import site.omagotchi.identityservice.auth.application.session.RefreshTokenHasher;
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
@@ -28,23 +24,12 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
-import static org.assertj.core.api.BDDAssertions.catchThrowable;
-import static org.assertj.core.api.BDDAssertions.then;
-import static org.assertj.core.api.BDDAssertions.thenThrownBy;
+import static org.assertj.core.api.BDDAssertions.*;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-@Import({TestcontainersConfig.class, TestJwtConfig.class})
-class RefreshTokenConcurrencyIT {
+class RefreshTokenConcurrencyIT extends BaseIntegrationTest {
 
     /*
      * 검증 흐름
@@ -86,8 +71,7 @@ class RefreshTokenConcurrencyIT {
     @BeforeEach
     void setUp() {
         api = new AuthApiTestClient(mockMvc, objectMapper);
-        refreshTokenJpaRepository.deleteAll();
-        accountJpaRepository.deleteAll();
+        cleanDatabase();
     }
 
     @AfterEach

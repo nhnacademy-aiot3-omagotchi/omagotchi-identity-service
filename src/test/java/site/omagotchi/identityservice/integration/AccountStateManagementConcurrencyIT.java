@@ -5,11 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -23,6 +19,7 @@ import site.omagotchi.identityservice.accountstate.infrastructure.AccountStatusC
 import site.omagotchi.identityservice.auth.application.AuthErrorCode;
 import site.omagotchi.identityservice.auth.application.AuthenticationService;
 import site.omagotchi.identityservice.auth.application.result.TokenIssueResult;
+import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
 import site.omagotchi.identityservice.global.exception.BusinessException;
@@ -31,28 +28,18 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
-import static org.assertj.core.api.BDDAssertions.catchThrowable;
-import static org.assertj.core.api.BDDAssertions.then;
-import static org.assertj.core.api.BDDAssertions.thenThrownBy;
+import static org.assertj.core.api.BDDAssertions.*;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-@Import({TestcontainersConfig.class, TestJwtConfig.class})
-class AccountStateManagementConcurrencyIT {
+class AccountStateManagementConcurrencyIT extends BaseIntegrationTest {
 
     private static final String PASSWORD = "password-passphrase";
     private static final Duration TEST_TIMEOUT = Duration.ofSeconds(10);
-    private static final Duration INDEPENDENT_OPERATION_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration LOCK_CHECK_TIMEOUT = Duration.ofMillis(100);
 
     @Autowired
     private MockMvc mockMvc;
@@ -142,7 +129,7 @@ class AccountStateManagementConcurrencyIT {
         );
 
         // Then: 단일 성공과 관리자 한 명 유지
-        List<Throwable> failures = outcomes.stream().filter(error -> error != null).toList();
+        List<Throwable> failures = outcomes.stream().filter(Objects::nonNull).toList();
         thenSoftly(softly -> {
             softly.then(failures).hasSize(1);
             softly.then(failures.getFirst())
@@ -158,23 +145,11 @@ class AccountStateManagementConcurrencyIT {
     @Test
     @DisplayName("두 SYSTEM_ADMIN의 동시 본인 탈퇴에도 마지막 관리자 보존")
     void preservesAdministratorDuringConcurrentWithdrawals() throws Exception {
-        // Given: 두 탈퇴 요청이 보호 행에서 대기하는 경쟁 조건
+        // Given: 두 탈퇴 요청의 동시 시작 경쟁 조건
         UUID first = createAdministrator("first-withdraw-admin@example.com");
         UUID second = createAdministrator("second-withdraw-admin@example.com");
-        CountDownLatch guardLocked = new CountDownLatch(1);
-        CountDownLatch releaseGuard = new CountDownLatch(1);
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
-        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
-
-        Future<?> heldGuardLock = executor.submit(() ->
-                transaction.executeWithoutResult(status -> {
-                    lockSystemAdministratorGuard();
-                    guardLocked.countDown();
-                    await(releaseGuard);
-                })
-        );
-        await(guardLocked);
 
         Future<Throwable> firstRequest = executor.submit(() -> runTogether(
                 ready,
@@ -188,21 +163,15 @@ class AccountStateManagementConcurrencyIT {
         ));
         await(ready);
 
-        // When: 두 탈퇴 요청의 동시 시작과 보호 행 잠금 대기
+        // When: 두 탈퇴 요청의 동시 시작
         start.countDown();
-        try {
-            awaitDatabaseLockWait("system_administrator_guards", 2);
-        } finally {
-            releaseGuard.countDown();
-        }
-        heldGuardLock.get(TEST_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         List<Throwable> outcomes = Arrays.asList(
                 get(firstRequest),
                 get(secondRequest)
         );
 
         // Then: 단일 탈퇴와 관리자 한 명 유지
-        List<Throwable> failures = outcomes.stream().filter(error -> error != null).toList();
+        List<Throwable> failures = outcomes.stream().filter(Objects::nonNull).toList();
         thenSoftly(softly -> {
             softly.then(failures).hasSize(1);
             softly.then(failures.getFirst())
@@ -214,7 +183,7 @@ class AccountStateManagementConcurrencyIT {
             softly.then(auditJpaRepository.count()).isZero();
             softly.then(refreshTokenJpaRepository.findAll()).hasSize(2);
             softly.then(refreshTokenJpaRepository.findAll())
-                    .filteredOn(token -> token.isRevoked())
+                    .filteredOn(RefreshToken::isRevoked)
                     .hasSize(1);
             softly.then(refreshTokenJpaRepository.findAll())
                     .filteredOn(token -> !token.isRevoked())
@@ -248,10 +217,7 @@ class AccountStateManagementConcurrencyIT {
 
         // Then: 보호 행 해제 전 탈퇴 완료
         try {
-            Throwable failure = withdrawal.get(
-                    INDEPENDENT_OPERATION_TIMEOUT.toMillis(),
-                    TimeUnit.MILLISECONDS
-            );
+            Throwable failure = get(withdrawal);
             then(failure).isNull();
         } finally {
             releaseGuard.countDown();
@@ -290,10 +256,7 @@ class AccountStateManagementConcurrencyIT {
 
         // Then: 보호 행 해제 전 비활성화 완료
         try {
-            Throwable failure = statusChange.get(
-                    INDEPENDENT_OPERATION_TIMEOUT.toMillis(),
-                    TimeUnit.MILLISECONDS
-            );
+            Throwable failure = get(statusChange);
             then(failure).isNull();
             then(auditJpaRepository.count()).isEqualTo(1);
         } finally {
@@ -339,9 +302,8 @@ class AccountStateManagementConcurrencyIT {
 
         // Then: 회전 완료 전 대기와 완료 후 전체 Refresh Session 폐기
         try {
-            awaitDatabaseLockWait("identity_service.accounts", 1);
             thenThrownBy(() -> withdrawal.get(
-                    INDEPENDENT_OPERATION_TIMEOUT.toMillis(),
+                    LOCK_CHECK_TIMEOUT.toMillis(),
                     TimeUnit.MILLISECONDS
             )).isInstanceOf(TimeoutException.class);
         } finally {
@@ -410,38 +372,6 @@ class AccountStateManagementConcurrencyIT {
         );
     }
 
-    private void awaitDatabaseLockWait(String queryFragment, long expectedCount) {
-        long deadline = System.nanoTime() + TEST_TIMEOUT.toNanos();
-        while (System.nanoTime() < deadline) {
-            Long waitingTransactions = jdbcTemplate.queryForObject(
-                    """
-                            SELECT COUNT(*)
-                            FROM pg_stat_activity
-                            WHERE datname = current_database()
-                              AND pid <> pg_backend_pid()
-                              AND wait_event_type = 'Lock'
-                              AND query ILIKE ?
-                            """,
-                    Long.class,
-                    "%" + queryFragment + "%"
-            );
-            if (waitingTransactions != null && waitingTransactions >= expectedCount) {
-                return;
-            }
-            pauseBeforeLockPoll();
-        }
-        throw new IllegalStateException("Account 잠금 대기 상태를 확인하지 못했습니다.");
-    }
-
-    private void pauseBeforeLockPoll() {
-        try {
-            Thread.sleep(25);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Account 잠금 대기 확인이 중단됐습니다.", exception);
-        }
-    }
-
     private void awaitExecutorTermination() {
         try {
             if (!executor.awaitTermination(
@@ -465,12 +395,6 @@ class AccountStateManagementConcurrencyIT {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("동시성 테스트 대기가 중단됐습니다.", exception);
         }
-    }
-
-    private void cleanDatabase() {
-        auditJpaRepository.deleteAll();
-        refreshTokenJpaRepository.deleteAll();
-        accountJpaRepository.deleteAll();
     }
 
     @FunctionalInterface

@@ -12,10 +12,7 @@ import java.util.UUID;
 import static org.assertj.core.api.BDDAssertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.mockito.BDDMockito.willThrow;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.*;
 
 class PasswordChangeServiceTest {
 
@@ -86,5 +83,41 @@ class PasswordChangeServiceTest {
         // Then
         then(thrown).isSameAs(failure);
         verifyNoInteractions(revocationService);
+    }
+
+    @Test
+    @DisplayName("Session 폐기 실패 시 예외 전파 (트랜잭션 롤백 유도)")
+    void propagatesExceptionWhenSessionRevocationFails() {
+        // Given
+        AccountPasswordService accountPasswordService = mock(AccountPasswordService.class);
+        RefreshSessionRevocationService revocationService = mock(
+                RefreshSessionRevocationService.class
+        );
+        PasswordChangeService service = new PasswordChangeService(
+                accountPasswordService,
+                revocationService
+        );
+        willThrow(new IllegalStateException("의도한 Refresh Session 폐기 실패"))
+                .given(revocationService)
+                .revokeAllForAccount(
+                        ACCOUNT_ID,
+                        RefreshSessionRevocationReason.PASSWORD_CHANGED
+                );
+
+        // When
+        Throwable thrown = catchThrowable(() -> service.changePassword(
+                ACCOUNT_ID,
+                CURRENT_PASSWORD,
+                NEW_PASSWORD
+        ));
+
+        // Then
+        then(thrown).isInstanceOf(IllegalStateException.class)
+                .hasMessage("의도한 Refresh Session 폐기 실패");
+        verify(accountPasswordService).verifyAndReplacePasswordHash(
+                ACCOUNT_ID,
+                CURRENT_PASSWORD,
+                NEW_PASSWORD
+        );
     }
 }

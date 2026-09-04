@@ -6,13 +6,9 @@ import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import site.omagotchi.identityservice.emailverification.application.EmailDeliveryException;
@@ -26,27 +22,17 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.BDDAssertions.then;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@ActiveProfiles("test")
-@AutoConfigureMockMvc
-@Import({TestcontainersConfig.class, TestJwtConfig.class})
 @Execution(ExecutionMode.SAME_THREAD)
-class EmailVerificationApiIT {
+class EmailVerificationApiIT extends BaseIntegrationTest {
 
     private static final String PASSWORD = "password-passphrase";
 
@@ -166,11 +152,11 @@ class EmailVerificationApiIT {
         // Then
         Integer failedDeliveries = jdbcTemplate.queryForObject(
                 """
-                SELECT COUNT(*)
-                FROM identity_service.email_verification_challenges
-                WHERE delivery_status = 'FAILED'
-                  AND email = ?
-                """,
+                        SELECT COUNT(*)
+                        FROM identity_service.email_verification_challenges
+                        WHERE delivery_status = 'FAILED'
+                          AND email = ?
+                        """,
                 Integer.class,
                 email
         );

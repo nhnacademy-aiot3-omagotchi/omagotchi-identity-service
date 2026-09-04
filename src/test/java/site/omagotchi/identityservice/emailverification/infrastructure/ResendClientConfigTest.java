@@ -36,7 +36,7 @@ class ResendClientConfigTest {
         server.setExecutor(executor);
         server.createContext("/emails", exchange -> {
             try {
-                Thread.sleep(Duration.ofSeconds(2));
+                Thread.sleep(Duration.ofMillis(200));
                 exchange.sendResponseHeaders(202, -1);
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
