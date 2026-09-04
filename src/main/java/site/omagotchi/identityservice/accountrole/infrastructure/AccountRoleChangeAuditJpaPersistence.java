@@ -13,6 +13,6 @@ public class AccountRoleChangeAuditJpaPersistence implements AccountRoleChangeAu
 
     @Override
     public void append(AccountRoleChangeAudit audit) {
-        auditJpaRepository.save(AccountRoleChangeAuditJpaEntity.from(audit));
+        auditJpaRepository.save(audit);
     }
 }

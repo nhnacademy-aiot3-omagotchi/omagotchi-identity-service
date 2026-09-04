@@ -24,7 +24,7 @@ class IdentityServiceApplicationIT {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("PostgreSQL 18.1 Flyway V1·V2·V3·V4·V5")
+    @DisplayName("PostgreSQL 18.1 Flyway V1~V10")
     void appliesMigrationsOnProjectPostgreSqlVersion() {
         // Given
         String expectedVersionPrefix = "18.1";
@@ -106,6 +106,19 @@ class IdentityServiceApplicationIT {
                   AND table_name = 'account_status_change_audits'
                 ORDER BY constraint_name
                 """, String.class);
+        List<String> redundantAuditColumns = jdbcTemplate.queryForList("""
+                SELECT table_name || '.' || column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'identity_service'
+                  AND (
+                      (table_name = 'account_status_change_audits'
+                          AND column_name IN ('before_status', 'after_status'))
+                      OR
+                      (table_name = 'account_role_change_audits'
+                          AND column_name IN ('before_role', 'after_role'))
+                  )
+                ORDER BY table_name, column_name
+                """, String.class);
         List<String> systemAdministratorGuardConstraints = jdbcTemplate.queryForList("""
                 SELECT constraint_name
                 FROM information_schema.table_constraints
@@ -113,12 +126,12 @@ class IdentityServiceApplicationIT {
                   AND table_name = 'system_administrator_guards'
                 ORDER BY constraint_name
                 """, String.class);
-        String usableAdministratorIndex = jdbcTemplate.queryForObject("""
+        String activeAdministratorIndex = jdbcTemplate.queryForObject("""
                 SELECT indexdef
                 FROM pg_indexes
                 WHERE schemaname = 'identity_service'
                   AND tablename = 'accounts'
-                  AND indexname = 'idx_accounts_usable_system_admin'
+                  AND indexname = 'idx_accounts_active_system_admin'
                 """, String.class);
         List<String> migrationVersions = jdbcTemplate.queryForList("""
                 SELECT version
@@ -147,16 +160,19 @@ class IdentityServiceApplicationIT {
             softly.then(auditConstraints).contains(
                     "fk_account_status_change_audits_actor",
                     "fk_account_status_change_audits_target",
-                    "ck_account_status_change_audits_reason",
-                    "ck_account_status_change_audits_transition"
+                    "ck_account_status_change_audits_reason"
             );
+            softly.then(redundantAuditColumns).isEmpty();
             softly.then(systemAdministratorGuardConstraints).contains(
                     "ck_system_administrator_guards_singleton",
                     "system_administrator_guards_pkey"
             );
-            softly.then(usableAdministratorIndex)
-                    .contains("global_role", "SYSTEM_ADMIN", "ACTIVE", "LOCKED");
-            softly.then(migrationVersions).containsExactly("1", "2", "3", "4", "5", "6", "7");
+            softly.then(activeAdministratorIndex)
+                    .contains("global_role", "SYSTEM_ADMIN", "ACTIVE")
+                    .doesNotContain("LOCKED");
+            softly.then(migrationVersions)
+                    .containsExactly(
+                            "1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
         });
     }
 }
