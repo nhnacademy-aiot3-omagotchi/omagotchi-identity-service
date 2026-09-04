@@ -52,6 +52,11 @@ management:
     health:
       show-details: never
 
+account:
+  recovery:
+    # 복구 정책 도입 전에 탈퇴한 계정의 유예 시작 기준 시각
+    policy-effective-at: ${ACCOUNT_RECOVERY_POLICY_EFFECTIVE_AT:2026-09-03T00:00:00Z}
+
 auth:
   login-protection:
     maximum-failed-attempts: ${LOGIN_MAXIMUM_FAILED_ATTEMPTS}

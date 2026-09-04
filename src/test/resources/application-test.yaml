@@ -8,6 +8,10 @@ eureka:
     serviceUrl:
       defaultZone: http://localhost:8761/eureka/
 
+account:
+  recovery:
+    policy-effective-at: 2026-09-03T00:00:00Z
+
 auth:
   login-protection:
     maximum-failed-attempts: 5
