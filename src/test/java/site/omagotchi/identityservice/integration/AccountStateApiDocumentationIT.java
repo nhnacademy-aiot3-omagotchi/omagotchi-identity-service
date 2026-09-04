@@ -22,7 +22,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.domain.GlobalRole;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
-import site.omagotchi.identityservice.accountstate.infrastructure.AccountStatusChangeAuditJpaRepository;
+import site.omagotchi.identityservice.account.infrastructure.AccountStatusChangeAuditJpaRepository;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
 import tools.jackson.databind.ObjectMapper;
 
@@ -107,7 +107,10 @@ class AccountStateApiDocumentationIT {
 
         // Then
         response
-                .andExpect(status().isNoContent())
+                .andExpectAll(
+                        status().isOk(),
+                        jsonPath("$.recoveryDeadline").exists()
+                )
                 .andDo(document(
                         "account/withdrawal/success",
                         sensitiveBearerRequest(),
@@ -117,6 +120,10 @@ class AccountStateApiDocumentationIT {
                         requestFields(
                                 fieldWithPath("currentPassword")
                                         .description("탈퇴 의사를 재확인할 현재 비밀번호")
+                        ),
+                        responseFields(
+                                fieldWithPath("recoveryDeadline")
+                                        .description("이메일 인증으로 계정을 복구할 수 있는 마지막 시각")
                         )
                 ));
     }
@@ -245,7 +252,7 @@ class AccountStateApiDocumentationIT {
                 .andExpectAll(
                         status().isBadRequest(),
                         jsonPath("$.code")
-                                .value("ACCOUNT_STATUS_CHANGE_INVALID_REASON")
+                                .value("COMMON_INVALID_REQUEST")
                 )
                 .andDo(document(
                         "admin/accounts/status/invalid-reason",

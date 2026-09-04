@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import site.omagotchi.identityservice.accountrole.application.AccountRoleChangeService;
-import site.omagotchi.identityservice.accountrole.application.AdminGlobalRole;
 import site.omagotchi.identityservice.accountrole.presentation.request.ChangeAccountRoleRequest;
 
 import java.util.Objects;
@@ -34,18 +33,11 @@ public class AdminAccountRoleController {
         accountRoleChangeService.changeGlobalRole(
                 UUID.fromString(Objects.requireNonNull(jwt.getSubject())),
                 userId,
-                toApplicationRole(request.role()),
+                request.toAdminGlobalRole(),
                 request.reason()
         );
         return ResponseEntity.noContent()
                 .cacheControl(CacheControl.noStore())
                 .build();
-    }
-
-    private AdminGlobalRole toApplicationRole(ChangeAccountRoleRequest.TargetRole role) {
-        return switch (role) {
-            case USER -> AdminGlobalRole.USER;
-            case SYSTEM_ADMIN -> AdminGlobalRole.SYSTEM_ADMIN;
-        };
     }
 }

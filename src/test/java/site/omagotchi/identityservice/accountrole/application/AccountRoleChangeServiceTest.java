@@ -3,29 +3,22 @@ package site.omagotchi.identityservice.accountrole.application;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import site.omagotchi.identityservice.account.application.AccountLifecycleService;
-import site.omagotchi.identityservice.account.application.result.AccountRoleChangeResult;
-import site.omagotchi.identityservice.account.domain.GlobalRole;
+import site.omagotchi.identityservice.account.application.AccountAdministrationService;
 import site.omagotchi.identityservice.accountrole.application.port.AccountRoleChangeAuditRepository;
 import site.omagotchi.identityservice.accountrole.domain.AccountRoleChangeAction;
 import site.omagotchi.identityservice.accountrole.domain.AccountRoleChangeAudit;
-import site.omagotchi.identityservice.accountrole.domain.RecordedGlobalRole;
-import site.omagotchi.identityservice.global.exception.BusinessException;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
-import static org.assertj.core.api.BDDAssertions.catchThrowable;
-import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDSoftAssertions.thenSoftly;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 class AccountRoleChangeServiceTest {
 
@@ -42,15 +35,13 @@ class AccountRoleChangeServiceTest {
     void appendsAuditOnRoleGrant() {
         // Given
         Fixture fixture = fixture();
-        given(fixture.lifecycleService().changeGlobalRoleByAdministrator(
-                ACTOR_ID, TARGET_ID, GlobalRole.SYSTEM_ADMIN
-        )).willReturn(new AccountRoleChangeResult(
-                TARGET_ID, GlobalRole.USER, GlobalRole.SYSTEM_ADMIN
-        ));
+        given(fixture.administrationService().grantSystemAdministrator(
+                ACTOR_ID, TARGET_ID
+        )).willReturn(true);
 
         // When
         fixture.service().changeGlobalRole(
-                ACTOR_ID, TARGET_ID, AdminGlobalRole.SYSTEM_ADMIN, "  운영 인수인계  "
+                ACTOR_ID, TARGET_ID, AdminGlobalRole.SYSTEM_ADMIN, "운영 인수인계"
         );
 
         // Then
@@ -62,9 +53,6 @@ class AccountRoleChangeServiceTest {
             softly.then(audit.getActorUserId()).isEqualTo(ACTOR_ID);
             softly.then(audit.getTargetUserId()).isEqualTo(TARGET_ID);
             softly.then(audit.getAction()).isEqualTo(AccountRoleChangeAction.ROLE_GRANTED);
-            softly.then(audit.getBeforeRole()).isEqualTo(RecordedGlobalRole.USER);
-            softly.then(audit.getAfterRole()).isEqualTo(RecordedGlobalRole.SYSTEM_ADMIN);
-            // 사유는 값 객체가 정규화한 뒤 저장된다
             softly.then(audit.getReason()).isEqualTo("운영 인수인계");
             softly.then(audit.getOccurredAt()).isEqualTo(NOW);
         });
@@ -75,11 +63,9 @@ class AccountRoleChangeServiceTest {
     void skipsAuditWhenRoleUnchanged() {
         // Given: 이미 SYSTEM_ADMIN 인 계정에 같은 역할을 다시 요청
         Fixture fixture = fixture();
-        given(fixture.lifecycleService().changeGlobalRoleByAdministrator(
-                ACTOR_ID, TARGET_ID, GlobalRole.SYSTEM_ADMIN
-        )).willReturn(new AccountRoleChangeResult(
-                TARGET_ID, GlobalRole.SYSTEM_ADMIN, GlobalRole.SYSTEM_ADMIN
-        ));
+        given(fixture.administrationService().grantSystemAdministrator(
+                ACTOR_ID, TARGET_ID
+        )).willReturn(false);
 
         // When
         fixture.service().changeGlobalRole(
@@ -90,32 +76,16 @@ class AccountRoleChangeServiceTest {
         verify(fixture.auditRepository(), never()).append(any());
     }
 
-    @Test
-    @DisplayName("계정 행 잠금 전 사유 검증")
-    void validatesReasonBeforeLocking() {
-        // Given
-        Fixture fixture = fixture();
-
-        // When
-        Throwable thrown = catchThrowable(() -> fixture.service().changeGlobalRole(
-                ACTOR_ID, TARGET_ID, AdminGlobalRole.USER, "   "
-        ));
-
-        // Then: 잠금을 잡기 전에 끊어 불필요한 직렬화를 만들지 않는다
-        then(thrown).isInstanceOf(BusinessException.class);
-        verifyNoInteractions(fixture.lifecycleService());
-        verifyNoInteractions(fixture.auditRepository());
-    }
-
     private Fixture fixture() {
-        AccountLifecycleService lifecycleService = mock(AccountLifecycleService.class);
+        AccountAdministrationService administrationService =
+                mock(AccountAdministrationService.class);
         AccountRoleChangeAuditRepository auditRepository =
                 mock(AccountRoleChangeAuditRepository.class);
         return new Fixture(
-                lifecycleService,
+                administrationService,
                 auditRepository,
                 new AccountRoleChangeService(
-                        lifecycleService,
+                        administrationService,
                         auditRepository,
                         Clock.fixed(NOW, ZoneOffset.UTC)
                 )
@@ -123,7 +93,7 @@ class AccountRoleChangeServiceTest {
     }
 
     private record Fixture(
-            AccountLifecycleService lifecycleService,
+            AccountAdministrationService administrationService,
             AccountRoleChangeAuditRepository auditRepository,
             AccountRoleChangeService service
     ) {

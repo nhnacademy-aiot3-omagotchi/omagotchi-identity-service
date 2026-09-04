@@ -8,6 +8,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import site.omagotchi.identityservice.emailverification.application.port.EmailVerificationRepository;
 import site.omagotchi.identityservice.emailverification.application.result.PreparedEmailVerification;
+import site.omagotchi.identityservice.emailverification.domain.EmailDeliveryCooldown;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationChallenge;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationPurpose;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationScope;
@@ -74,10 +75,13 @@ class EmailVerificationIssuanceTransactionTest {
     @DisplayName("Scope 잠금 뒤 기존 Challenge를 대체하고 새 Challenge 저장")
     void preparesChallengeAfterScopeLock() {
         // Given
+        EmailDeliveryCooldown cooldown = cooldown();
         EmailVerificationScope scope = scope();
         UUID previousId = PREVIOUS_CHALLENGE_ID;
-        scope.startChallenge(previousId, NOW.minusSeconds(61), Duration.ofMinutes(1));
+        cooldown.reserve(previousId, NOW.minusSeconds(61), Duration.ofMinutes(1));
+        scope.startChallenge(previousId, NOW.minusSeconds(61));
         EmailVerificationChallenge previous = challenge(previousId);
+        given(repository.createIfAbsentAndLockCooldown(EMAIL, NOW)).willReturn(cooldown);
         given(repository.createIfAbsentAndLockScope(EMAIL, EmailVerificationPurpose.SIGNUP, NOW))
                 .willReturn(scope);
         given(repository.lockChallenge(previousId)).willReturn(Optional.of(previous));
@@ -99,17 +103,24 @@ class EmailVerificationIssuanceTransactionTest {
     }
 
     @Test
-    @DisplayName("Scope 잠금 획득 후 읽은 시각부터 Challenge 유효시간 계산")
-    void calculatesExpirationFromTimeReadAfterScopeLock() {
+    @DisplayName("발급 관련 행 잠금 획득 후 읽은 시각부터 Challenge 유효시간 계산")
+    void calculatesExpirationFromTimeReadAfterIssuanceLocks() {
         // Given
-        Instant lockAcquiredAt = NOW.plusSeconds(30);
+        Instant cooldownCheckedAt = NOW.plusSeconds(30);
+        Instant issuedAt = NOW.plusSeconds(45);
+        EmailDeliveryCooldown cooldown = cooldown();
         EmailVerificationScope scope = scope();
-        given(clock.instant()).willReturn(NOW, lockAcquiredAt);
+        UUID previousId = PREVIOUS_CHALLENGE_ID;
+        scope.startChallenge(previousId, NOW.minusSeconds(61));
+        EmailVerificationChallenge previous = challenge(previousId);
+        given(clock.instant()).willReturn(NOW, cooldownCheckedAt, issuedAt);
+        given(repository.createIfAbsentAndLockCooldown(EMAIL, NOW)).willReturn(cooldown);
         given(repository.createIfAbsentAndLockScope(
                 EMAIL,
                 EmailVerificationPurpose.SIGNUP,
                 NOW
         )).willReturn(scope);
+        given(repository.lockChallenge(previousId)).willReturn(Optional.of(previous));
         given(codeGenerator.generate()).willReturn("123456");
         given(codeAuthenticator.encode(any(), any(), any(), any())).willReturn("a".repeat(64));
 
@@ -120,14 +131,18 @@ class EmailVerificationIssuanceTransactionTest {
         );
 
         // Then
-        then(prepared.expiresAt()).isEqualTo(lockAcquiredAt.plusSeconds(300));
+        then(prepared.expiresAt()).isEqualTo(issuedAt.plusSeconds(300));
+        then(previous.getUpdatedAt()).isEqualTo(issuedAt);
         var invocationOrder = inOrder(clock, repository);
         invocationOrder.verify(clock).instant();
+        invocationOrder.verify(repository).createIfAbsentAndLockCooldown(EMAIL, NOW);
         invocationOrder.verify(repository).createIfAbsentAndLockScope(
                 EMAIL,
                 EmailVerificationPurpose.SIGNUP,
                 NOW
         );
+        invocationOrder.verify(clock).instant();
+        invocationOrder.verify(repository).lockChallenge(previousId);
         invocationOrder.verify(clock).instant();
     }
 
@@ -135,8 +150,10 @@ class EmailVerificationIssuanceTransactionTest {
     @DisplayName("쿨다운 중 발급은 Retry-After 정보와 함께 거부")
     void rejectsDuringCooldown() {
         // Given
+        EmailDeliveryCooldown cooldown = cooldown();
         EmailVerificationScope scope = scope();
-        scope.startChallenge(COOLDOWN_CHALLENGE_ID, NOW.minusSeconds(30), Duration.ofMinutes(1));
+        cooldown.reserve(COOLDOWN_CHALLENGE_ID, NOW.minusSeconds(30), Duration.ofMinutes(1));
+        given(repository.createIfAbsentAndLockCooldown(EMAIL, NOW)).willReturn(cooldown);
         given(repository.createIfAbsentAndLockScope(EMAIL, EmailVerificationPurpose.SIGNUP, NOW))
                 .willReturn(scope);
 
@@ -147,7 +164,17 @@ class EmailVerificationIssuanceTransactionTest {
                         EmailVerificationCooldownException.class,
                         exception -> then(exception.retryAfterSeconds()).isEqualTo(30)
                 );
+        verify(repository).createIfAbsentAndLockCooldown(EMAIL, NOW);
+        verify(repository).createIfAbsentAndLockScope(
+                EMAIL,
+                EmailVerificationPurpose.SIGNUP,
+                NOW
+        );
         verifyNoMoreInteractions(repository);
+    }
+
+    private EmailDeliveryCooldown cooldown() {
+        return EmailDeliveryCooldown.create(EMAIL, NOW.minusSeconds(120));
     }
 
     private EmailVerificationScope scope() {

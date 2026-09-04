@@ -109,6 +109,20 @@ final class AuthApiTestClient {
                 .content(accountStatusBody(status, reason)));
     }
 
+    ResultActions unlockLogin(
+            String accessToken,
+            UUID targetAccountId,
+            String reason
+    ) throws Exception {
+        return mockMvc.perform(post(
+                        "/api/v1/admin/accounts/{user-id}/login-lock/unlock",
+                        targetAccountId
+                )
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(reasonBody(reason)));
+    }
+
     UUID signupSuccessfully(String email) throws Exception {
         String response = signUp(email)
                 .andExpectAll(
@@ -224,6 +238,14 @@ final class AuthApiTestClient {
                   "reason": "%s"
                 }
                 """.formatted(status, reason);
+    }
+
+    private String reasonBody(String reason) {
+        return """
+                {
+                  "reason": "%s"
+                }
+                """.formatted(reason);
     }
 
     record TokenBundle(

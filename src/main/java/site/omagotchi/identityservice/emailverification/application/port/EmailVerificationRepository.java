@@ -1,5 +1,6 @@
 package site.omagotchi.identityservice.emailverification.application.port;
 
+import site.omagotchi.identityservice.emailverification.domain.EmailDeliveryCooldown;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationChallenge;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationPurpose;
 import site.omagotchi.identityservice.emailverification.domain.EmailVerificationScope;
@@ -9,6 +10,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface EmailVerificationRepository {
+
+    EmailDeliveryCooldown createIfAbsentAndLockCooldown(String email, Instant now);
 
     EmailVerificationScope createIfAbsentAndLockScope(
             String email,

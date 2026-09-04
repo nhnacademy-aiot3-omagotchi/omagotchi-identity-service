@@ -18,6 +18,7 @@ import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepository;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -409,7 +410,12 @@ class LearningAccountSecurityIT {
 
     private Account saveAccount(String email, String name) {
         return accountJpaRepository.saveAndFlush(
-                Account.register(email, "test-password-hash", name)
+                Account.register(
+                        email,
+                        "test-password-hash",
+                        name,
+                        Instant.EPOCH
+                )
         );
     }
 }

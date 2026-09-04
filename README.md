@@ -205,12 +205,13 @@ chmod 644 secrets/jwt-public.pem
 - 필수 설정·RSA Key 오류의 애플리케이션 시작 실패
 - Request ID 공통 적용 전 상태
 - 본인 탈퇴와 계정 비활성화는 Refresh Session만 즉시 폐기하며, 기존 Access JWT는 최대 15분간 유효할 수 있음
-- `SYSTEM_ADMIN`의 자기 비활성화와 마지막 이용 가능 관리자(`ACTIVE`·`LOCKED`)의 소실 방지
+- `SYSTEM_ADMIN`의 자기 비활성화와 마지막 `ACTIVE` 관리자 소실 방지
+- 로그인 잠금은 계정 상태와 독립적이며 마지막 관리자 보호 인원에서 제외하지 않음
 - 마지막 관리자 보호는 감소 작업만 단일 보호 행으로 직렬화하며, 계정 조회나 일반 사용자 상태 변경은 해당 행을 잠그지 않음
 - 최초 `SYSTEM_ADMIN` 승격은 관리자 수를 늘리는 통제된 DB 작업으로 수행
 - 직접 SQL 역할 강등·`DISABLED`·`WITHDRAWN` 전환은 애플리케이션 보호를 우회하므로 서비스 쓰기 트래픽과 동시에 수행하지 않음
 - 운영 SQL에서 관리자 감소가 불가피하면 동일 트랜잭션에서 대상 Account 행을 UUID 순으로 잠근 뒤 보호 행을 잠금
-- 보호 행 획득 후 `ACTIVE`·`LOCKED` SYSTEM_ADMIN 수를 다시 계산하고, 예정 변경 적용 뒤 한 명도 남지 않으면 전체 Rollback
+- 보호 행 획득 후 `ACTIVE` SYSTEM_ADMIN 수를 다시 계산하고, 예정 변경 적용 뒤 한 명도 남지 않으면 전체 Rollback
 - 운영 SQL에서도 보호 행보다 Account 행을 먼저 잠그며, 역순 잠금 금지
 
 ## 관련 문서

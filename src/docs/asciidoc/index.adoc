@@ -143,6 +143,7 @@ include::{snippets}/account/me/update-name/invalid-name/response-fields.adoc[]
 include::{snippets}/account/withdrawal/success/request-headers.adoc[]
 include::{snippets}/account/withdrawal/success/request-fields.adoc[]
 include::{snippets}/account/withdrawal/success/response-headers.adoc[]
+include::{snippets}/account/withdrawal/success/response-fields.adoc[]
 include::{snippets}/account/withdrawal/success/http-request.adoc[]
 include::{snippets}/account/withdrawal/success/http-response.adoc[]
 
@@ -154,7 +155,8 @@ include::{snippets}/account/withdrawal/current-password-mismatch/response-fields
 == SYSTEM_ADMIN 계정 상태 변경
 
 `SYSTEM_ADMIN`만 호출할 수 있다. 목표 상태는 `ACTIVE` 또는 `DISABLED`이며 사유는 필수다.
-`ACTIVE`·`LOCKED`에서 `DISABLED`, `LOCKED`·`DISABLED`에서 `ACTIVE` 전이만 허용한다.
+`ACTIVE`에서 `DISABLED`, `DISABLED`에서 `ACTIVE` 전이만 허용한다.
+로그인 잠금은 계정 상태와 별개이며 전용 잠금 해제 API로 처리한다.
 동일 상태 요청은 감사 기록과 Refresh Session 폐기 없이 멱등한 `204 No Content`로 처리한다.
 실제 `DISABLED` 전이만 Refresh Session을 폐기하며 모든 실제 전이는 영속 감사 기록을 남긴다.
 이미 발급된 Access JWT는 즉시 폐기하지 않으며 기존 `exp`까지 최대 15분간 유효할 수 있다.
@@ -185,7 +187,7 @@ include::{snippets}/account/withdrawal/current-password-mismatch/response-fields
 
 |잘못된 변경 사유
 |400
-|`ACCOUNT_STATUS_CHANGE_INVALID_REASON`
+|`COMMON_INVALID_REQUEST`
 
 |대상 계정 없음
 |404

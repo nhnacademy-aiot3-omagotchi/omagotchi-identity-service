@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import site.omagotchi.identityservice.accountstate.application.AdminAccountStatus;
 import site.omagotchi.identityservice.accountstate.application.AdminAccountStatusChangeService;
 import site.omagotchi.identityservice.accountstate.presentation.request.ChangeAccountStatusRequest;
 
@@ -34,20 +33,11 @@ public class AdminAccountStatusController {
         accountStatusChangeService.changeStatus(
                 UUID.fromString(Objects.requireNonNull(jwt.getSubject())),
                 userId,
-                toApplicationStatus(request.status()),
+                request.toAdminAccountStatus(),
                 request.reason()
         );
         return ResponseEntity.noContent()
                 .cacheControl(CacheControl.noStore())
                 .build();
-    }
-
-    private AdminAccountStatus toApplicationStatus(
-            ChangeAccountStatusRequest.TargetStatus status
-    ) {
-        return switch (status) {
-            case ACTIVE -> AdminAccountStatus.ACTIVE;
-            case DISABLED -> AdminAccountStatus.DISABLED;
-        };
     }
 }

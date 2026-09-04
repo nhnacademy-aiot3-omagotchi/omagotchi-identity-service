@@ -60,5 +60,12 @@ class VerificationCodeAuthenticatorTest {
                 EmailVerificationPurpose.PASSWORD_CHANGE,
                 "123456"
         )).isFalse();
+        then(authenticator.matches(
+                mac,
+                challengeId,
+                "member@example.com",
+                EmailVerificationPurpose.PASSWORD_RESET,
+                "123456"
+        )).isFalse();
     }
 }

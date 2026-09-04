@@ -3,6 +3,8 @@ package site.omagotchi.identityservice.account.application.port;
 import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.domain.GlobalRole;
 
+import java.time.Instant;
+
 /**
  * 관리자 사용자 목록의 조회 조건이다.
  *
@@ -12,6 +14,8 @@ import site.omagotchi.identityservice.account.domain.GlobalRole;
 public record AccountSearchCriteria(
         String keyword,
         AccountStatus status,
-        GlobalRole role
+        Boolean locked,
+        GlobalRole role,
+        Instant checkedAt
 ) {
 }

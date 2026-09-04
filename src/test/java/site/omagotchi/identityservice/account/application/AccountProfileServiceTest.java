@@ -6,6 +6,7 @@ import site.omagotchi.identityservice.account.application.port.AccountRepository
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -34,7 +35,8 @@ class AccountProfileServiceTest {
         Account account = Account.register(
                 "user@example.com",
                 "encoded-password",
-                "기존 이름"
+                "기존 이름",
+                Instant.EPOCH
         );
         given(accountRepository.lockById(accountId)).willReturn(Optional.of(account));
 

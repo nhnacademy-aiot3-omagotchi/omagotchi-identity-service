@@ -4,6 +4,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import site.omagotchi.identityservice.auth.application.result.TokenIssueResult;
 import site.omagotchi.identityservice.auth.presentation.request.PasswordChangeRequest;
+import site.omagotchi.identityservice.auth.presentation.request.PasswordResetEmailOtpRequest;
+import site.omagotchi.identityservice.auth.presentation.request.PasswordResetRequest;
 import site.omagotchi.identityservice.auth.presentation.request.RefreshTokenRequest;
 import site.omagotchi.identityservice.auth.presentation.response.TokenResponse;
 
@@ -15,7 +17,7 @@ import static org.assertj.core.api.BDDAssertions.then;
 class AuthSensitiveValueTest {
 
     @Test
-    @DisplayName("내부 인증 요청·응답의 Token 원문 마스킹")
+    @DisplayName("인증 요청·응답의 민감값 마스킹")
     void redactsRawTokensFromStringRepresentations() {
         // Given
         String accessToken = "raw-access-token";
@@ -35,12 +37,25 @@ class AuthSensitiveValueTest {
                 "current-password-passphrase",
                 "new-password-passphrase"
         );
+        String email = "member@example.com";
+        String resetPassword = "reset-password-passphrase";
+        String resetCode = "123456";
+        PasswordResetEmailOtpRequest resetEmailOtpRequest =
+                new PasswordResetEmailOtpRequest(email);
+        PasswordResetRequest passwordResetRequest = new PasswordResetRequest(
+                email,
+                resetPassword,
+                UUID.fromString("00000000-0000-0000-0000-000000702401"),
+                resetCode
+        );
         TokenResponse response = TokenResponse.from(result);
 
         // When
         String resultText = result.toString();
         String requestText = request.toString();
         String passwordChangeRequestText = passwordChangeRequest.toString();
+        String resetEmailOtpRequestText = resetEmailOtpRequest.toString();
+        String passwordResetRequestText = passwordResetRequest.toString();
         String responseText = response.toString();
 
         // Then
@@ -54,6 +69,8 @@ class AuthSensitiveValueTest {
                         passwordChangeRequest.currentPassword(),
                         passwordChangeRequest.newPassword()
                 );
+        then(resetEmailOtpRequestText).doesNotContain(email);
+        then(passwordResetRequestText).doesNotContain(email, resetPassword, resetCode);
         then(responseText)
                 .contains("[REDACTED]")
                 .doesNotContain(accessToken, refreshToken);

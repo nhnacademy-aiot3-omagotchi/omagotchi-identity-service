@@ -24,6 +24,7 @@ import site.omagotchi.identityservice.account.infrastructure.AccountJpaRepositor
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Instant;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -500,7 +501,9 @@ class IdentityApiDocumentationIT {
                         responseFields(
                                 fieldWithPath("[].accountId").description("존재하는 계정 UUID"),
                                 fieldWithPath("[].displayName").description("표시 이름"),
-                                fieldWithPath("[].status").description("계정 상태")
+                                fieldWithPath("[].status").description("계정 상태"),
+                                fieldWithPath("[].statusChangedAt")
+                                        .description("현재 계정 상태가 시작된 시각")
                         )
                 ));
     }
@@ -563,7 +566,9 @@ class IdentityApiDocumentationIT {
                                 fieldWithPath("[].accountId").description("계정 UUID"),
                                 fieldWithPath("[].displayName").description("표시 이름"),
                                 fieldWithPath("[].email").description("이메일"),
-                                fieldWithPath("[].status").description("계정 상태")
+                                fieldWithPath("[].status").description("계정 상태"),
+                                fieldWithPath("[].statusChangedAt")
+                                        .description("현재 계정 상태가 시작된 시각")
                         )
                 ));
     }
@@ -658,7 +663,9 @@ class IdentityApiDocumentationIT {
         return responseFields(
                 fieldWithPath("accountId").description("계정 UUID"),
                 fieldWithPath("displayName").description("표시 이름"),
-                fieldWithPath("status").description("계정 상태")
+                fieldWithPath("status").description("계정 상태"),
+                fieldWithPath("statusChangedAt")
+                        .description("현재 계정 상태가 시작된 시각")
         );
     }
 
@@ -741,7 +748,12 @@ class IdentityApiDocumentationIT {
 
     private Account saveAccount(String email, String name) {
         return accountJpaRepository.saveAndFlush(
-                Account.register(email, "test-password-hash", name)
+                Account.register(
+                        email,
+                        "test-password-hash",
+                        name,
+                        Instant.EPOCH
+                )
         );
     }
 }

@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import site.omagotchi.identityservice.account.application.AccountPasswordService;
-import site.omagotchi.identityservice.emailverification.application.PasswordChangeEmailOtpService;
+import site.omagotchi.identityservice.emailverification.application.EmailVerificationUseService;
 
 import java.util.UUID;
 
@@ -14,7 +14,7 @@ public class PasswordChangeV2Transaction {
 
     private final AccountPasswordService accountPasswordService;
     private final RefreshSessionRevocationService refreshSessionRevocationService;
-    private final PasswordChangeEmailOtpService emailOtpService;
+    private final EmailVerificationUseService emailVerificationUseService;
 
     @Transactional
     public boolean changePassword(
@@ -26,7 +26,7 @@ public class PasswordChangeV2Transaction {
     ) {
         // Account → Challenge → RefreshToken 잠금 순서를 유지한다.
         String accountEmail = accountPasswordService.lockPasswordChangeEmail(accountId);
-        boolean verified = emailOtpService.verify(
+        boolean verified = emailVerificationUseService.verifyPasswordChangeOtp(
                 challengeId,
                 accountEmail,
                 code
@@ -44,7 +44,7 @@ public class PasswordChangeV2Transaction {
                 accountId,
                 RefreshSessionRevocationReason.PASSWORD_CHANGED
         );
-        emailOtpService.consume(challengeId);
+        emailVerificationUseService.consume(challengeId);
         return true;
     }
 }

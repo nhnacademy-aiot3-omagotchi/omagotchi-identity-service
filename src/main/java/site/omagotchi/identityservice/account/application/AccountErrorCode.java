@@ -86,6 +86,11 @@ public enum AccountErrorCode implements ErrorCode {
             "ACCOUNT_DUPLICATE_EMAIL",
             "이미 사용 중인 이메일입니다."
     ),
+    PURGE_PENDING(
+            ErrorType.CONFLICT,
+            "ACCOUNT_PURGE_PENDING",
+            "계정 복구 기간이 만료되었습니다. 개인정보 파기 후 같은 이메일로 새로 가입할 수 있습니다."
+    ),
     NOT_FOUND(
             ErrorType.NOT_FOUND,
             "ACCOUNT_NOT_FOUND",

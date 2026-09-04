@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import site.omagotchi.identityservice.account.application.AccountRegistrationV2Service;
-import site.omagotchi.identityservice.account.domain.Account;
+import site.omagotchi.identityservice.account.application.result.AccountRegistrationResult;
 import site.omagotchi.identityservice.account.presentation.request.SignupV2Request;
 import site.omagotchi.identityservice.account.presentation.response.AccountResponse;
 
@@ -18,18 +18,21 @@ import site.omagotchi.identityservice.account.presentation.response.AccountRespo
 @RequiredArgsConstructor
 public class AccountRegistrationV2Controller {
 
-    private final AccountRegistrationV2Service service;
+    private final AccountRegistrationV2Service accountRegistrationService;
 
     @PostMapping
     public ResponseEntity<AccountResponse> signUp(@Valid @RequestBody SignupV2Request request) {
-        Account account = service.signUp(
+        AccountRegistrationResult result = accountRegistrationService.signUp(
                 request.email(),
                 request.password(),
                 request.name(),
                 request.challengeId(),
                 request.code()
         );
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(AccountResponse.from(account));
+        HttpStatus status = result.outcome() == AccountRegistrationResult.Outcome.CREATED
+                ? HttpStatus.CREATED
+                : HttpStatus.OK;
+        return ResponseEntity.status(status)
+                .body(AccountResponse.from(result.account()));
     }
 }

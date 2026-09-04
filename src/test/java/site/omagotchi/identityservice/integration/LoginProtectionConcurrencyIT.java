@@ -109,7 +109,7 @@ class LoginProtectionConcurrencyIT {
                     .isEqualTo(AuthErrorCode.INVALID_CREDENTIALS));
             softly.then(account.getFailedLoginAttempts())
                     .isEqualTo((short) CONCURRENT_ATTEMPTS);
-            softly.then(account.getStatus()).isEqualTo(AccountStatus.LOCKED);
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
             softly.then(account.getLockedUntil()).isNotNull();
         });
     }
