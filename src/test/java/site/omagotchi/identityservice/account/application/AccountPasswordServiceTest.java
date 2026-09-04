@@ -254,6 +254,112 @@ class AccountPasswordServiceTest {
         verifyNoInteractions(fixture.passwordHasher());
     }
 
+    @Test
+    @DisplayName("비밀번호 재설정 이메일 검증과 정규화")
+    void validatesAndNormalizesPasswordResetEmail() {
+        // Given
+        Fixture fixture = fixture(Optional.empty());
+
+        // When
+        String normalized = fixture.service()
+                .validateAndNormalizePasswordResetEmail("  USER@Example.COM  ");
+        Throwable invalid = catchThrowable(() -> fixture.service()
+                .validateAndNormalizePasswordResetEmail("not-an-email"));
+
+        // Then
+        then(normalized).isEqualTo("user@example.com");
+        thenBusinessError(invalid, AccountErrorCode.INVALID_EMAIL);
+        verifyNoInteractions(fixture.passwordHasher());
+    }
+
+    @Test
+    @DisplayName("재설정 가능한 계정을 이메일로 잠그고 식별자만 반환")
+    void locksPasswordResetAccountByEmail() {
+        // Given
+        Account account = mock(Account.class);
+        Fixture fixture = fixture(Optional.empty());
+        given(account.getId()).willReturn(ACCOUNT_ID);
+        given(account.isPasswordChangeAllowed()).willReturn(true);
+        given(fixture.accountRepository().lockByEmail("user@example.com"))
+                .willReturn(Optional.of(account));
+
+        // When
+        Optional<UUID> found = fixture.service()
+                .lockPasswordResetAccountId("user@example.com");
+
+        // Then
+        then(found).contains(ACCOUNT_ID);
+        verify(fixture.accountRepository()).lockByEmail("user@example.com");
+        verifyNoInteractions(fixture.passwordHasher());
+    }
+
+    @Test
+    @DisplayName("재설정 불가 계정은 존재 여부를 구분하지 않는 빈 결과")
+    void hidesUnavailablePasswordResetAccount() {
+        // Given
+        Account account = mock(Account.class);
+        Fixture fixture = fixture(Optional.empty());
+        given(account.isPasswordChangeAllowed()).willReturn(false);
+        given(fixture.accountRepository().lockByEmail("user@example.com"))
+                .willReturn(Optional.of(account));
+
+        // When
+        Optional<UUID> found = fixture.service()
+                .lockPasswordResetAccountId("user@example.com");
+
+        // Then
+        then(found).isEmpty();
+        verify(fixture.accountRepository()).lockByEmail("user@example.com");
+        verifyNoInteractions(fixture.passwordHasher());
+    }
+
+    @Test
+    @DisplayName("재설정 비밀번호 Hash 교체와 로그인 잠금 초기화 위임")
+    void replacesPasswordHashForReset() {
+        // Given
+        Account account = mock(Account.class);
+        Fixture fixture = fixture(Optional.of(account));
+        given(account.isPasswordChangeAllowed()).willReturn(true);
+        given(account.getPasswordHash()).willReturn(CURRENT_PASSWORD_HASH);
+        given(fixture.passwordHasher().matches(NEW_PASSWORD, CURRENT_PASSWORD_HASH))
+                .willReturn(false);
+        given(fixture.passwordHasher().hash(NEW_PASSWORD)).willReturn(NEW_PASSWORD_HASH);
+
+        // When
+        boolean replaced = fixture.service().replacePasswordHashForReset(
+                ACCOUNT_ID,
+                NEW_PASSWORD
+        );
+
+        // Then
+        then(replaced).isTrue();
+        verify(fixture.accountRepository()).lockById(ACCOUNT_ID);
+        verify(account).resetPasswordHash(NEW_PASSWORD_HASH);
+    }
+
+    @Test
+    @DisplayName("기존 비밀번호와 같은 재설정 요청은 이유를 노출하지 않고 거절")
+    void rejectsUnchangedPasswordResetWithoutExposingReason() {
+        // Given
+        Account account = mock(Account.class);
+        Fixture fixture = fixture(Optional.of(account));
+        given(account.isPasswordChangeAllowed()).willReturn(true);
+        given(account.getPasswordHash()).willReturn(CURRENT_PASSWORD_HASH);
+        given(fixture.passwordHasher().matches(NEW_PASSWORD, CURRENT_PASSWORD_HASH))
+                .willReturn(true);
+
+        // When
+        boolean replaced = fixture.service().replacePasswordHashForReset(
+                ACCOUNT_ID,
+                NEW_PASSWORD
+        );
+
+        // Then
+        then(replaced).isFalse();
+        verify(account, never()).resetPasswordHash(NEW_PASSWORD_HASH);
+        verify(fixture.passwordHasher(), never()).hash(NEW_PASSWORD);
+    }
+
     private Fixture fixture(Optional<Account> account) {
         AccountRepository accountRepository = mock(AccountRepository.class);
         PasswordHasher passwordHasher = mock(PasswordHasher.class);

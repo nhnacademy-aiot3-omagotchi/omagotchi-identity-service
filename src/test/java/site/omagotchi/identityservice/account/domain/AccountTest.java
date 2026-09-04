@@ -150,6 +150,61 @@ class AccountTest {
     }
 
     @Test
+    @DisplayName("비밀번호 재설정은 활성 계정의 로그인 실패 상태 초기화")
+    void resetsPasswordAndActiveLoginFailures() {
+        // Given
+        Account account = account();
+        Instant now = Instant.parse("2026-09-04T00:00:00Z");
+        account.recordLoginFailure(now, 5, Duration.ofMinutes(10));
+
+        // When
+        account.resetPasswordHash("reset-password-hash");
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(account.getPasswordHash()).isEqualTo("reset-password-hash");
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(account.getFailedLoginAttempts()).isZero();
+            softly.then(account.getLockedUntil()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("비밀번호 재설정은 잠긴 계정을 활성 상태로 복구")
+    void resetsPasswordAndUnlocksAccount() {
+        // Given
+        Account account = lockedAccount();
+
+        // When
+        account.resetPasswordHash("reset-password-hash");
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(account.getPasswordHash()).isEqualTo("reset-password-hash");
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(account.getFailedLoginAttempts()).isZero();
+            softly.then(account.getLockedUntil()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("비활성 계정의 비밀번호 재설정 거부")
+    void rejectsPasswordResetForDisabledAccount() {
+        // Given
+        Account account = account();
+        account.disable(STATUS_CHANGED_AT);
+
+        // When
+        Throwable thrown = catchThrowable(() -> account.resetPasswordHash(
+                "reset-password-hash"
+        ));
+
+        // Then
+        then(thrown).isInstanceOf(IllegalStateException.class);
+        then(account.getPasswordHash()).isEqualTo("encoded-password");
+    }
+
+    @Test
     @DisplayName("빈 비밀번호 Hash 변경 거부")
     void rejectsBlankPasswordHash() {
         // Given

@@ -9,8 +9,7 @@ import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.domain.EmailPolicy;
 import site.omagotchi.identityservice.account.domain.GlobalRole;
-import site.omagotchi.identityservice.emailverification.application.AccountRecoveryEmailOtpService;
-import site.omagotchi.identityservice.emailverification.application.SignupEmailOtpService;
+import site.omagotchi.identityservice.emailverification.application.EmailVerificationUseService;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
 import java.time.Clock;
@@ -25,8 +24,7 @@ public class AccountRegistrationV2Transaction {
     private final AccountRegistrationService accountRegistrationService;
     private final AccountLifecycleService accountLifecycleService;
     private final AccountRepository accountRepository;
-    private final SignupEmailOtpService emailOtpService;
-    private final AccountRecoveryEmailOtpService recoveryEmailOtpService;
+    private final EmailVerificationUseService emailVerificationUseService;
     private final AccountRecoveryPolicy recoveryPolicy;
     private final AccountStatusChangeAuditRecorder accountStatusChangeAuditRecorder;
     private final Clock clock;
@@ -48,7 +46,11 @@ public class AccountRegistrationV2Transaction {
         if (existing != null && !recovery) {
             // 소비된 가입·복구 인증 요청 재사용의 OTP 오류 우선 판정
             // 가입 성공 뒤에도 유지되는 일회성 소비 계약 보존
-            if (!emailOtpService.verify(challengeId, normalizedEmail, code)) {
+            if (!emailVerificationUseService.verifySignupOtp(
+                    challengeId,
+                    normalizedEmail,
+                    code
+            )) {
                 return Optional.empty();
             }
             throw new BusinessException(AccountErrorCode.DUPLICATE_EMAIL);
@@ -61,8 +63,12 @@ public class AccountRegistrationV2Transaction {
         }
 
         boolean verified = recovery
-                ? recoveryEmailOtpService.verify(challengeId, normalizedEmail, code)
-                : emailOtpService.verify(
+                ? emailVerificationUseService.verifyAccountRecoveryOtp(
+                        challengeId,
+                        normalizedEmail,
+                        code
+                )
+                : emailVerificationUseService.verifySignupOtp(
                         challengeId,
                         normalizedEmail,
                         code
@@ -74,7 +80,7 @@ public class AccountRegistrationV2Transaction {
 
         if (!recovery) {
             Account account = accountRegistrationService.signUp(email, rawPassword, name);
-            emailOtpService.consume(challengeId);
+            emailVerificationUseService.consume(challengeId);
             return Optional.of(new AccountRegistrationResult(
                     account,
                     AccountRegistrationResult.Outcome.CREATED
@@ -82,7 +88,7 @@ public class AccountRegistrationV2Transaction {
         }
 
         accountLifecycleService.recover(existing, rawPassword, name, now);
-        recoveryEmailOtpService.consume(challengeId);
+        emailVerificationUseService.consume(challengeId);
         accountStatusChangeAuditRecorder.recordRecovery(existing.getId(), now);
         return Optional.of(new AccountRegistrationResult(
                 existing,

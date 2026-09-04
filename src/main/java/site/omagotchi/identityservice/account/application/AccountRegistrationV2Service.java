@@ -9,9 +9,8 @@ import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.domain.AccountStatus;
 import site.omagotchi.identityservice.account.domain.EmailPolicy;
 import site.omagotchi.identityservice.account.domain.GlobalRole;
-import site.omagotchi.identityservice.emailverification.application.AccountRecoveryEmailOtpService;
 import site.omagotchi.identityservice.emailverification.application.EmailVerificationErrorCode;
-import site.omagotchi.identityservice.emailverification.application.SignupEmailOtpService;
+import site.omagotchi.identityservice.emailverification.application.EmailVerificationIssueService;
 import site.omagotchi.identityservice.emailverification.application.result.IssuedEmailVerification;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
@@ -26,8 +25,7 @@ public class AccountRegistrationV2Service {
     private final AccountRegistrationV2Transaction transaction;
     private final AccountRegistrationService accountRegistrationService;
     private final AccountRepository accountRepository;
-    private final SignupEmailOtpService emailOtpService;
-    private final AccountRecoveryEmailOtpService recoveryEmailOtpService;
+    private final EmailVerificationIssueService emailVerificationIssueService;
     private final AccountRecoveryPolicy recoveryPolicy;
     private final Clock clock;
 
@@ -42,13 +40,13 @@ public class AccountRegistrationV2Service {
         Instant now = clock.instant();
         IssuedEmailVerification issued;
         if (account == null) {
-            issued = emailOtpService.issue(normalizedEmail);
+            issued = emailVerificationIssueService.issueSignupOtp(normalizedEmail);
         } else if (account.getStatus() == AccountStatus.WITHDRAWN
                 && account.getGlobalRole() == GlobalRole.USER) {
             if (!recoveryPolicy.canRecover(account, now)) {
                 throw new BusinessException(AccountErrorCode.PURGE_PENDING);
             }
-            issued = recoveryEmailOtpService.issue(normalizedEmail);
+            issued = emailVerificationIssueService.issueAccountRecoveryOtp(normalizedEmail);
         } else {
             throw new BusinessException(AccountErrorCode.DUPLICATE_EMAIL);
         }

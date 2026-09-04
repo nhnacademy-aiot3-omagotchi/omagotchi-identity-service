@@ -168,11 +168,19 @@ public class Account {
         if (!isPasswordChangeAllowed()) {
             throw new IllegalStateException("현재 계정 상태에서는 비밀번호를 변경할 수 없습니다.");
         }
-        if (newPasswordHash == null || newPasswordHash.isBlank()) {
-            throw new IllegalArgumentException("비밀번호 Hash는 비어 있을 수 없습니다.");
+        requirePasswordHash(newPasswordHash);
+        passwordHash = newPasswordHash;
+    }
+
+    public void resetPasswordHash(String newPasswordHash) {
+        if (!isPasswordChangeAllowed()) {
+            throw new IllegalStateException("현재 계정 상태에서는 비밀번호를 재설정할 수 없습니다.");
         }
+        requirePasswordHash(newPasswordHash);
 
         passwordHash = newPasswordHash;
+        failedLoginAttempts = 0;
+        lockedUntil = null;
     }
 
     public boolean withdraw(Instant withdrawnAt) {
@@ -241,9 +249,7 @@ public class Account {
         if (status != AccountStatus.WITHDRAWN) {
             throw new IllegalStateException("탈퇴한 계정만 복구할 수 있습니다.");
         }
-        if (newPasswordHash == null || newPasswordHash.isBlank()) {
-            throw new IllegalArgumentException("비밀번호 Hash는 비어 있을 수 없습니다.");
-        }
+        requirePasswordHash(newPasswordHash);
         if (!isNormalizedNameValid(normalizedName)) {
             throw new IllegalArgumentException("이름은 앞뒤 공백을 제외하고 1~30자여야 합니다.");
         }
@@ -325,6 +331,12 @@ public class Account {
 
     private static String normalizeName(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static void requirePasswordHash(String passwordHash) {
+        if (passwordHash == null || passwordHash.isBlank()) {
+            throw new IllegalArgumentException("비밀번호 Hash는 비어 있을 수 없습니다.");
+        }
     }
 
     private static Duration requireLockDuration(Duration lockDuration) {

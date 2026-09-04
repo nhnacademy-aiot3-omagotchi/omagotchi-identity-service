@@ -6,11 +6,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import site.omagotchi.identityservice.account.application.result.AccountRegistrationResult;
 import site.omagotchi.identityservice.account.application.port.AccountRepository;
+import site.omagotchi.identityservice.account.application.result.AccountRegistrationResult;
 import site.omagotchi.identityservice.account.domain.Account;
-import site.omagotchi.identityservice.emailverification.application.AccountRecoveryEmailOtpService;
-import site.omagotchi.identityservice.emailverification.application.SignupEmailOtpService;
+import site.omagotchi.identityservice.emailverification.application.EmailVerificationUseService;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -35,9 +34,7 @@ class AccountRegistrationV2TransactionTest {
     @Mock
     private AccountLifecycleService accountLifecycleService;
     @Mock
-    private SignupEmailOtpService emailOtpService;
-    @Mock
-    private AccountRecoveryEmailOtpService recoveryEmailOtpService;
+    private EmailVerificationUseService emailVerificationUseService;
     @Mock
     private AccountRepository accountRepository;
     @Mock
@@ -53,8 +50,7 @@ class AccountRegistrationV2TransactionTest {
                 registrationService,
                 accountLifecycleService,
                 accountRepository,
-                emailOtpService,
-                recoveryEmailOtpService,
+                emailVerificationUseService,
                 recoveryPolicy,
                 accountStatusChangeAuditRecorder,
                 Clock.fixed(Instant.parse("2026-09-03T00:00:00Z"), ZoneOffset.UTC)
@@ -68,7 +64,7 @@ class AccountRegistrationV2TransactionTest {
         UUID challengeId = CHALLENGE_ID;
         given(accountRepository.lockByEmail("member@example.com"))
                 .willReturn(Optional.empty());
-        given(emailOtpService.verify(
+        given(emailVerificationUseService.verifySignupOtp(
                 challengeId,
                 "member@example.com",
                 "000000"
@@ -91,7 +87,7 @@ class AccountRegistrationV2TransactionTest {
         verify(registrationService, never()).signUp(
                 " Member@Example.com ", "long-enough-password", "member"
         );
-        verify(emailOtpService, never()).consume(challengeId);
+        verify(emailVerificationUseService, never()).consume(challengeId);
     }
 
     @Test
@@ -107,7 +103,7 @@ class AccountRegistrationV2TransactionTest {
                 "member",
                 Instant.EPOCH
         );
-        given(emailOtpService.verify(
+        given(emailVerificationUseService.verifySignupOtp(
                 challengeId,
                 "member@example.com",
                 "123456"
@@ -128,6 +124,6 @@ class AccountRegistrationV2TransactionTest {
         // Then
         then(result.account()).isSameAs(account);
         then(result.outcome()).isEqualTo(AccountRegistrationResult.Outcome.CREATED);
-        verify(emailOtpService).consume(challengeId);
+        verify(emailVerificationUseService).consume(challengeId);
     }
 }

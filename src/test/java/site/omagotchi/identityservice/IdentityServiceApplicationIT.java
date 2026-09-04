@@ -24,7 +24,7 @@ class IdentityServiceApplicationIT {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("PostgreSQL 18.1 Flyway V1~V10")
+    @DisplayName("PostgreSQL 18.1 Flyway V1~V12")
     void appliesMigrationsOnProjectPostgreSqlVersion() {
         // Given
         String expectedVersionPrefix = "18.1";
@@ -34,6 +34,8 @@ class IdentityServiceApplicationIT {
                 "identity_service.account_status_change_audits";
         String expectedSystemAdministratorGuardsTable =
                 "identity_service.system_administrator_guards";
+        String expectedEmailDeliveryCooldownsTable =
+                "identity_service.email_delivery_cooldowns";
 
         // When
         String serverVersion = jdbcTemplate.queryForObject(
@@ -54,6 +56,10 @@ class IdentityServiceApplicationIT {
         );
         String systemAdministratorGuardsTable = jdbcTemplate.queryForObject(
                 "SELECT to_regclass('identity_service.system_administrator_guards')::text",
+                String.class
+        );
+        String emailDeliveryCooldownsTable = jdbcTemplate.queryForObject(
+                "SELECT to_regclass('identity_service.email_delivery_cooldowns')::text",
                 String.class
         );
         Integer systemAdministratorGuardCount = jdbcTemplate.queryForObject(
@@ -133,6 +139,25 @@ class IdentityServiceApplicationIT {
                   AND tablename = 'accounts'
                   AND indexname = 'idx_accounts_active_system_admin'
                 """, String.class);
+        String emailVerificationScopePurposeConstraint = jdbcTemplate.queryForObject("""
+                SELECT pg_get_constraintdef(oid)
+                FROM pg_constraint
+                WHERE conname = 'ck_email_verification_scopes_purpose'
+                  AND conrelid = 'identity_service.email_verification_scopes'::regclass
+                """, String.class);
+        String emailVerificationChallengePurposeConstraint = jdbcTemplate.queryForObject("""
+                SELECT pg_get_constraintdef(oid)
+                FROM pg_constraint
+                WHERE conname = 'ck_email_verification_challenges_purpose'
+                  AND conrelid = 'identity_service.email_verification_challenges'::regclass
+                """, String.class);
+        Integer legacyScopeCooldownColumnCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_schema = 'identity_service'
+                  AND table_name = 'email_verification_scopes'
+                  AND column_name = 'next_issue_at'
+                """, Integer.class);
         List<String> migrationVersions = jdbcTemplate.queryForList("""
                 SELECT version
                 FROM identity_service.flyway_schema_history
@@ -150,6 +175,8 @@ class IdentityServiceApplicationIT {
                     .isEqualTo(expectedAccountStatusAuditsTable);
             softly.then(systemAdministratorGuardsTable)
                     .isEqualTo(expectedSystemAdministratorGuardsTable);
+            softly.then(emailDeliveryCooldownsTable)
+                    .isEqualTo(expectedEmailDeliveryCooldownsTable);
             softly.then(systemAdministratorGuardCount).isEqualTo(1);
             softly.then(systemAdministratorGuardId).isEqualTo(1);
             softly.then(accountIdType).isEqualTo("uuid");
@@ -170,9 +197,26 @@ class IdentityServiceApplicationIT {
             softly.then(activeAdministratorIndex)
                     .contains("global_role", "SYSTEM_ADMIN", "ACTIVE")
                     .doesNotContain("LOCKED");
+            softly.then(emailVerificationScopePurposeConstraint)
+                    .contains(
+                            "SIGNUP",
+                            "PASSWORD_CHANGE",
+                            "PASSWORD_RESET",
+                            "ACCOUNT_RECOVERY"
+                    );
+            softly.then(emailVerificationChallengePurposeConstraint)
+                    .contains(
+                            "SIGNUP",
+                            "PASSWORD_CHANGE",
+                            "PASSWORD_RESET",
+                            "ACCOUNT_RECOVERY"
+                    );
+            softly.then(legacyScopeCooldownColumnCount).isZero();
             softly.then(migrationVersions)
                     .containsExactly(
-                            "1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
+                            "1", "2", "3", "4", "5", "6",
+                            "7", "8", "9", "10", "11", "12"
+                    );
         });
     }
 }
