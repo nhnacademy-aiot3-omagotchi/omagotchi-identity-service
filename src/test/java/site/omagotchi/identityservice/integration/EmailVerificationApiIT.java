@@ -289,6 +289,10 @@ class EmailVerificationApiIT {
                 email
         );
         jdbcTemplate.update(
+                "DELETE FROM identity_service.email_delivery_cooldowns WHERE email = ?",
+                email
+        );
+        jdbcTemplate.update(
                 "DELETE FROM identity_service.accounts WHERE email = ?",
                 email
         );

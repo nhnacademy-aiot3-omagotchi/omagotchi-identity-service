@@ -26,7 +26,23 @@ public class EmailVerificationIssueService {
     private final EmailVerificationProperties properties;
     private final Clock clock;
 
-    public IssuedEmailVerification issue(
+    /** 회원가입용 이메일 OTP를 발급한다. */
+    public IssuedEmailVerification issueSignupOtp(String normalizedEmail) {
+        return issue(normalizedEmail, EmailVerificationPurpose.SIGNUP);
+    }
+
+    /** 비밀번호 변경용 이메일 OTP를 발급한다. */
+    public IssuedEmailVerification issuePasswordChangeOtp(String normalizedEmail) {
+        return issue(normalizedEmail, EmailVerificationPurpose.PASSWORD_CHANGE);
+    }
+
+    /** 비밀번호 재설정용 이메일 OTP를 발급한다. */
+    public IssuedEmailVerification issuePasswordResetOtp(String normalizedEmail) {
+        return issue(normalizedEmail, EmailVerificationPurpose.PASSWORD_RESET);
+    }
+
+    /** 지정된 목적의 OTP를 준비하고 메일 전달 결과를 처리한다. */
+    private IssuedEmailVerification issue(
             String normalizedEmail,
             EmailVerificationPurpose purpose
     ) {
@@ -85,6 +101,7 @@ public class EmailVerificationIssueService {
         return new IssuedEmailVerification(prepared.challengeId(), expiresInSeconds);
     }
 
+    /** 메일 전달 실패 상태를 기록하고 공유 쿨다운을 해제한다. */
     private void compensateDeliveryFailure(
             PreparedEmailVerification prepared,
             EmailDeliveryException deliveryFailure
@@ -101,6 +118,7 @@ public class EmailVerificationIssueService {
         }
     }
 
+    /** Provider 요청 제한을 기록하고 유지할 공유 쿨다운의 남은 시간을 반환한다. */
     private long compensateRateLimitedDelivery(
             PreparedEmailVerification prepared,
             EmailDeliveryException deliveryFailure
@@ -118,6 +136,7 @@ public class EmailVerificationIssueService {
         }
     }
 
+    /** 메일 전달 실패를 외부 의존성 장애 예외로 변환한다. */
     private DependencyUnavailableException dependencyUnavailable(
             EmailDeliveryException deliveryFailure
     ) {
@@ -127,6 +146,7 @@ public class EmailVerificationIssueService {
         );
     }
 
+    /** 전달 완료 전에 만료된 Challenge의 쿨다운을 보상하고 요청을 거절한다. */
     private void rejectExpiredDelivery(PreparedEmailVerification prepared) {
         EmailDeliveryException deadlineFailure = new EmailDeliveryException(
                 "인증 메일 처리 중 Challenge 유효시간이 만료되었습니다.",

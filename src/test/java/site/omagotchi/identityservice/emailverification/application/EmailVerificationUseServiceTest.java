@@ -4,6 +4,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import site.omagotchi.identityservice.emailverification.application.port.EmailVerificationRepository;
@@ -60,27 +62,23 @@ class EmailVerificationUseServiceTest {
         );
     }
 
-    @Test
-    @DisplayName("올바른 문맥과 인증번호 검증 성공")
-    void verifiesMatchingCode() {
+    @ParameterizedTest
+    @EnumSource(EmailVerificationPurpose.class)
+    @DisplayName("목적별 공개 검증 메서드는 올바른 문맥과 인증번호를 승인")
+    void verifiesMatchingCode(EmailVerificationPurpose purpose) {
         // Given
-        EmailVerificationChallenge challenge = challenge();
+        EmailVerificationChallenge challenge = challenge(purpose);
         given(repository.lockChallenge(challenge.getId())).willReturn(Optional.of(challenge));
         given(authenticator.matches(
                 challenge.getCodeMac(),
                 challenge.getId(),
                 EMAIL,
-                EmailVerificationPurpose.SIGNUP,
+                purpose,
                 "123456"
         )).willReturn(true);
 
         // When
-        boolean verified = service.verify(
-                challenge.getId(),
-                EMAIL,
-                EmailVerificationPurpose.SIGNUP,
-                "123456"
-        );
+        boolean verified = verifyForPurpose(purpose, challenge.getId(), "123456");
 
         // Then
         then(verified).isTrue();
@@ -102,12 +100,8 @@ class EmailVerificationUseServiceTest {
         )).willReturn(false);
 
         // When
-        then(service.verify(
-                challenge.getId(), EMAIL, EmailVerificationPurpose.SIGNUP, "000000"
-        )).isFalse();
-        then(service.verify(
-                challenge.getId(), EMAIL, EmailVerificationPurpose.SIGNUP, "000000"
-        )).isFalse();
+        then(service.verifySignupOtp(challenge.getId(), EMAIL, "000000")).isFalse();
+        then(service.verifySignupOtp(challenge.getId(), EMAIL, "000000")).isFalse();
 
         // Then
         then(challenge.getFailedAttempts()).isEqualTo((short) 2);
@@ -122,10 +116,9 @@ class EmailVerificationUseServiceTest {
         given(repository.lockChallenge(challenge.getId())).willReturn(Optional.of(challenge));
 
         // When
-        boolean verified = service.verify(
+        boolean verified = service.verifySignupOtp(
                 challenge.getId(),
                 "other@example.com",
-                EmailVerificationPurpose.SIGNUP,
                 "123456"
         );
 
@@ -159,10 +152,9 @@ class EmailVerificationUseServiceTest {
         given(clock.instant()).willReturn(lockAcquiredAt);
 
         // When
-        boolean verified = service.verify(
+        boolean verified = service.verifySignupOtp(
                 challenge.getId(),
                 EMAIL,
-                EmailVerificationPurpose.SIGNUP,
                 "123456"
         );
 
@@ -191,14 +183,30 @@ class EmailVerificationUseServiceTest {
     }
 
     private EmailVerificationChallenge challenge() {
+        return challenge(EmailVerificationPurpose.SIGNUP);
+    }
+
+    private EmailVerificationChallenge challenge(EmailVerificationPurpose purpose) {
         return EmailVerificationChallenge.issue(
                 CHALLENGE_ID,
                 SCOPE_ID,
                 EMAIL,
-                EmailVerificationPurpose.SIGNUP,
+                purpose,
                 "a".repeat(64),
                 NOW.plusSeconds(300),
                 NOW.minusSeconds(1)
         );
+    }
+
+    private boolean verifyForPurpose(
+            EmailVerificationPurpose purpose,
+            UUID challengeId,
+            String code
+    ) {
+        return switch (purpose) {
+            case SIGNUP -> service.verifySignupOtp(challengeId, EMAIL, code);
+            case PASSWORD_CHANGE -> service.verifyPasswordChangeOtp(challengeId, EMAIL, code);
+            case PASSWORD_RESET -> service.verifyPasswordResetOtp(challengeId, EMAIL, code);
+        };
     }
 }

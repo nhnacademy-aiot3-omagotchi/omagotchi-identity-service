@@ -7,7 +7,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import site.omagotchi.identityservice.account.application.AccountPasswordService;
-import site.omagotchi.identityservice.emailverification.application.PasswordChangeEmailOtpService;
+import site.omagotchi.identityservice.emailverification.application.EmailVerificationUseService;
 
 import java.util.UUID;
 
@@ -31,7 +31,7 @@ class PasswordChangeV2TransactionTest {
     @Mock
     private RefreshSessionRevocationService revocationService;
     @Mock
-    private PasswordChangeEmailOtpService emailOtpService;
+    private EmailVerificationUseService emailVerificationUseService;
 
     private PasswordChangeV2Transaction transaction;
 
@@ -40,7 +40,7 @@ class PasswordChangeV2TransactionTest {
         transaction = new PasswordChangeV2Transaction(
                 accountPasswordService,
                 revocationService,
-                emailOtpService
+                emailVerificationUseService
         );
         given(accountPasswordService.lockPasswordChangeEmail(ACCOUNT_ID))
                 .willReturn("member@example.com");
@@ -50,7 +50,7 @@ class PasswordChangeV2TransactionTest {
     @DisplayName("OTP 실패 시 실패 결과만 반환하고 비밀번호·Session 미변경")
     void keepsBusinessStateWhenOtpFails() {
         // Given
-        given(emailOtpService.verify(
+        given(emailVerificationUseService.verifyPasswordChangeOtp(
                 CHALLENGE_ID,
                 "member@example.com",
                 "000000"
@@ -70,14 +70,14 @@ class PasswordChangeV2TransactionTest {
         verify(revocationService, never()).revokeAllForAccount(
                 ACCOUNT_ID, RefreshSessionRevocationReason.PASSWORD_CHANGED
         );
-        verify(emailOtpService, never()).consume(CHALLENGE_ID);
+        verify(emailVerificationUseService, never()).consume(CHALLENGE_ID);
     }
 
     @Test
     @DisplayName("OTP 성공 시 비밀번호 변경·Session 폐기·Challenge 소비")
     void changesPasswordRevokesSessionsAndConsumesOtp() {
         // Given
-        given(emailOtpService.verify(
+        given(emailVerificationUseService.verifyPasswordChangeOtp(
                 CHALLENGE_ID,
                 "member@example.com",
                 "123456"
@@ -97,6 +97,6 @@ class PasswordChangeV2TransactionTest {
         verify(revocationService).revokeAllForAccount(
                 ACCOUNT_ID, RefreshSessionRevocationReason.PASSWORD_CHANGED
         );
-        verify(emailOtpService).consume(CHALLENGE_ID);
+        verify(emailVerificationUseService).consume(CHALLENGE_ID);
     }
 }

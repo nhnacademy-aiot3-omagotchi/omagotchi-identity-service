@@ -142,6 +142,61 @@ class AccountTest {
     }
 
     @Test
+    @DisplayName("비밀번호 재설정은 활성 계정의 로그인 실패 상태 초기화")
+    void resetsPasswordAndActiveLoginFailures() {
+        // Given
+        Account account = account();
+        Instant now = Instant.parse("2026-09-04T00:00:00Z");
+        account.recordLoginFailure(now, 5, Duration.ofMinutes(10));
+
+        // When
+        account.resetPasswordHash("reset-password-hash");
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(account.getPasswordHash()).isEqualTo("reset-password-hash");
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(account.getFailedLoginAttempts()).isZero();
+            softly.then(account.getLockedUntil()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("비밀번호 재설정은 잠긴 계정을 활성 상태로 복구")
+    void resetsPasswordAndUnlocksAccount() {
+        // Given
+        Account account = lockedAccount();
+
+        // When
+        account.resetPasswordHash("reset-password-hash");
+
+        // Then
+        thenSoftly(softly -> {
+            softly.then(account.getPasswordHash()).isEqualTo("reset-password-hash");
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+            softly.then(account.getFailedLoginAttempts()).isZero();
+            softly.then(account.getLockedUntil()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("비활성 계정의 비밀번호 재설정 거부")
+    void rejectsPasswordResetForDisabledAccount() {
+        // Given
+        Account account = account();
+        account.disable();
+
+        // When
+        Throwable thrown = catchThrowable(() -> account.resetPasswordHash(
+                "reset-password-hash"
+        ));
+
+        // Then
+        then(thrown).isInstanceOf(IllegalStateException.class);
+        then(account.getPasswordHash()).isEqualTo("encoded-password");
+    }
+
+    @Test
     @DisplayName("빈 비밀번호 Hash 변경 거부")
     void rejectsBlankPasswordHash() {
         // Given
@@ -357,8 +412,8 @@ class AccountTest {
         Account active = account();
         Account locked = lockedAccount();
 
-        then(active.isDisableAllowed()).isTrue();
-        then(locked.isDisableAllowed()).isTrue();
+        then(active.isManagementAllowed()).isTrue();
+        then(locked.isManagementAllowed()).isTrue();
 
         // When
         AccountStatusTransition activeTransition = active.disable();
@@ -372,8 +427,8 @@ class AccountTest {
             softly.then(lockedTransition.after()).isEqualTo(AccountStatus.DISABLED);
             softly.then(locked.getFailedLoginAttempts()).isZero();
             softly.then(locked.getLockedUntil()).isNull();
-            softly.then(active.isDisableAllowed()).isFalse();
-            softly.then(locked.isDisableAllowed()).isFalse();
+            softly.then(active.isManagementAllowed()).isFalse();
+            softly.then(locked.isManagementAllowed()).isFalse();
         });
     }
 
@@ -413,13 +468,13 @@ class AccountTest {
         account.withdraw(Instant.parse("2026-08-30T12:00:00Z"));
 
         // When
-        boolean disableAllowed = account.isDisableAllowed();
+        boolean managementAllowed = account.isManagementAllowed();
         boolean activationAllowed = account.isActivationAllowed();
         Throwable disableFailure = catchThrowable(account::disable);
         Throwable activationFailure = catchThrowable(account::activate);
 
         // Then
-        then(disableAllowed).isFalse();
+        then(managementAllowed).isFalse();
         then(activationAllowed).isFalse();
         then(disableFailure).isInstanceOf(IllegalStateException.class);
         then(activationFailure).isInstanceOf(IllegalStateException.class);
@@ -463,8 +518,8 @@ class AccountTest {
 
         // Then: 쓸 수 없는 계정에 권한을 남기거나 주지 않는다
         thenSoftly(softly -> {
-            softly.then(disabled.isGlobalRoleChangeAllowed()).isFalse();
-            softly.then(withdrawn.isGlobalRoleChangeAllowed()).isFalse();
+            softly.then(disabled.isManagementAllowed()).isFalse();
+            softly.then(withdrawn.isManagementAllowed()).isFalse();
             softly.then(disabledFailure).isInstanceOf(IllegalStateException.class);
             softly.then(withdrawnFailure).isInstanceOf(IllegalStateException.class);
             softly.then(disabled.getGlobalRole()).isEqualTo(GlobalRole.USER);

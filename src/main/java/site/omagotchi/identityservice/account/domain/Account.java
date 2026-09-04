@@ -92,38 +92,21 @@ public class Account {
     }
 
     public boolean isLoginAllowed() {
-        return status == AccountStatus.ACTIVE;
+        return status.isLoginAllowed();
     }
 
-    public boolean isPasswordChangeAllowed() {
-        return status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED;
-    }
-
-    public boolean isNameChangeAllowed() {
-        return status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED;
+    public boolean isManagementAllowed() {
+        return status.isManagementAllowed();
     }
 
     // 마지막 관리자 보호 대상이 되는 역할과 상태
     public boolean isUsableSystemAdministrator() {
-        return globalRole == GlobalRole.SYSTEM_ADMIN
-                && (status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED);
-    }
-
-    // 명세에서 허용한 본인 탈퇴 시작 상태
-    public boolean isWithdrawalAllowed() {
-        return status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED;
-    }
-
-    // 명세에서 허용한 관리자 비활성화 시작 상태
-    public boolean isDisableAllowed() {
-        return status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED;
+        return globalRole == GlobalRole.SYSTEM_ADMIN && isManagementAllowed();
     }
 
     // 명세에서 허용한 관리자 활성화 시작 상태
     public boolean isActivationAllowed() {
-        return status == AccountStatus.ACTIVE
-                || status == AccountStatus.LOCKED
-                || status == AccountStatus.DISABLED;
+        return status.isActivationAllowed();
     }
 
     /**
@@ -133,20 +116,15 @@ public class Account {
      * 자기 자신 변경 금지는 호출부(Use Case)의 잠금 구간에서 확인한다.</p>
      */
     public void changeGlobalRole(GlobalRole newGlobalRole) {
-        if (!isGlobalRoleChangeAllowed()) {
+        if (!isManagementAllowed()) {
             throw new IllegalStateException("현재 계정 상태에서는 전역 역할을 변경할 수 없습니다.");
         }
 
         globalRole = Objects.requireNonNull(newGlobalRole, "newGlobalRole");
     }
 
-    // 명세에서 허용한 역할 변경 시작 상태. WITHDRAWN·DISABLED 는 대상이 아니다.
-    public boolean isGlobalRoleChangeAllowed() {
-        return status == AccountStatus.ACTIVE || status == AccountStatus.LOCKED;
-    }
-
     public void changeName(String newName) {
-        if (!isNameChangeAllowed()) {
+        if (!isManagementAllowed()) {
             throw new IllegalStateException("현재 계정 상태에서는 이름을 변경할 수 없습니다.");
         }
 
@@ -159,7 +137,7 @@ public class Account {
     }
 
     public void changePasswordHash(String newPasswordHash) {
-        if (!isPasswordChangeAllowed()) {
+        if (!isManagementAllowed()) {
             throw new IllegalStateException("현재 계정 상태에서는 비밀번호를 변경할 수 없습니다.");
         }
         if (newPasswordHash == null || newPasswordHash.isBlank()) {
@@ -167,6 +145,20 @@ public class Account {
         }
 
         passwordHash = newPasswordHash;
+    }
+
+    public void resetPasswordHash(String newPasswordHash) {
+        if (!isManagementAllowed()) {
+            throw new IllegalStateException("현재 계정 상태에서는 비밀번호를 재설정할 수 없습니다.");
+        }
+        if (newPasswordHash == null || newPasswordHash.isBlank()) {
+            throw new IllegalArgumentException("비밀번호 Hash는 비어 있을 수 없습니다.");
+        }
+
+        passwordHash = newPasswordHash;
+        status = AccountStatus.ACTIVE;
+        failedLoginAttempts = 0;
+        lockedUntil = null;
     }
 
     public AccountStatusTransition withdraw(Instant withdrawnAt) {
@@ -177,7 +169,7 @@ public class Account {
         if (status == AccountStatus.WITHDRAWN) {
             return AccountStatusTransition.unchanged(status);
         }
-        if (!isWithdrawalAllowed()) {
+        if (!isManagementAllowed()) {
             throw new IllegalStateException("현재 계정 상태에서는 탈퇴할 수 없습니다.");
         }
 
@@ -196,7 +188,7 @@ public class Account {
         if (status == AccountStatus.DISABLED) {
             return AccountStatusTransition.unchanged(status);
         }
-        if (!isDisableAllowed()) {
+        if (!isManagementAllowed()) {
             throw new IllegalStateException("현재 계정 상태에서는 비활성화할 수 없습니다.");
         }
 

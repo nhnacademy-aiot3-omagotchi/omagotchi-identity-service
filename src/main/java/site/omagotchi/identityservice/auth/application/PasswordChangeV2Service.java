@@ -5,7 +5,7 @@ import org.springframework.stereotype.Service;
 import site.omagotchi.identityservice.account.application.AccountPasswordService;
 import site.omagotchi.identityservice.auth.application.result.PasswordChangeEmailOtpResult;
 import site.omagotchi.identityservice.emailverification.application.EmailVerificationErrorCode;
-import site.omagotchi.identityservice.emailverification.application.PasswordChangeEmailOtpService;
+import site.omagotchi.identityservice.emailverification.application.EmailVerificationIssueService;
 import site.omagotchi.identityservice.emailverification.application.result.IssuedEmailVerification;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
@@ -17,11 +17,12 @@ public class PasswordChangeV2Service {
 
     private final PasswordChangeV2Transaction transaction;
     private final AccountPasswordService accountPasswordService;
-    private final PasswordChangeEmailOtpService emailOtpService;
+    private final EmailVerificationIssueService emailVerificationIssueService;
 
     public PasswordChangeEmailOtpResult issueEmailOtp(UUID accountId) {
         String email = accountPasswordService.getPasswordChangeEmail(accountId);
-        IssuedEmailVerification issued = emailOtpService.issue(email);
+        IssuedEmailVerification issued = emailVerificationIssueService
+                .issuePasswordChangeOtp(email);
         return new PasswordChangeEmailOtpResult(issued.challengeId(), issued.expiresInSeconds());
     }
 

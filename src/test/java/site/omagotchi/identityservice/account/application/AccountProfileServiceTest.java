@@ -95,7 +95,7 @@ class AccountProfileServiceTest {
         UUID accountId = ACCOUNT_ID;
         Account account = mock(Account.class);
         given(accountRepository.lockById(accountId)).willReturn(Optional.of(account));
-        given(account.isNameChangeAllowed()).willReturn(false);
+        given(account.isManagementAllowed()).willReturn(false);
 
         // When
         Throwable thrown = catchThrowable(() -> accountProfileService.changeName(
@@ -109,6 +109,6 @@ class AccountProfileServiceTest {
                 exception -> then(exception.getErrorCode())
                         .isEqualTo(AccountErrorCode.NAME_CHANGE_NOT_ALLOWED)
         );
-        verify(account).isNameChangeAllowed();
+        verify(account).isManagementAllowed();
     }
 }

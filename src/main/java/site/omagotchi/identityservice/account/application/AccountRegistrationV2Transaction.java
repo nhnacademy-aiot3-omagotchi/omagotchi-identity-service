@@ -6,7 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import site.omagotchi.identityservice.account.application.result.AccountRegistrationAttempt;
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.account.domain.EmailPolicy;
-import site.omagotchi.identityservice.emailverification.application.SignupEmailOtpService;
+import site.omagotchi.identityservice.emailverification.application.EmailVerificationUseService;
 
 import java.util.UUID;
 
@@ -15,7 +15,7 @@ import java.util.UUID;
 public class AccountRegistrationV2Transaction {
 
     private final AccountRegistrationService accountRegistrationService;
-    private final SignupEmailOtpService emailOtpService;
+    private final EmailVerificationUseService emailVerificationUseService;
 
     @Transactional
     public AccountRegistrationAttempt signUp(
@@ -27,7 +27,7 @@ public class AccountRegistrationV2Transaction {
     ) {
         accountRegistrationService.validateRegistrationInput(email, rawPassword, name);
         String normalizedEmail = EmailPolicy.normalize(email);
-        boolean verified = emailOtpService.verify(
+        boolean verified = emailVerificationUseService.verifySignupOtp(
                 challengeId,
                 normalizedEmail,
                 code
@@ -38,7 +38,7 @@ public class AccountRegistrationV2Transaction {
         }
 
         Account account = accountRegistrationService.signUp(email, rawPassword, name);
-        emailOtpService.consume(challengeId);
+        emailVerificationUseService.consume(challengeId);
         return AccountRegistrationAttempt.succeeded(account);
     }
 }

@@ -20,6 +20,11 @@ public enum AuthErrorCode implements ErrorCode {
             ErrorType.AUTHENTICATION,
             "AUTH_INVALID_REFRESH_TOKEN",
             "Refresh Token이 올바르지 않습니다."
+    ),
+    INVALID_PASSWORD_RESET(
+            ErrorType.INVALID_INPUT,
+            "AUTH_PASSWORD_RESET_INVALID",
+            "비밀번호 재설정 정보가 올바르지 않거나 만료되었습니다."
     );
 
     private final ErrorType type;
