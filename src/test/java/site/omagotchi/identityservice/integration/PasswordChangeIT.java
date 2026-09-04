@@ -348,7 +348,7 @@ class PasswordChangeIT {
                 "user@example.com",
                 CURRENT_PASSWORD
         );
-        accountStateFixture.changeStatus(accountId, AccountStatus.LOCKED);
+        accountStateFixture.lockLogin(accountId);
 
         // When
         ResultActions response = api.changePassword(
@@ -361,7 +361,7 @@ class PasswordChangeIT {
         response.andExpect(status().isNoContent());
         Account account = accountJpaRepository.findById(accountId).orElseThrow();
         thenSoftly(softly -> {
-            softly.then(account.getStatus()).isEqualTo(AccountStatus.LOCKED);
+            softly.then(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
             softly.then(passwordHasher.matches(
                     NEW_PASSWORD,
                     account.getPasswordHash()

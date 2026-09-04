@@ -8,6 +8,7 @@ import site.omagotchi.identityservice.account.application.port.PasswordHasher;
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -268,7 +269,8 @@ class AccountPasswordServiceTest {
         return Account.register(
                 "user@example.com",
                 CURRENT_PASSWORD_HASH,
-                "사용자"
+                "사용자",
+                Instant.EPOCH
         );
     }
 

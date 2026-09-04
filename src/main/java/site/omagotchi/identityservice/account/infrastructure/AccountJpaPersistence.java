@@ -26,7 +26,7 @@ public class AccountJpaPersistence implements AccountRepository {
 
     private static final String EMAIL_CONSTRAINT = "uq_accounts_email";
 
-    // 정렬값이 같은 행의 페이지 경계 중복·누락을 막는 최종 Tie-breaker
+    // 정렬값이 같은 행의 페이지 경계 중복·누락을 막는 최종 정렬 기준
     private static final Sort.Order ID_TIE_BREAKER = Sort.Order.asc("id");
 
     private final AccountJpaRepository accountJpaRepository;
@@ -56,8 +56,8 @@ public class AccountJpaPersistence implements AccountRepository {
     }
 
     @Override
-    public long countUsableSystemAdministrators() {
-        return accountJpaRepository.countUsableSystemAdministrators();
+    public long countActiveSystemAdministrators() {
+        return accountJpaRepository.countActiveSystemAdministrators();
     }
 
     @Override

@@ -11,8 +11,6 @@ class AccountRefreshAccessTest {
     void convertsAccountStatusToRefreshAccess() {
         assertThat(AccountRefreshAccess.from(AccountStatus.ACTIVE))
                 .isEqualTo(AccountRefreshAccess.ALLOWED);
-        assertThat(AccountRefreshAccess.from(AccountStatus.LOCKED))
-                .isEqualTo(AccountRefreshAccess.ALLOWED);
         assertThat(AccountRefreshAccess.from(AccountStatus.DISABLED))
                 .isEqualTo(AccountRefreshAccess.ACCOUNT_DISABLED);
         assertThat(AccountRefreshAccess.from(AccountStatus.WITHDRAWN))

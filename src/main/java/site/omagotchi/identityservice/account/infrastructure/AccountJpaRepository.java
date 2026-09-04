@@ -48,17 +48,14 @@ public interface AccountJpaRepository
             """, nativeQuery = true)
     Integer lockSystemAdministratorGuard();
 
-    // ACTIVE 또는 LOCKED 상태의 SYSTEM_ADMIN 집계
+    // 로그인 잠금과 독립적인 ACTIVE 상태 SYSTEM_ADMIN 집계
     @Query("""
             SELECT COUNT(account)
             FROM Account account
             WHERE account.globalRole = site.omagotchi.identityservice.account.domain.GlobalRole.SYSTEM_ADMIN
-              AND account.status IN (
-                  site.omagotchi.identityservice.account.domain.AccountStatus.ACTIVE,
-                  site.omagotchi.identityservice.account.domain.AccountStatus.LOCKED
-              )
+              AND account.status = site.omagotchi.identityservice.account.domain.AccountStatus.ACTIVE
             """)
-    long countUsableSystemAdministrators();
+    long countActiveSystemAdministrators();
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

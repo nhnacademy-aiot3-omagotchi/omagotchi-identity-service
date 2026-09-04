@@ -7,6 +7,10 @@ import site.omagotchi.identityservice.account.application.port.PasswordHasher;
 import site.omagotchi.identityservice.account.domain.Account;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+
 import static org.assertj.core.api.BDDAssertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,6 +20,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class AccountRegistrationServiceTest {
 
+    private static final Clock CLOCK = Clock.fixed(
+            Instant.parse("2026-09-03T00:00:00Z"),
+            ZoneOffset.UTC
+    );
+
     @Test
     @DisplayName("비밀번호 최대 UTF-8 바이트 위반을 비밀번호 오류로 변환")
     void rejectsPasswordOverMaximumUtf8Bytes() {
@@ -24,7 +33,8 @@ class AccountRegistrationServiceTest {
         PasswordHasher passwordHasher = mock(PasswordHasher.class);
         AccountRegistrationService accountRegistrationService = new AccountRegistrationService(
                 accountRepository,
-                passwordHasher
+                passwordHasher,
+                CLOCK
         );
         String password = "가".repeat(24) + "a1";
 
@@ -52,7 +62,8 @@ class AccountRegistrationServiceTest {
         PasswordHasher passwordHasher = mock(PasswordHasher.class);
         AccountRegistrationService accountRegistrationService = new AccountRegistrationService(
                 accountRepository,
-                passwordHasher
+                passwordHasher,
+                CLOCK
         );
 
         // When
@@ -79,7 +90,8 @@ class AccountRegistrationServiceTest {
         PasswordHasher passwordHasher = mock(PasswordHasher.class);
         AccountRegistrationService accountRegistrationService = new AccountRegistrationService(
                 accountRepository,
-                passwordHasher
+                passwordHasher,
+                CLOCK
         );
 
         // When
@@ -116,7 +128,8 @@ class AccountRegistrationServiceTest {
 
         AccountRegistrationService accountRegistrationService = new AccountRegistrationService(
                 accountRepository,
-                passwordHasher
+                passwordHasher,
+                CLOCK
         );
 
         // When
@@ -146,7 +159,8 @@ class AccountRegistrationServiceTest {
 
         AccountRegistrationService accountRegistrationService = new AccountRegistrationService(
                 accountRepository,
-                passwordHasher
+                passwordHasher,
+                CLOCK
         );
 
         // When

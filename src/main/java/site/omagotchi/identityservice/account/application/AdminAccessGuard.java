@@ -19,12 +19,12 @@ import java.util.UUID;
  * 권한 회수·계정 정지 직후에도 이전 Token으로 관리자 API가 열리는 창을 닫기 위한 경계다.
  */
 @Component
-@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class AdminAccessGuard {
 
     private final AccountRepository accountRepository;
 
+    @Transactional(readOnly = true)
     public UUID requireSystemAdmin(UUID accountId) {
         UUID actorId = Objects.requireNonNull(accountId, "accountId");
 

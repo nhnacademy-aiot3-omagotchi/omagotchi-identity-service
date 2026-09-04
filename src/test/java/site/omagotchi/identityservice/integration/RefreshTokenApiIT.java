@@ -140,7 +140,7 @@ class RefreshTokenApiIT {
                 "user@example.com",
                 "password-passphrase"
         );
-        accountStateFixture.changeStatus(accountId, AccountStatus.LOCKED);
+        accountStateFixture.lockLogin(accountId);
 
         // When
         AuthApiTestClient.TokenBundle refreshed = api.refreshSuccessfully(login.refreshToken());

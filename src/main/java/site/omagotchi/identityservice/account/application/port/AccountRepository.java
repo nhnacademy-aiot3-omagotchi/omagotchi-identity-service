@@ -18,7 +18,7 @@ public interface AccountRepository {
 
     void lockSystemAdministratorGuard();
 
-    long countUsableSystemAdministrators();
+    long countActiveSystemAdministrators();
 
     List<Account> findAllById(Collection<UUID> accountIds);
 
