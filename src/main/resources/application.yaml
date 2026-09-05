@@ -101,3 +101,9 @@ logging:
   pattern:
     # 개발 환경 텍스트 로그의 Request ID·Trace ID·Span ID 표시 형식
     correlation: "[requestId=%X{http.request.id:-}] [traceId=%X{traceId:-}] [spanId=%X{spanId:-}] "
+  structured:
+    json:
+      # ECS 필드와 중복되는 Micrometer MDC 원본 이름 제외
+      exclude:
+        - traceId
+        - spanId

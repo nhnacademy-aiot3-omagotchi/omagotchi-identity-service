@@ -8,8 +8,11 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import site.omagotchi.identityservice.emailverification.application.EmailDeliveryException;
 import site.omagotchi.identityservice.emailverification.application.EmailVerificationCooldownException;
 import site.omagotchi.identityservice.emailverification.application.EmailVerificationErrorCode;
+import site.omagotchi.identityservice.global.logging.HttpErrorEventLogger;
 
 import static org.assertj.core.api.BDDAssertions.then;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class GlobalExceptionHandlerTest {
 
@@ -17,7 +20,8 @@ class GlobalExceptionHandlerTest {
     private static final String DIAGNOSTIC_MESSAGE =
             "operation = update, expectedStatus = ACTIVE, actualStatus = CLOSED";
 
-    private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
+    private final HttpErrorEventLogger errorEventLogger = mock(HttpErrorEventLogger.class);
+    private final GlobalExceptionHandler handler = new GlobalExceptionHandler(errorEventLogger);
 
     @Test
     @DisplayName("호출 계약 위반을 내부 오류로 숨김")
@@ -33,6 +37,12 @@ class GlobalExceptionHandlerTest {
 
         // Then
         thenUnexpectedExceptionIsHidden(response);
+        verify(errorEventLogger).log(
+                exception,
+                CommonErrorCode.INTERNAL_SERVER_ERROR,
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                request
+        );
     }
 
     @Test
@@ -49,6 +59,12 @@ class GlobalExceptionHandlerTest {
 
         // Then
         thenUnexpectedExceptionIsHidden(response);
+        verify(errorEventLogger).log(
+                exception,
+                CommonErrorCode.INTERNAL_SERVER_ERROR,
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                request
+        );
     }
 
     @Test
@@ -100,15 +116,20 @@ class GlobalExceptionHandlerTest {
         );
 
         // When
-        ResponseEntity<ApiErrorResponse> response = handler.handleDependencyUnavailable(
-                exception,
-                requestForTest()
-        );
+        MockHttpServletRequest request = requestForTest();
+        ResponseEntity<ApiErrorResponse> response =
+                handler.handleDependencyUnavailable(exception, request);
 
         // Then
         then(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         then(response.getBody().message())
                 .isEqualTo(EmailVerificationErrorCode.DELIVERY_UNAVAILABLE.message());
+        verify(errorEventLogger).log(
+                exception,
+                EmailVerificationErrorCode.DELIVERY_UNAVAILABLE,
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
+                request
+        );
     }
 
     private MockHttpServletRequest requestForTest() {
