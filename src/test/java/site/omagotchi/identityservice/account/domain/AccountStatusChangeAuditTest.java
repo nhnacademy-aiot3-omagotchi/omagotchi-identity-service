@@ -20,7 +20,7 @@ class AccountStatusChangeAuditTest {
     private static final Instant OCCURRED_AT = Instant.parse("2026-08-30T12:00:00Z");
 
     @Test
-    @DisplayName("감사 기록 생성과 Request ID 예약값")
+    @DisplayName("HTTP 문맥이 없는 감사 기록 생성")
     void recordsAuditWithoutRequestId() {
         // When
         AccountStatusChangeAudit audit = AccountStatusChangeAudit.create(
@@ -28,7 +28,8 @@ class AccountStatusChangeAuditTest {
                 TARGET_ID,
                 AccountStatusChangeAction.ACCOUNT_DISABLED,
                 "보안 사고 대응",
-                OCCURRED_AT
+                OCCURRED_AT,
+                null
         );
 
         // Then
@@ -49,7 +50,8 @@ class AccountStatusChangeAuditTest {
                 TARGET_ID,
                 AccountStatusChangeAction.LOGIN_LOCK_RELEASED,
                 "본인 확인 완료",
-                OCCURRED_AT
+                OCCURRED_AT,
+                null
         );
 
         then(audit.getAction()).isEqualTo(AccountStatusChangeAction.LOGIN_LOCK_RELEASED);
@@ -63,7 +65,8 @@ class AccountStatusChangeAuditTest {
                 TARGET_ID,
                 AccountStatusChangeAction.ACCOUNT_RECOVERED,
                 "이메일 소유권 확인",
-                OCCURRED_AT
+                OCCURRED_AT,
+                null
         );
 
         then(audit.getAction()).isEqualTo(AccountStatusChangeAction.ACCOUNT_RECOVERED);

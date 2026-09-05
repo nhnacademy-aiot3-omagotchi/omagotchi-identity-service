@@ -7,6 +7,7 @@ import site.omagotchi.identityservice.account.application.AccountAdministrationS
 import site.omagotchi.identityservice.accountrole.application.port.AccountRoleChangeAuditRepository;
 import site.omagotchi.identityservice.accountrole.domain.AccountRoleChangeAction;
 import site.omagotchi.identityservice.accountrole.domain.AccountRoleChangeAudit;
+import site.omagotchi.identityservice.global.requestid.RequestIdContext;
 
 import java.time.Clock;
 import java.util.UUID;
@@ -58,7 +59,8 @@ public class AccountRoleChangeService {
                 targetAccountId,
                 action,
                 reason,
-                clock.instant()
+                clock.instant(),
+                RequestIdContext.currentValue()
         ));
     }
 }

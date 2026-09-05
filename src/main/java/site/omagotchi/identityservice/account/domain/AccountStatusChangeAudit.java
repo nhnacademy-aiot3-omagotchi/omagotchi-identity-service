@@ -11,6 +11,7 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -42,7 +43,7 @@ public class AccountStatusChangeAudit {
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt;
 
-    // 향후 요청 ID 연계를 위해 null을 허용하는 예약 필드
+    // HTTP 밖에서 발생한 사건까지 수용하는 선택적 요청 식별자
     @Column(name = "request_id", length = 32)
     private String requestId;
 
@@ -51,14 +52,15 @@ public class AccountStatusChangeAudit {
             UUID targetUserId,
             AccountStatusChangeAction action,
             String reason,
-            Instant occurredAt
+            Instant occurredAt,
+            @Nullable String requestId
     ) {
         this.actorUserId = Objects.requireNonNull(actorUserId, "actorUserId");
         this.targetUserId = Objects.requireNonNull(targetUserId, "targetUserId");
         this.action = Objects.requireNonNull(action, "action");
         this.reason = Objects.requireNonNull(reason, "reason");
         this.occurredAt = Objects.requireNonNull(occurredAt, "occurredAt");
-        this.requestId = null;
+        this.requestId = requestId;
     }
 
     public static AccountStatusChangeAudit create(
@@ -66,14 +68,16 @@ public class AccountStatusChangeAudit {
             UUID targetUserId,
             AccountStatusChangeAction action,
             String reason,
-            Instant occurredAt
+            Instant occurredAt,
+            @Nullable String requestId
     ) {
         return new AccountStatusChangeAudit(
                 actorUserId,
                 targetUserId,
                 action,
                 reason,
-                occurredAt
+                occurredAt,
+                requestId
         );
     }
 }

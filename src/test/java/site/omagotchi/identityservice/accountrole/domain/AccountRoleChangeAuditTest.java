@@ -19,7 +19,7 @@ class AccountRoleChangeAuditTest {
     private static final Instant OCCURRED_AT = Instant.parse("2026-08-30T12:00:00Z");
 
     @Test
-    @DisplayName("권한 부여 감사 기록과 Request ID 예약값")
+    @DisplayName("HTTP 문맥이 없는 권한 부여 감사 기록 생성")
     void recordsGrantAudit() {
         // When
         AccountRoleChangeAudit audit = AccountRoleChangeAudit.create(
@@ -27,7 +27,8 @@ class AccountRoleChangeAuditTest {
                 TARGET_ID,
                 AccountRoleChangeAction.ROLE_GRANTED,
                 "운영 인수인계",
-                OCCURRED_AT
+                OCCURRED_AT,
+                null
         );
 
         // Then
