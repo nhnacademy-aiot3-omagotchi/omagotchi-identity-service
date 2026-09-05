@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import site.omagotchi.identityservice.global.requestid.RequestIdContext;
 
 // Controller 내부의 업무·MVC·예상하지 못한 실패를 공통 JSON 오류로 변환하는 경계
 @Slf4j
@@ -150,7 +151,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 errorCode.code(),
                 message,
                 ((ServletWebRequest) request).getRequest().getRequestURI(),
-                null
+                RequestIdContext.currentValue()
         );
         // 요청 URI의 JSON 문자열 직렬화로 HTML 실행 문맥과 분리된 응답
         return new ResponseEntity<>(
@@ -186,7 +187,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         errorCode.code(),
                         errorCode.message(),
                         request.getRequestURI(),
-                        null
+                        RequestIdContext.currentValue()
                 ));
     }
 }

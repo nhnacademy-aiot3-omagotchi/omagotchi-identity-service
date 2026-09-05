@@ -42,6 +42,13 @@ eureka:
     prefer-ip-address: true
 
 management:
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: w3c
+    baggage:
+      enabled: false
   endpoints:
     web:
       exposure:
@@ -89,3 +96,8 @@ email:
     from-email: ${RESEND_FROM_EMAIL}
     connect-timeout: ${RESEND_CONNECT_TIMEOUT}
     read-timeout: ${RESEND_READ_TIMEOUT}
+
+logging:
+  pattern:
+    # 개발 환경 텍스트 로그의 Request ID·Trace ID·Span ID 표시 형식
+    correlation: "[requestId=%X{http.request.id:-}] [traceId=%X{traceId:-}] [spanId=%X{spanId:-}] "
