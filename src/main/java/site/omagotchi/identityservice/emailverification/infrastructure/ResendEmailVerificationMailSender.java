@@ -10,15 +10,21 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
+import org.thymeleaf.templatemode.TemplateMode;
+import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 import site.omagotchi.identityservice.emailverification.application.EmailDeliveryException;
 import site.omagotchi.identityservice.emailverification.application.port.EmailVerificationMailSender;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -29,6 +35,8 @@ public class ResendEmailVerificationMailSender implements EmailVerificationMailS
             LoggerFactory.getLogger(ResendEmailVerificationMailSender.class);
 
     private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
+    private static final String VERIFICATION_CODE_TEMPLATE = "verification-code";
+    private static final TemplateEngine TEMPLATE_ENGINE = createTemplateEngine();
 
     // 메일 본문 이미지는 외부에서 접근 가능한 절대 URL이 필요하다.
     // 이 서비스는 anyRequest().authenticated() 경계라 정적 자원을 공개할 수 없으므로
@@ -37,19 +45,6 @@ public class ResendEmailVerificationMailSender implements EmailVerificationMailS
     private static final String MASCOT_CONTENT_ID = "omagotchi-mascot";
     private static final String MASCOT_FILENAME = "omagotchi-mascot.png";
     private static final String MASCOT_CONTENT_TYPE = "image/png";
-
-    private static final String CODE_CELL_TEMPLATE = """
-            <td align="center" valign="middle" style="width:46px;height:66px;background:#eeeef0;\
-            border-radius:10px;font-size:26px;font-weight:700;color:#111111;\
-            text-align:center;">%s</td>""";
-
-    private static final String CODE_SPACER_CELL =
-            "<td style=\"width:10px;font-size:0;line-height:0;\">&nbsp;</td>";
-
-    private static final String MASCOT_IMAGE_TAG = """
-            <img src="cid:%s" width="120" height="120" alt="오마고치" \
-            style="display:block;border:0;outline:none;text-decoration:none;\
-            -ms-interpolation-mode:nearest-neighbor;image-rendering:pixelated;">""";
 
     private final RestClient restClient;
     private final ResendProperties properties;
@@ -136,78 +131,34 @@ public class ResendEmailVerificationMailSender implements EmailVerificationMailS
     }
 
     /**
-     * 메일 클라이언트 호환을 위해 table + inline style 로만 구성한다.
+     * 실제 발송에 사용하는 classpath HTML 파일을 Thymeleaf로 렌더링한다.
+     * 메일 클라이언트 호환을 위해 템플릿은 table + inline style 로만 구성한다.
      * flex/grid/외부 CSS 는 Outlook·Gmail 에서 무시되므로 사용하지 않는다.
      */
     private String renderVerificationCodeHtml(String code, long minutes) {
-        return """
-                <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0" \
-                style="background:#ffffff;margin:0;padding:0;">
-                  <tr><td align="center" style="padding:32px 16px;">
-                    <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0" \
-                style="max-width:420px;background:#fafafa;border:1px solid #e6e6e6;border-radius:24px;">
-                      <tr><td align="center" style="padding:44px 24px 40px 24px;">
-                        %s
-                        <div style="height:32px;line-height:32px;font-size:0;">&nbsp;</div>
-                        <div style="font-size:26px;line-height:1.3;font-weight:700;color:#111111;\
-                letter-spacing:-0.5px;">인증 코드</div>
-                        <div style="height:34px;line-height:34px;font-size:0;">&nbsp;</div>
-                        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
-                          <tr>%s</tr>
-                        </table>
-                        <div style="height:36px;line-height:36px;font-size:0;">&nbsp;</div>
-                        <div style="font-size:20px;line-height:1.4;font-weight:700;color:#111111;\
-                letter-spacing:-0.3px;">%d분 안에 입력하세요</div>
-                      </td></tr>
-                    </table>
-                    <div style="max-width:420px;padding:20px 8px 0 8px;font-size:12px;\
-                line-height:1.6;color:#9a9a9a;text-align:center;">
-                      본인이 요청하지 않았다면 이 메일을 무시해 주세요.
-                    </div>
-                  </td></tr>
-                </table>
-                """.formatted(
-                renderMascotImageTag(),
-                renderCodeCells(code),
-                minutes
-        );
+        Context context = new Context(Locale.KOREAN);
+        // 코드 포인트 단위로 셀을 만들고 th:text 로 이스케이프하여 자리수와 문자에 의존하지 않는다.
+        context.setVariable("codeCharacters", code.codePoints()
+                .mapToObj(Character::toString)
+                .toList());
+        context.setVariable("validityMinutes", minutes);
+        // 이미지가 없으면 img 태그 자체를 제거하여 깨진 이미지 아이콘을 피한다.
+        context.setVariable("mascotAvailable", mascotBase64 != null);
+        context.setVariable("mascotContentId", MASCOT_CONTENT_ID);
+        return TEMPLATE_ENGINE.process(VERIFICATION_CODE_TEMPLATE, context);
     }
 
-    /** 이미지 자원이 없으면 img 태그 자체를 넣지 않아 깨진 이미지 아이콘을 피한다. */
-    private String renderMascotImageTag() {
-        if (mascotBase64 == null) {
-            return "";
-        }
-        return MASCOT_IMAGE_TAG.formatted(MASCOT_CONTENT_ID);
-    }
+    /** 메일 렌더링에만 쓰므로 MVC View 설정으로 노출하지 않고 Adapter 내부에 둔다. */
+    private static TemplateEngine createTemplateEngine() {
+        ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
+        resolver.setPrefix("emailverification/mail/");
+        resolver.setSuffix(".html");
+        resolver.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        resolver.setTemplateMode(TemplateMode.HTML);
+        resolver.setCacheable(true);
 
-    /**
-     * 코드 한 글자당 회색 박스 한 칸을 만든다.
-     * 자리수가 6이 아니어도 레이아웃이 깨지지 않도록 길이에 의존하지 않는다.
-     */
-    private String renderCodeCells(String code) {
-        StringBuilder cells = new StringBuilder();
-        for (int index = 0; index < code.length(); index++) {
-            if (index > 0) {
-                cells.append(CODE_SPACER_CELL);
-            }
-            cells.append(CODE_CELL_TEMPLATE.formatted(escapeHtml(code.charAt(index))));
-        }
-        return cells.toString();
-    }
-
-    /**
-     * 현재 코드는 숫자만으로 생성되지만, 생성 규칙이 바뀌더라도
-     * 마크업이 주입되지 않도록 방어적으로 이스케이프한다.
-     */
-    private String escapeHtml(char character) {
-        return switch (character) {
-            case '&' -> "&amp;";
-            case '<' -> "&lt;";
-            case '>' -> "&gt;";
-            case '"' -> "&quot;";
-            case '\'' -> "&#39;";
-            default -> String.valueOf(character);
-        };
+        TemplateEngine templateEngine = new TemplateEngine();
+        templateEngine.setTemplateResolver(resolver);
+        return templateEngine;
     }
 }
