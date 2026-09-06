@@ -1,7 +1,7 @@
 package site.omagotchi.identityservice.global.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
@@ -16,12 +16,16 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import site.omagotchi.identityservice.global.logging.HttpErrorEventLogger;
+import site.omagotchi.identityservice.global.requestid.RequestIdContext;
 
 // Controller 내부의 업무·MVC·예상하지 못한 실패를 공통 JSON 오류로 변환하는 경계
-@Slf4j
 @RestControllerAdvice
 @NullMarked
+@RequiredArgsConstructor
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+    private final HttpErrorEventLogger errorEventLogger;
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiErrorResponse> handleBusinessException(
@@ -40,13 +44,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             DependencyUnavailableException exception,
             HttpServletRequest request
     ) {
-        log.error(
-                "외부 의존성 호출 실패 code={}, exception={}, method={}, path={}",
-                exception.getErrorCode().code(),
-                exception.getClass().getName(),
-                request.getMethod(),
-                request.getRequestURI(),
-                exception
+        HttpStatus status = ErrorHttpStatusMapper.map(exception.getErrorCode().type());
+        this.errorEventLogger.log(
+                exception,
+                exception.getErrorCode(),
+                status.value(),
+                request
         );
         return response(exception.getErrorCode(), request, HttpHeaders.EMPTY);
     }
@@ -105,7 +108,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 : CommonErrorCode.INVALID_REQUEST;
 
         if (statusCode.is5xxServerError()) {
-            logUnexpected(exception, ((ServletWebRequest) request).getRequest());
+            this.errorEventLogger.log(
+                    exception,
+                    errorCode,
+                    statusCode.value(),
+                    ((ServletWebRequest) request).getRequest()
+            );
         }
         return frameworkResponse(
                 exception,
@@ -122,7 +130,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             Exception exception,
             HttpServletRequest request
     ) {
-        logUnexpected(exception, request);
+        this.errorEventLogger.log(
+                exception,
+                CommonErrorCode.INTERNAL_SERVER_ERROR,
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                request
+        );
         return response(CommonErrorCode.INTERNAL_SERVER_ERROR, request, HttpHeaders.EMPTY);
     }
 
@@ -150,24 +163,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 errorCode.code(),
                 message,
                 ((ServletWebRequest) request).getRequest().getRequestURI(),
-                null
+                RequestIdContext.currentValue()
         );
         // 요청 URI의 JSON 문자열 직렬화로 HTML 실행 문맥과 분리된 응답
         return new ResponseEntity<>(
                 body,
                 springResponse.getHeaders(),
                 springResponse.getStatusCode()
-        );
-    }
-
-    private void logUnexpected(Exception exception, HttpServletRequest request) {
-        log.error(
-                "예상하지 못한 서버 오류 code={}, exception={}, method={}, path={}",
-                CommonErrorCode.INTERNAL_SERVER_ERROR.code(),
-                exception.getClass().getName(),
-                request.getMethod(),
-                request.getRequestURI(),
-                exception
         );
     }
 
@@ -186,7 +188,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         errorCode.code(),
                         errorCode.message(),
                         request.getRequestURI(),
-                        null
+                        RequestIdContext.currentValue()
                 ));
     }
 }

@@ -24,6 +24,7 @@ import site.omagotchi.identityservice.account.infrastructure.AccountStatusChange
 import site.omagotchi.identityservice.auth.domain.RefreshToken;
 import site.omagotchi.identityservice.auth.domain.RefreshTokenRevocationReason;
 import site.omagotchi.identityservice.auth.infrastructure.RefreshTokenJpaRepository;
+import site.omagotchi.identityservice.global.requestid.RequestId;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
@@ -254,7 +255,7 @@ class AccountStateManagementIT {
         api.loginSuccessfully("target@example.com", PASSWORD);
 
         // When
-        api.changeAccountStatus(
+        String requestId = api.changeAccountStatus(
                         administrator.accessToken(),
                         targetId,
                         "DISABLED",
@@ -263,9 +264,13 @@ class AccountStateManagementIT {
                 .andExpectAll(
                         status().isNoContent(),
                         header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store"))
-                );
+                )
+                .andReturn()
+                .getResponse()
+                .getHeader(RequestId.HEADER_NAME);
 
         // Then
+        then(requestId).isNotBlank();
         Account target = accountJpaRepository.findById(targetId).orElseThrow();
         AccountStatusChangeAudit audit = auditJpaRepository.findAll().getFirst();
         thenSoftly(softly -> {
@@ -280,7 +285,7 @@ class AccountStateManagementIT {
             softly.then(audit.getAction())
                     .isEqualTo(AccountStatusChangeAction.ACCOUNT_DISABLED);
             softly.then(audit.getReason()).isEqualTo("보안 사고 대응");
-            softly.then(audit.getRequestId()).isNull();
+            softly.then(audit.getRequestId()).isEqualTo(requestId);
         });
         api.me(targetLogin.accessToken())
                 .andExpectAll(
