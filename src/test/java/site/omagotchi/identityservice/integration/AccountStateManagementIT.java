@@ -270,6 +270,7 @@ class AccountStateManagementIT {
                 .getHeader(RequestId.HEADER_NAME);
 
         // Then
+        then(requestId).isNotBlank();
         Account target = accountJpaRepository.findById(targetId).orElseThrow();
         AccountStatusChangeAudit audit = auditJpaRepository.findAll().getFirst();
         thenSoftly(softly -> {
