@@ -21,6 +21,7 @@ import site.omagotchi.identityservice.account.application.AccountErrorCode;
 import site.omagotchi.identityservice.auth.application.PasswordChangeService;
 import site.omagotchi.identityservice.auth.infrastructure.JwtAccessTokenIssuer;
 import site.omagotchi.identityservice.global.exception.BusinessException;
+import site.omagotchi.identityservice.global.logging.HttpErrorEventLogger;
 import site.omagotchi.identityservice.global.security.error.SecurityErrorResponseHandler;
 import site.omagotchi.identityservice.global.security.jwt.JwtAuthorityConfig;
 import site.omagotchi.identityservice.global.security.jwt.JwtConfig;
@@ -87,6 +88,9 @@ class PasswordChangeControllerTest {
 
     @MockitoBean
     private PasswordChangeService passwordChangeService;
+
+    @MockitoBean
+    private HttpErrorEventLogger errorEventLogger;
 
     @Test
     @DisplayName("현재 비밀번호와 새 비밀번호로 변경 요청")

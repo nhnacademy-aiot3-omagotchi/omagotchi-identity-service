@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import site.omagotchi.identityservice.account.application.port.AccountStatusChangeAuditRepository;
 import site.omagotchi.identityservice.account.domain.AccountStatusChangeAction;
 import site.omagotchi.identityservice.account.domain.AccountStatusChangeAudit;
+import site.omagotchi.identityservice.global.requestid.RequestIdContext;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -48,7 +49,8 @@ public class AccountStatusChangeAuditRecorder {
                 targetAccountId,
                 action,
                 reason,
-                occurredAt
+                occurredAt,
+                RequestIdContext.currentValue()
         ));
     }
 }

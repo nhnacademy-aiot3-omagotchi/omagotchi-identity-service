@@ -7,6 +7,8 @@ import site.omagotchi.identityservice.account.application.AccountAdministrationS
 import site.omagotchi.identityservice.accountrole.application.port.AccountRoleChangeAuditRepository;
 import site.omagotchi.identityservice.accountrole.domain.AccountRoleChangeAction;
 import site.omagotchi.identityservice.accountrole.domain.AccountRoleChangeAudit;
+import site.omagotchi.identityservice.global.requestid.RequestId;
+import site.omagotchi.identityservice.global.requestid.RequestIdContext;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -31,18 +33,21 @@ class AccountRoleChangeServiceTest {
     private static final Instant NOW = Instant.parse("2026-09-01T03:00:00Z");
 
     @Test
-    @DisplayName("권한 부여의 감사 기록 저장")
+    @DisplayName("권한 부여의 감사 기록과 Request ID 저장")
     void appendsAuditOnRoleGrant() {
         // Given
+        RequestId requestId = new RequestId("0123456789abcdef0123456789abcdef");
         Fixture fixture = fixture();
         given(fixture.administrationService().grantSystemAdministrator(
                 ACTOR_ID, TARGET_ID
         )).willReturn(true);
 
         // When
-        fixture.service().changeGlobalRole(
-                ACTOR_ID, TARGET_ID, AdminGlobalRole.SYSTEM_ADMIN, "운영 인수인계"
-        );
+        try (RequestIdContext.Scope ignored = RequestIdContext.openScope(requestId)) {
+            fixture.service().changeGlobalRole(
+                    ACTOR_ID, TARGET_ID, AdminGlobalRole.SYSTEM_ADMIN, "운영 인수인계"
+            );
+        }
 
         // Then
         ArgumentCaptor<AccountRoleChangeAudit> captor =
@@ -55,6 +60,7 @@ class AccountRoleChangeServiceTest {
             softly.then(audit.getAction()).isEqualTo(AccountRoleChangeAction.ROLE_GRANTED);
             softly.then(audit.getReason()).isEqualTo("운영 인수인계");
             softly.then(audit.getOccurredAt()).isEqualTo(NOW);
+            softly.then(audit.getRequestId()).isEqualTo(requestId.value());
         });
     }
 

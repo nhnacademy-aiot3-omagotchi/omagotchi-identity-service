@@ -1,10 +1,11 @@
 package site.omagotchi.identityservice.emailverification.infrastructure;
 
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import site.omagotchi.identityservice.emailverification.application.EmailVerificationProperties;
+import site.omagotchi.identityservice.global.requestid.RequestIdRestClientInterceptor;
 
 import java.net.http.HttpClient;
 
@@ -22,6 +23,7 @@ public class ResendClientConfig {
         return builder
                 .baseUrl("https://api.resend.com")
                 .requestFactory(createRequestFactory(resendProperties))
+                .requestInterceptor(new RequestIdRestClientInterceptor())
                 .build();
     }
 

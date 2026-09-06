@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import site.omagotchi.identityservice.global.exception.ApiErrorResponse;
 import site.omagotchi.identityservice.global.exception.CommonErrorCode;
 import site.omagotchi.identityservice.global.exception.ErrorCode;
+import site.omagotchi.identityservice.global.requestid.RequestIdContext;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
@@ -86,7 +87,7 @@ public class SecurityErrorResponseHandler implements AuthenticationEntryPoint, A
                         errorCode.code(),
                         errorCode.message(),
                         request.getRequestURI(),
-                        null
+                        RequestIdContext.currentValue()
                 )
         );
     }
