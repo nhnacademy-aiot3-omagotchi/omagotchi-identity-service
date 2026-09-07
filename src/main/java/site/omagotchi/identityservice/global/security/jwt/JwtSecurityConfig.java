@@ -38,6 +38,7 @@ public class JwtSecurityConfig {
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(
                                 "/actuator/health",
+                                "/actuator/prometheus",
                                 "/actuator/health/**"
                         ).permitAll()
                         // 전역 운영 관리자 전용 경계, anyRequest보다 먼저 평가되어야 한다
