@@ -7,6 +7,9 @@ import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
+import io.opentelemetry.api.common.AttributeKey;
+import net.ttddyy.observation.boot.autoconfigure.DataSourceObservationAutoConfiguration;
+import net.ttddyy.observation.boot.autoconfigure.opentelemetry.DataSourceObservationOpenTelemetryAutoConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -25,6 +28,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import javax.sql.DataSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -36,7 +44,7 @@ class TelemetryConfigurationTest {
 
     @Test
     @DisplayName("동일 요청의 Histogram·부모 자식 Span 생성과 전송 전 원문 제외")
-    void recordsMetricsAndRelatedSpans() {
+    void recordsMetricsAndRelatedSpans() throws Exception {
         // Given: 실제 설정과 자동 구성, Network 전송만 대체한 Exporter
         List<SpanData> spans = new CopyOnWriteArrayList<>();
         SpanExporter exporter = mock(SpanExporter.class);
@@ -46,6 +54,16 @@ class TelemetryConfigurationTest {
         });
         when(exporter.shutdown()).thenReturn(CompletableResultCode.ofSuccess());
         when(exporter.flush()).thenReturn(CompletableResultCode.ofSuccess());
+        // DB 연결만 대체, 실제 DataSource 장식·쿼리 분석·Trace 연결은 자동 구성 사용
+        DataSource dataSource = mock(DataSource.class);
+        Connection connection = mock(Connection.class);
+        DatabaseMetaData metadata = mock(DatabaseMetaData.class);
+        Statement statement = mock(Statement.class);
+        when(dataSource.getConnection()).thenReturn(connection);
+        when(connection.getMetaData()).thenReturn(metadata);
+        when(metadata.getURL()).thenReturn("jdbc:postgresql://localhost:5432/observability_test");
+        when(metadata.getDatabaseProductName()).thenReturn("PostgreSQL");
+        when(connection.createStatement()).thenReturn(statement);
 
         new ApplicationContextRunner()
                 .withInitializer(new ConfigDataApplicationContextInitializer())
@@ -53,9 +71,11 @@ class TelemetryConfigurationTest {
                         MetricsAutoConfiguration.class, CompositeMeterRegistryAutoConfiguration.class,
                         PrometheusMetricsExportAutoConfiguration.class, ObservationAutoConfiguration.class,
                         MicrometerTracingAutoConfiguration.class, OpenTelemetrySdkAutoConfiguration.class,
-                        OpenTelemetryTracingAutoConfiguration.class, OtlpTracingAutoConfiguration.class))
+                        OpenTelemetryTracingAutoConfiguration.class, OtlpTracingAutoConfiguration.class,
+                        DataSourceObservationAutoConfiguration.class, DataSourceObservationOpenTelemetryAutoConfiguration.class))
                 .withUserConfiguration(TraceAttributeFilter.class)
                 .withBean(SpanExporter.class, () -> exporter)
+                .withBean(DataSource.class, () -> dataSource)
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     ObservationRegistry registry = context.getBean(ObservationRegistry.class);
@@ -64,7 +84,14 @@ class TelemetryConfigurationTest {
                     Observation.createNotStarted("http.server.requests", registry)
                             .lowCardinalityKeyValue("uri", "/probe/{id}")
                             .highCardinalityKeyValue("http.url", "https://example.test/?token=secret")
-                            .observe(() -> Observation.createNotStarted("probe.child", registry).observe(() -> {}));
+                            .observe(() -> Observation.createNotStarted("probe.child", registry).observe(() -> {
+                                try (Connection jdbcConnection = context.getBean(DataSource.class).getConnection();
+                                     Statement jdbcStatement = jdbcConnection.createStatement()) {
+                                    jdbcStatement.executeQuery("SELECT 'secret-jdbc'");
+                                } catch (SQLException exception) {
+                                    throw new IllegalStateException(exception);
+                                }
+                            }));
                     context.getBean(SdkTracerProvider.class).forceFlush().join(5, TimeUnit.SECONDS);
 
                     // Then
@@ -74,6 +101,13 @@ class TelemetryConfigurationTest {
                             .findFirst().orElseThrow();
                     assertThat(child.getTraceId()).isEqualTo(parent.getTraceId());
                     assertThat(child.getParentSpanId()).isEqualTo(parent.getSpanId());
+                    assertThat(spans).anySatisfy(span -> {
+                        assertThat(span.getAttributes().get(AttributeKey.stringKey("db.system.name")))
+                                .isEqualTo("postgresql");
+                        assertThat(span.getParentSpanId()).isEqualTo(child.getSpanId());
+                        assertThat(span.getAttributes().asMap().toString())
+                                .doesNotContain("secret-jdbc", "db.query.text");
+                    });
                     assertThat(parent.getAttributes().asMap().toString()).doesNotContain("secret", "http.url");
                     String scrape = context.getBean(PrometheusMeterRegistry.class).scrape();
                     assertThat(scrape).contains("http_server_requests_seconds_bucket", "/probe/{id}")
