@@ -3,9 +3,12 @@ package site.omagotchi.identityservice.emailverification.infrastructure;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 import site.omagotchi.identityservice.emailverification.application.EmailDeliveryException;
 import site.omagotchi.identityservice.emailverification.application.EmailVerificationProperties;
+import site.omagotchi.identityservice.global.requestid.RequestId;
+import site.omagotchi.identityservice.global.requestid.RequestIdContext;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -17,6 +20,9 @@ import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.assertj.core.api.BDDAssertions.thenThrownBy;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withNoContent;
 
 class ResendClientConfigTest {
 
@@ -115,6 +121,33 @@ class ResendClientConfigTest {
                 .hasMessage(
                         "email.resend.read-timeout은 auth.email-verification.code-ttl보다 짧아야 합니다."
                 );
+    }
+
+    @Test
+    @DisplayName("실제 Resend Client 설정의 현재 Request ID 전파")
+    void propagatesCurrentRequestId() {
+        // Given
+        String requestId = "Dev-Request_01.test";
+        RestClient configured = new ResendClientConfig().resendRestClient(
+                RestClient.builder(),
+                properties(Duration.ofSeconds(2), Duration.ofSeconds(5)),
+                verificationProperties(Duration.ofMinutes(5))
+        );
+        // 실제 설정의 Interceptor는 유지하고 외부 통신만 테스트 대역으로 교체
+        RestClient.Builder builder = configured.mutate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestClient client = builder.build();
+        server.expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(header(RequestId.HEADER_NAME, requestId))
+                .andRespond(withNoContent());
+
+        // When
+        try (RequestIdContext.Scope ignored = RequestIdContext.openScope(new RequestId(requestId))) {
+            client.post().uri("/emails").retrieve().toBodilessEntity();
+        }
+
+        // Then
+        server.verify();
     }
 
     private ResendProperties properties(Duration connectTimeout, Duration readTimeout) {
