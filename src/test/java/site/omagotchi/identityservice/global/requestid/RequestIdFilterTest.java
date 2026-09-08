@@ -46,11 +46,11 @@ class RequestIdFilterTest {
         MDC.clear();
     }
 
-    @Test
-    @DisplayName("유효한 단일 Request ID의 요청·응답·MDC 전파")
-    void propagatesOneValidRequestId() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"0123456789abcdef0123456789abcdef", "Dev-Request_01.test", "Z"})
+    @DisplayName("허용한 단일 Request ID의 요청·응답·MDC 전파")
+    void propagatesOneValidRequestId(String incoming) throws Exception {
         // Given
-        String incoming = "0123456789abcdef0123456789abcdef";
         givenRequestIds(incoming);
         doAnswer(invocation -> {
             then(RequestIdContext.currentValue()).isEqualTo(incoming);
@@ -78,7 +78,7 @@ class RequestIdFilterTest {
         // Then
         verify(this.response).setHeader(
                 eq(RequestId.HEADER_NAME),
-                argThat(RequestId::isValid)
+                argThat(value -> value.matches("[0-9a-f]{32}"))
         );
     }
 
@@ -96,7 +96,7 @@ class RequestIdFilterTest {
         // Then
         verify(this.response).setHeader(
                 eq(RequestId.HEADER_NAME),
-                argThat(value -> RequestId.isValid(value)
+                argThat(value -> value.matches("[0-9a-f]{32}")
                         && !first.equals(value)
                         && !second.equals(value))
         );
@@ -104,10 +104,12 @@ class RequestIdFilterTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "invalid-request-id",
+            "invalid request id",
             "",
             " ",
-            "ABCDEF0123456789ABCDEF0123456789",
+            "0123456789abcdef0123456789abcdef!",
+            "first,second",
+            "한글",
             "0123456789abcdef\r\nX-Injected: 1"
     })
     @DisplayName("잘못된 Request ID의 신규 값 교체")
@@ -121,7 +123,7 @@ class RequestIdFilterTest {
         // Then
         verify(this.response).setHeader(
                 eq(RequestId.HEADER_NAME),
-                argThat(value -> RequestId.isValid(value) && !invalidRequestId.equals(value))
+                argThat(value -> value.matches("[0-9a-f]{32}") && !invalidRequestId.equals(value))
         );
     }
 
@@ -141,6 +143,27 @@ class RequestIdFilterTest {
         );
 
         // Then
+        then(RequestIdContext.currentValue()).isNull();
+    }
+
+    @Test
+    @DisplayName("긴 Request ID의 앞 32자를 요청·응답·MDC에 동일하게 적용")
+    void propagatesTruncatedRequestId() throws Exception {
+        // Given
+        String incoming = "Dev-Request_0123456789.abcdefghijk-extra";
+        String expected = incoming.substring(0, 32);
+        givenRequestIds(incoming);
+        doAnswer(invocation -> {
+            then(RequestIdContext.currentValue()).isEqualTo(expected);
+            return null;
+        }).when(this.filterChain).doFilter(this.request, this.response);
+
+        // When
+        this.filter.doFilter(this.request, this.response, this.filterChain);
+
+        // Then
+        verify(this.response).setHeader(RequestId.HEADER_NAME, expected);
+        verify(this.request).setAttribute(RequestId.ATTRIBUTE_NAME, new RequestId(expected));
         then(RequestIdContext.currentValue()).isNull();
     }
 
