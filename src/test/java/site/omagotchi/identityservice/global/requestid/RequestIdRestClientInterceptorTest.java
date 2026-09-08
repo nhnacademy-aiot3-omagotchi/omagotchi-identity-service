@@ -23,7 +23,7 @@ class RequestIdRestClientInterceptorTest {
     @DisplayName("현재 요청의 Request ID 전파")
     void propagatesCurrentRequestId() {
         // Given
-        String requestId = "0123456789abcdef0123456789abcdef";
+        String requestId = "Dev-Request_01.test";
         MDC.put(RequestIdContext.MDC_KEY, requestId);
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
@@ -48,7 +48,7 @@ class RequestIdRestClientInterceptorTest {
     @DisplayName("잘못된 MDC 값의 신규 Request ID 교체")
     void replacesInvalidMdcValue() {
         // Given
-        MDC.put(RequestIdContext.MDC_KEY, "invalid-request-id");
+        MDC.put(RequestIdContext.MDC_KEY, "invalid request id");
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder
