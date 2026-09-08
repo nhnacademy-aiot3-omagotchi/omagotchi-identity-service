@@ -86,8 +86,8 @@ chmod 644 secrets/jwt-public.pem
 
 - `LOGIN_MAXIMUM_FAILED_ATTEMPTS`: 계정 잠금까지 허용할 연속 로그인 실패 횟수
 - `LOGIN_LOCK_DURATION`: 잠금 유지 기간의 ISO-8601 Duration
-- 로컬·개발 예제 정책: `5`, `PT10M`
-- 두 값 모두 필수이며 누락·범위 오류 시 애플리케이션 시작 실패
+- `application.yaml` 기본 정책: `5`, `PT10M`
+- 환경변수 생략 가능, 명시한 값의 범위 오류 시 애플리케이션 시작 실패
 
 ### 이메일 인증 설정
 
@@ -95,11 +95,13 @@ chmod 644 secrets/jwt-public.pem
 - `EMAIL_VERIFICATION_COOLDOWN`: 이메일·용도별 재발급 대기시간 (`PT1M` 권장)
 - `EMAIL_VERIFICATION_MAXIMUM_FAILED_ATTEMPTS`: Challenge당 최대 검증 실패 횟수 (`5` 권장)
 - `EMAIL_VERIFICATION_HMAC_SECRET`: 인증번호 HMAC용 32자 이상 비밀값
+- 정책값의 `application.yaml` 기본값 사용, HMAC 비밀값의 필수 주입 유지
 
 ### Resend 설정
 - `RESEND_API_KEY`, `RESEND_FROM_EMAIL`: Resend API Credential과 검증된 발신 주소
 - `RESEND_CONNECT_TIMEOUT`, `RESEND_READ_TIMEOUT`: 연결·전체 응답 시간 상한 (`PT2S`, `PT5S` 권장)
 - `RESEND_CONNECT_TIMEOUT ≤ RESEND_READ_TIMEOUT < EMAIL_VERIFICATION_CODE_TTL` 관계를 지켜야 기동됨
+- timeout의 `application.yaml` 기본값 사용, API Key·발신 주소의 필수 주입 유지
 - 인증번호 원문은 저장하지 않고, Redis·비동기 Executor는 이메일 인증 경로에서 사용하지 않음
 
 ### 실행
