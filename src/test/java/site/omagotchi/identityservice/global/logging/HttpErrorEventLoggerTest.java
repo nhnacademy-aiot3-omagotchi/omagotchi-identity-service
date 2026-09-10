@@ -69,7 +69,7 @@ class HttpErrorEventLoggerTest {
         then(events.getFirst().getFormattedMessage())
                 .doesNotContain("local-diagnostic-detail");
         then(events.getFirst().getThrowableProxy()).isNull();
-        then((String) safeFields.get("error.stack_trace"))
+        then((String) safeFields.get("omagotchi.error.stack_trace"))
                 .contains("HttpErrorEventLoggerTest.separatesSafeAndDiagnosticEvents(")
                 .doesNotContain("local-diagnostic-detail");
 
