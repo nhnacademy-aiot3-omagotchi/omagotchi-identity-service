@@ -98,7 +98,7 @@ management:
         enabled: true
       show-details: never
 
-# 쿼리 실행 시간·종류만 수집, SQL 본문·바인딩 값·추가 SQL 로그 제외
+# 쿼리 구조·실행 시간 수집. JdbcObservationConfig의 값 제거, 바인딩 값·추가 SQL 로그 제외.
 jdbc:
   includes: QUERY
   datasource-proxy:
@@ -109,10 +109,6 @@ jdbc:
       enable-logging: false
   resultset-operations:
     enabled: false
-  opentelemetry:
-    attributes:
-      overrides:
-        "[db.query.text]": ""
 
 account:
   recovery:
