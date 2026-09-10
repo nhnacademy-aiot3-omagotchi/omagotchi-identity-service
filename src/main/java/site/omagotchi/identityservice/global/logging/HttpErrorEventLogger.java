@@ -37,6 +37,7 @@ public class HttpErrorEventLogger {
                 .addKeyValue("event.outcome", "failure")
                 .addKeyValue("error.code", errorCode.code())
                 .addKeyValue("error.type", exception.getClass().getName())
+                .addKeyValue("error.stack_trace", ErrorStackTrace.format(exception))
                 .addKeyValue("http.request.method", request.getMethod())
                 .addKeyValue("http.response.status_code", statusCode);
         if (route != null) {
