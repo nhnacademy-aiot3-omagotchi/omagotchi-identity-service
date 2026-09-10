@@ -3,11 +3,11 @@ package site.omagotchi.identityservice.global.logging;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
-import io.opentelemetry.api.common.AttributeKey;
 import net.ttddyy.observation.boot.autoconfigure.DataSourceObservationAutoConfiguration;
 import net.ttddyy.observation.boot.autoconfigure.opentelemetry.DataSourceObservationOpenTelemetryAutoConfiguration;
 import org.junit.jupiter.api.DisplayName;
@@ -24,18 +24,21 @@ import org.springframework.boot.opentelemetry.autoconfigure.OpenTelemetrySdkAuto
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.SQLException;
-import java.sql.Statement;
 import javax.sql.DataSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -59,11 +62,14 @@ class TelemetryConfigurationTest {
         Connection connection = mock(Connection.class);
         DatabaseMetaData metadata = mock(DatabaseMetaData.class);
         Statement statement = mock(Statement.class);
+        PreparedStatement preparedStatement = mock(PreparedStatement.class);
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.getMetaData()).thenReturn(metadata);
         when(metadata.getURL()).thenReturn("jdbc:postgresql://localhost:5432/observability_test");
         when(metadata.getDatabaseProductName()).thenReturn("PostgreSQL");
         when(connection.createStatement()).thenReturn(statement);
+        when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+        when(preparedStatement.executeBatch()).thenThrow(new SQLException("secret-db-error", "23505", 1234));
 
         new ApplicationContextRunner()
                 .withInitializer(new ConfigDataApplicationContextInitializer())
@@ -73,7 +79,7 @@ class TelemetryConfigurationTest {
                         MicrometerTracingAutoConfiguration.class, OpenTelemetrySdkAutoConfiguration.class,
                         OpenTelemetryTracingAutoConfiguration.class, OtlpTracingAutoConfiguration.class,
                         DataSourceObservationAutoConfiguration.class, DataSourceObservationOpenTelemetryAutoConfiguration.class))
-                .withUserConfiguration(TraceAttributeFilter.class)
+                .withUserConfiguration(TraceAttributeFilter.class, SanitizedQueryAnalyzer.class)
                 .withBean(SpanExporter.class, () -> exporter)
                 .withBean(DataSource.class, () -> dataSource)
                 .run(context -> {
@@ -86,8 +92,16 @@ class TelemetryConfigurationTest {
                             .highCardinalityKeyValue("http.url", "https://example.test/?token=secret")
                             .observe(() -> Observation.createNotStarted("probe.child", registry).observe(() -> {
                                 try (Connection jdbcConnection = context.getBean(DataSource.class).getConnection();
-                                     Statement jdbcStatement = jdbcConnection.createStatement()) {
+                                     Statement jdbcStatement = jdbcConnection.createStatement();
+                                     PreparedStatement jdbcPrepared = jdbcConnection.prepareStatement(
+                                             "UPDATE accounts SET nickname = 'secret-inline' WHERE email = ?")) {
                                     jdbcStatement.executeQuery("SELECT 'secret-jdbc'");
+                                    jdbcPrepared.setString(1, "secret-email");
+                                    jdbcPrepared.executeUpdate();
+                                    jdbcPrepared.addBatch();
+                                    jdbcPrepared.setString(1, "secret-other-email");
+                                    jdbcPrepared.addBatch();
+                                    assertThatThrownBy(jdbcPrepared::executeBatch).isInstanceOf(SQLException.class);
                                 } catch (SQLException exception) {
                                     throw new IllegalStateException(exception);
                                 }
@@ -105,8 +119,22 @@ class TelemetryConfigurationTest {
                         assertThat(span.getAttributes().get(AttributeKey.stringKey("db.system.name")))
                                 .isEqualTo("postgresql");
                         assertThat(span.getParentSpanId()).isEqualTo(child.getSpanId());
+                        assertThat(span.getAttributes().get(AttributeKey.stringKey("omagotchi.db.query.text")))
+                                .isEqualTo("SELECT ?");
+                    });
+                    assertThat(spans).anySatisfy(span -> {
+                        assertThat(span.getAttributes().get(AttributeKey.stringKey("omagotchi.db.query.text")))
+                                .isEqualTo("UPDATE accounts SET nickname = ? WHERE email = ?");
+                        assertThat(span.getAttributes().get(AttributeKey.stringKey("db.operation.batch.size")))
+                                .isEqualTo("2");
+                        assertThat(span.getAttributes().get(AttributeKey.stringKey("db.response.status_code")))
+                                .isEqualTo("23505");
+                        assertThat(span.getParentSpanId()).isEqualTo(child.getSpanId());
+                    });
+                    assertThat(spans).allSatisfy(span -> {
+                        assertThat(span.getAttributes().get(AttributeKey.stringKey("db.query.text"))).isNull();
                         assertThat(span.getAttributes().asMap().toString())
-                                .doesNotContain("secret-jdbc", "db.query.text");
+                                .doesNotContain("secret-", "jdbc.params", "jdbc.query");
                     });
                     assertThat(parent.getAttributes().asMap().toString()).doesNotContain("secret", "http.url");
                     String scrape = context.getBean(PrometheusMeterRegistry.class).scrape();
