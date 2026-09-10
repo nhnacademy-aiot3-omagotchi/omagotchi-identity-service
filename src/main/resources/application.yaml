@@ -98,7 +98,7 @@ management:
         enabled: true
       show-details: never
 
-# 쿼리 구조·실행 시간 수집. JdbcObservationConfig의 값 제거, 바인딩 값·추가 SQL 로그 제외.
+# 쿼리 구조·실행 시간 수집. SanitizedQueryAnalyzer의 값 제거, 바인딩 값·추가 SQL 로그 제외.
 jdbc:
   includes: QUERY
   datasource-proxy:

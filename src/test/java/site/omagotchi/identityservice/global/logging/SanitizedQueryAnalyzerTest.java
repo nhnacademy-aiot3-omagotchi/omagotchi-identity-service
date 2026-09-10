@@ -1,4 +1,4 @@
-package site.omagotchi.identityservice.global.config;
+package site.omagotchi.identityservice.global.logging;
 
 import net.ttddyy.dsproxy.StatementType;
 import net.ttddyy.observation.tracing.opentelemetry.OpenTelemetryQueryAnalyzer;
@@ -11,9 +11,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("JDBC 관측 SQL 정제")
-class JdbcObservationConfigTest {
+class SanitizedQueryAnalyzerTest {
 
-    private final OpenTelemetryQueryAnalyzer analyzer = new JdbcObservationConfig().openTelemetryQueryAnalyzer();
+    private final OpenTelemetryQueryAnalyzer analyzer = new SanitizedQueryAnalyzer();
 
     @ParameterizedTest
     @ValueSource(strings = {

@@ -20,7 +20,7 @@ class TraceAttributeFilterTest {
     @DisplayName("원본 URL·바인딩 값 제외, 정제된 SQL·DB 결과와 HTTP 집계 Label 유지")
     void removesRawValuesWithoutChangingMetricLabels() {
         // Given
-        Observation.Context context = new Observation.Context()
+        Observation.Context context = new QueryContext()
                 .addHighCardinalityKeyValue(KeyValue.of("http.url", "https://example.test/?serviceKey=secret"))
                 .addHighCardinalityKeyValue(KeyValue.of("unknown.input", "secret"))
                 .addHighCardinalityKeyValue(KeyValue.of("db.query.summary", "SELECT accounts"))
@@ -38,11 +38,25 @@ class TraceAttributeFilterTest {
         assertThat(context.getHighCardinalityKeyValues())
                 .containsExactlyInAnyOrder(
                         KeyValue.of("db.query.summary", "SELECT accounts"),
-                        KeyValue.of("db.query.text", "SELECT id FROM accounts WHERE email = ?"),
+                        KeyValue.of("omagotchi.db.query.text", "SELECT id FROM accounts WHERE email = ?"),
                         KeyValue.of("db.response.status_code", "0"),
                         KeyValue.of("db.operation.batch.size", "2"));
         assertThat(context.getLowCardinalityKeyValue("uri"))
                 .isEqualTo(KeyValue.of("uri", "/api/items/{id}"));
+    }
+
+    @Test
+    @DisplayName("JDBC 분석을 거치지 않은 계측의 원문 SQL 제외")
+    void removesSqlOutsideQueryContext() {
+        // Given
+        Observation.Context context = new Observation.Context()
+                .addHighCardinalityKeyValue(KeyValue.of("db.query.text", "SELECT 'secret'"));
+
+        // When
+        new TraceAttributeFilter().map(context);
+
+        // Then
+        assertThat(context.getHighCardinalityKeyValues()).isEmpty();
     }
 
     @ParameterizedTest

@@ -23,7 +23,6 @@ import org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.o
 import org.springframework.boot.opentelemetry.autoconfigure.OpenTelemetrySdkAutoConfiguration;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import site.omagotchi.identityservice.global.config.JdbcObservationConfig;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -80,7 +79,7 @@ class TelemetryConfigurationTest {
                         MicrometerTracingAutoConfiguration.class, OpenTelemetrySdkAutoConfiguration.class,
                         OpenTelemetryTracingAutoConfiguration.class, OtlpTracingAutoConfiguration.class,
                         DataSourceObservationAutoConfiguration.class, DataSourceObservationOpenTelemetryAutoConfiguration.class))
-                .withUserConfiguration(TraceAttributeFilter.class, JdbcObservationConfig.class)
+                .withUserConfiguration(TraceAttributeFilter.class, SanitizedQueryAnalyzer.class)
                 .withBean(SpanExporter.class, () -> exporter)
                 .withBean(DataSource.class, () -> dataSource)
                 .run(context -> {
@@ -120,11 +119,11 @@ class TelemetryConfigurationTest {
                         assertThat(span.getAttributes().get(AttributeKey.stringKey("db.system.name")))
                                 .isEqualTo("postgresql");
                         assertThat(span.getParentSpanId()).isEqualTo(child.getSpanId());
-                        assertThat(span.getAttributes().get(AttributeKey.stringKey("db.query.text")))
+                        assertThat(span.getAttributes().get(AttributeKey.stringKey("omagotchi.db.query.text")))
                                 .isEqualTo("SELECT ?");
                     });
                     assertThat(spans).anySatisfy(span -> {
-                        assertThat(span.getAttributes().get(AttributeKey.stringKey("db.query.text")))
+                        assertThat(span.getAttributes().get(AttributeKey.stringKey("omagotchi.db.query.text")))
                                 .isEqualTo("UPDATE accounts SET nickname = ? WHERE email = ?");
                         assertThat(span.getAttributes().get(AttributeKey.stringKey("db.operation.batch.size")))
                                 .isEqualTo("2");
@@ -132,8 +131,11 @@ class TelemetryConfigurationTest {
                                 .isEqualTo("23505");
                         assertThat(span.getParentSpanId()).isEqualTo(child.getSpanId());
                     });
-                    assertThat(spans).allSatisfy(span -> assertThat(span.getAttributes().asMap().toString())
-                            .doesNotContain("secret-", "jdbc.params", "jdbc.query"));
+                    assertThat(spans).allSatisfy(span -> {
+                        assertThat(span.getAttributes().get(AttributeKey.stringKey("db.query.text"))).isNull();
+                        assertThat(span.getAttributes().asMap().toString())
+                                .doesNotContain("secret-", "jdbc.params", "jdbc.query");
+                    });
                     assertThat(parent.getAttributes().asMap().toString()).doesNotContain("secret", "http.url");
                     String scrape = context.getBean(PrometheusMeterRegistry.class).scrape();
                     assertThat(scrape).contains("http_server_requests_seconds_bucket", "/probe/{id}")
