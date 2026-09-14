@@ -2,6 +2,7 @@
 
 - 상태: Proposed
 - 작성일: 2026-08-30
+- 구현 상태: v2 이메일 OTP API와 V5·V8·V9·V11 Migration에 적용됨
 
 ## 배경
 
@@ -19,26 +20,29 @@
 첫 구현은 PostgreSQL을 이메일 인증 상태의 유일한 저장소로 사용하고, 메일은 요청 Thread에서 동기로
 호출합니다. Redis, `@Async`, 별도 Executor, Outbox는 사용하지 않습니다.
 
-인증 용도는 `SIGNUP`, `PASSWORD_CHANGE`, `PASSWORD_RESET`으로 분리합니다. Challenge는 이메일과
-용도에 묶인 일회성 상태이며 다른 용도로 재사용할 수 없습니다. 발송 쿨다운은 용도별 인증 상태와
-분리해 정규화 이메일 전체가 공유합니다.
+인증 용도는 `SIGNUP`, `PASSWORD_CHANGE`, `PASSWORD_RESET`, `ACCOUNT_RECOVERY`로 분리합니다.
+`ACCOUNT_RECOVERY`는 복구 기한 안의 탈퇴 일반 사용자 계정을 같은 `userId`로 복구할 때 사용합니다.
+Challenge는 이메일과 용도에 묶인 일회성 상태이며 다른 용도로 재사용할 수 없습니다. 발송 쿨다운은
+용도별 인증 상태와 분리해 정규화 이메일 전체가 공유합니다.
 
 ### API 계약
 
 기존 v1 API는 변경하지 않고 다음 v2 API를 추가합니다.
 
-| API | 인증 | 성공 |
-|---|---|---|
-| `POST /api/v2/auth/signup/email-otp` | Frontend Basic | `202 Accepted` |
-| `POST /api/v2/auth/signup` | Frontend Basic | `201 Created` |
-| `POST /api/v2/users/me/password/email-otp` | Bearer JWT | `202 Accepted` |
-| `PATCH /api/v2/users/me/password` | Bearer JWT | `204 No Content` |
-| `POST /api/v2/auth/password-reset/email-otp` | Frontend Basic | `202 Accepted` |
-| `PATCH /api/v2/auth/password-reset` | Frontend Basic | `204 No Content` |
+| API                                          | 인증           | 성공                                             |
+|----------------------------------------------|----------------|--------------------------------------------------|
+| `POST /api/v2/auth/signup/email-otp`         | Frontend Basic | `202 Accepted`                                   |
+| `POST /api/v2/auth/signup`                   | Frontend Basic | 신규 가입 `201 Created`, 탈퇴 계정 복구 `200 OK` |
+| `POST /api/v2/users/me/password/email-otp`   | Bearer JWT     | `202 Accepted`                                   |
+| `PATCH /api/v2/users/me/password`            | Bearer JWT     | `204 No Content`                                 |
+| `POST /api/v2/auth/password-reset/email-otp` | Frontend Basic | `202 Accepted`                                   |
+| `PATCH /api/v2/auth/password-reset`          | Frontend Basic | `204 No Content`                                 |
 
 발급 API는 `challengeId`와 만료까지 남은 초를 반환합니다. 인증 API는 이메일·용도·`challengeId`·
-인증번호가 모두 일치해야 합니다. 쿨다운 중 요청은 `429 Too Many Requests`와 `Retry-After`를,
-메일 사업자 실패는 `503 Service Unavailable`을 반환합니다.
+인증번호가 모두 일치해야 합니다. 로컬 공유 쿨다운 중 요청과 메일 사업자의 `429` 응답은
+`429 Too Many Requests`와 `Retry-After`를 반환합니다. 사업자 `429`에서는 외부 요청 증폭을 막기
+위해 공유 쿨다운을 유지합니다. 그 밖의 메일 사업자·네트워크 실패는 최신 Challenge가 예약한
+쿨다운을 해제하고 `503 Service Unavailable`을 반환합니다.
 
 비밀번호 재설정은 사용자 Bearer JWT와 현재 비밀번호를 요구하지 않지만, Browser가 Identity를 직접
 호출하지 않도록 Frontend Basic 경계에 둡니다. 문법상 유효한 이메일에는 계정 존재·상태를 먼저
@@ -49,10 +53,10 @@
 역직렬화와 Bean Validation에서 거절되는 요청 형식 오류는 기존 공통 오류 계약을 유지합니다.
 
 OTP 확인 후 임시 비밀번호를 이메일로 보내지 않습니다. 사용자가 제출한 새 비밀번호로 직접 변경하고,
-완료 알림 메일에는 비밀번호를 포함하지 않습니다. `ACTIVE`와 로그인 실패로 인한 `LOCKED` 계정만
-재설정하며, 성공 시 로그인 실패 상태를 초기화하고 모든 Refresh Session을 `PASSWORD_RESET` 사유로
-폐기합니다. 자동 로그인은 하지 않습니다. 이미 발급된 Access Token은 별도 즉시 폐기 수단이 없으므로
-설정된 TTL까지 남을 수 있습니다.
+완료 알림 메일에는 비밀번호를 포함하지 않습니다. 생명주기 상태가 `ACTIVE`인 계정은 로그인 실패로
+잠겨 있어도 재설정하며, 성공 시 로그인 실패 상태를 초기화하고 모든 Refresh Session을
+`PASSWORD_RESET` 사유로 폐기합니다. 자동 로그인은 하지 않습니다. 이미 발급된 Access Token은
+별도 즉시 폐기 수단이 없으므로 설정된 TTL까지 남을 수 있습니다.
 
 ### 저장 모델
 
@@ -129,9 +133,9 @@ Refresh Session 동시성은 [ADR 0002](0002-account-authentication-refresh-sess
 상태를 판단합니다. 사용자 전체 폐기는 미폐기 RefreshToken만 변경하므로 이미 폐기된 행에는 영향을
 주지 않는 멱등 동작입니다.
 
-비밀번호 재설정은 `Account → Challenge → RefreshToken` 순서로 잠급니다. `ACTIVE`·`LOCKED`가 아닌
-계정과 존재하지 않는 계정은 같은 실패 결과로 처리하고, `LOCKED` 재설정 성공은 로그인 실패 횟수와
-잠금 시각을 초기화해 `ACTIVE`로 복구합니다.
+비밀번호 재설정은 `Account → Challenge → RefreshToken` 순서로 잠급니다. 생명주기 상태가
+`ACTIVE`가 아닌 계정과 존재하지 않는 계정은 같은 실패 결과로 처리합니다. 로그인 실패로 잠긴
+`ACTIVE` 계정의 재설정 성공은 상태를 유지하면서 실패 횟수와 잠금 시각을 초기화합니다.
 
 ```text
 Account SELECT FOR UPDATE
@@ -178,7 +182,7 @@ Account SELECT FOR UPDATE
 - 인증번호 원문과 HMAC 비밀값이 로그·응답·DB에 노출되지 않는다.
 - Resend 지연 응답은 설정한 시간 안에 실패하고 만료된 Challenge에는 `202`를 반환하지 않는다.
 - 비밀번호 재설정 OTP 발급은 Account를 조회하지 않고 등록·미등록 이메일에 같은 외부 계약을 제공한다.
-- `LOCKED` 계정 재설정은 로그인 실패 상태를 초기화하고 Refresh Session을 모두 폐기한다.
+- 로그인 실패로 잠긴 `ACTIVE` 계정 재설정은 로그인 실패 상태를 초기화하고 Refresh Session을 모두 폐기한다.
 
 ## 결과와 한계
 
@@ -187,5 +191,8 @@ Account SELECT FOR UPDATE
 넘지 않습니다. 초기 기능의 정확성과 운영 가능성을 우선한 선택이며, 처리량 요구가 생기기 전까지
 유지합니다.
 
-비밀번호 재설정의 단계별 적용과 검토 게이트는
-[비밀번호 재설정 구현 계획](../password-reset-implementation-plan.md)을 따릅니다.
+현재 구현 계약과 운영 설정은 [이메일 인증 현재 계약](../email-verification.md)을 따릅니다.
+스키마는 V5에서 시작해 V8의 공유 쿨다운 테이블·사전 백필, V9의 비밀번호 재설정 목적·최종 백필과
+구형 Scope 쿨다운 제거, V11의 계정 복구 목적 추가 순서로 적용되었습니다. 비밀번호 재설정의 구현
+이력과 남은 Frontend 범위는 [비밀번호 재설정 구현 계획](../password-reset-implementation-plan.md)에
+남깁니다.
