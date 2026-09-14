@@ -122,27 +122,27 @@ chmod 644 secrets/jwt-public.pem
 
 ## HTTP API
 
-| Method   | Path                                      | 인증                        | 용도                                                                 |
-|----------|-------------------------------------------|-----------------------------|----------------------------------------------------------------------|
-| `POST`   | `/api/v1/auth/signup`                     | Frontend Credential         | 회원가입                                                             |
-| `POST`   | `/api/v2/auth/signup/email-otp`           | Frontend Credential         | 신규 가입 또는 탈퇴 계정 복구 이메일 인증번호 발급                   |
-| `POST`   | `/api/v2/auth/signup`                     | Frontend Credential         | 이메일 인증 신규 가입 또는 탈퇴 계정 복구                            |
-| `POST`   | `/api/v1/auth/login`                      | Frontend Credential         | 로그인·Token 발급                                                    |
-| `POST`   | `/api/v1/auth/refresh`                    | Frontend Credential         | Refresh Token 회전                                                   |
-| `POST`   | `/api/v1/auth/logout`                     | Frontend Credential         | Token Family 폐기                                                    |
-| `GET`    | `/api/v1/users/me`                        | Access JWT                  | 본인 정보 조회                                                       |
-| `PATCH`  | `/api/v1/users/me`                        | Access JWT                  | 본인 이름 변경                                                       |
-| `PATCH`  | `/api/v1/users/me/password`               | Access JWT                  | 현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기        |
-| `POST`   | `/api/v2/users/me/password/email-otp`     | Access JWT                  | 비밀번호 변경 이메일 인증번호 발급                                   |
-| `PATCH`  | `/api/v2/users/me/password`               | Access JWT                  | 이메일·현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
-| `POST`   | `/api/v2/auth/password-reset/email-otp`   | Frontend Credential         | 비로그인 비밀번호 재설정 이메일 인증번호 발급                        |
-| `PATCH`  | `/api/v2/auth/password-reset`             | Frontend Credential         | 이메일 인증 후 비밀번호 재설정·전체 Refresh Session 폐기             |
-| `DELETE` | `/api/v1/users/me`                        | Access JWT                  | 현재 비밀번호 확인 후 본인 탈퇴·전체 Refresh Session 폐기            |
-| `GET`    | `/api/v1/admin/users`                     | Access JWT (`SYSTEM_ADMIN`) | 사용자 목록 페이지 조회·검색                                         |
-| `PATCH`  | `/api/v1/admin/accounts/{user-id}/status` | SYSTEM_ADMIN Access JWT     | 계정 활성화·비활성화와 영속 감사 기록                                |
-| `GET`    | `/api/v1/internal/accounts/{accountId}`   | Learning Credential         | 계정 상태·표시 이름 단건 조회                                        |
-| `POST`   | `/api/v1/internal/accounts/batch`         | Learning Credential         | 계정 상태·표시 이름 일괄 조회                                        |
-| `POST`   | `/api/v1/internal/accounts/search`        | Learning Credential         | Learning 후보 ID 범위 내 이름·이메일 검색(최대 20건)                 |
+| Method   | Path                                      | 인증                        | 용도                                                                     |
+|----------|-------------------------------------------|-----------------------------|--------------------------------------------------------------------------|
+| `POST`   | `/api/v1/auth/signup`                     | Frontend Credential         | 회원가입                                                                 |
+| `POST`   | `/api/v2/auth/signup/email-otp`           | Frontend Credential         | 신규 가입 또는 탈퇴 계정 복구 이메일 인증번호 발급                       |
+| `POST`   | `/api/v2/auth/signup`                     | Frontend Credential         | 이메일 인증 신규 가입 또는 탈퇴 계정 복구                                |
+| `POST`   | `/api/v1/auth/login`                      | Frontend Credential         | 로그인·Token 발급                                                        |
+| `POST`   | `/api/v1/auth/refresh`                    | Frontend Credential         | Refresh Token 회전                                                       |
+| `POST`   | `/api/v1/auth/logout`                     | Frontend Credential         | Token Family 폐기                                                        |
+| `GET`    | `/api/v1/users/me`                        | Access JWT                  | 본인 정보 조회                                                           |
+| `PATCH`  | `/api/v1/users/me`                        | Access JWT                  | 본인 이름 변경                                                           |
+| `PATCH`  | `/api/v1/users/me/password`               | Access JWT                  | 현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기            |
+| `POST`   | `/api/v2/users/me/password/email-otp`     | Access JWT                  | 비밀번호 변경 이메일 인증번호 발급                                       |
+| `PATCH`  | `/api/v2/users/me/password`               | Access JWT                  | 이메일 OTP·현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
+| `POST`   | `/api/v2/auth/password-reset/email-otp`   | Frontend Credential         | 비로그인 비밀번호 재설정 이메일 인증번호 발급                            |
+| `PATCH`  | `/api/v2/auth/password-reset`             | Frontend Credential         | 이메일 인증 후 비밀번호 재설정·전체 Refresh Session 폐기                 |
+| `DELETE` | `/api/v1/users/me`                        | Access JWT                  | 현재 비밀번호 확인 후 본인 탈퇴·전체 Refresh Session 폐기                |
+| `GET`    | `/api/v1/admin/users`                     | Access JWT (`SYSTEM_ADMIN`) | 사용자 목록 페이지 조회·검색                                             |
+| `PATCH`  | `/api/v1/admin/accounts/{user-id}/status` | SYSTEM_ADMIN Access JWT     | 계정 활성화·비활성화와 영속 감사 기록                                    |
+| `GET`    | `/api/v1/internal/accounts/{accountId}`   | Learning Credential         | 계정 상태·표시 이름 단건 조회                                            |
+| `POST`   | `/api/v1/internal/accounts/batch`         | Learning Credential         | 계정 상태·표시 이름 일괄 조회                                            |
+| `POST`   | `/api/v1/internal/accounts/search`        | Learning Credential         | Learning 후보 ID 범위 내 이름·이메일 검색(최대 20건)                     |
 
 - 관리자 목록: 기본 20건, 최대 100건, 기본 정렬 최신 가입순, 정렬 기준은 화이트리스트 고정
 - 관리자 목록 응답: `items`, `page.number`, `page.size`, `page.totalElements`, `page.totalPages`
@@ -228,4 +228,3 @@ chmod 644 secrets/jwt-public.pem
 - [계정 인증·Refresh Session 직렬화](docs/adr/0002-account-authentication-refresh-session-serialization.md)
 - [이메일 인증 현재 계약](docs/email-verification.md)
 - [PostgreSQL 기반 이메일 인증 경계](docs/adr/0003-postgresql-email-verification.md)
-- [비밀번호 재설정 구현 이력](docs/password-reset-implementation-plan.md)
