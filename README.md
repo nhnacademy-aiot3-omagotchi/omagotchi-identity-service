@@ -92,12 +92,13 @@ chmod 644 secrets/jwt-public.pem
 ### 이메일 인증 설정
 
 - `EMAIL_VERIFICATION_CODE_TTL`: 인증번호 유효시간 (`PT5M` 권장)
-- `EMAIL_VERIFICATION_COOLDOWN`: 이메일·용도별 재발급 대기시간 (`PT1M` 권장)
+- `EMAIL_VERIFICATION_COOLDOWN`: 정규화 이메일 전체가 공유하는 재발급 대기시간 (`PT1M` 권장)
 - `EMAIL_VERIFICATION_MAXIMUM_FAILED_ATTEMPTS`: Challenge당 최대 검증 실패 횟수 (`5` 권장)
 - `EMAIL_VERIFICATION_HMAC_SECRET`: 인증번호 HMAC용 32자 이상 비밀값
 - 정책값의 `application.yaml` 기본값 사용, HMAC 비밀값의 필수 주입 유지
 
 ### Resend 설정
+
 - `RESEND_API_KEY`, `RESEND_FROM_EMAIL`: Resend API Credential과 검증된 발신 주소
 - `RESEND_CONNECT_TIMEOUT`, `RESEND_READ_TIMEOUT`: 연결·전체 응답 시간 상한 (`PT2S`, `PT5S` 권장)
 - `RESEND_CONNECT_TIMEOUT ≤ RESEND_READ_TIMEOUT < EMAIL_VERIFICATION_CODE_TTL` 관계를 지켜야 기동됨
@@ -121,25 +122,27 @@ chmod 644 secrets/jwt-public.pem
 
 ## HTTP API
 
-| Method | Path | 인증 | 용도 |
-|---|---|---|---|
-| `POST` | `/api/v1/auth/signup` | Frontend Credential | 회원가입 |
-| `POST` | `/api/v2/auth/signup/email-otp` | Frontend Credential | 회원가입 이메일 인증번호 발급 |
-| `POST` | `/api/v2/auth/signup` | Frontend Credential | 이메일 인증 회원가입 |
-| `POST` | `/api/v1/auth/login` | Frontend Credential | 로그인·Token 발급 |
-| `POST` | `/api/v1/auth/refresh` | Frontend Credential | Refresh Token 회전 |
-| `POST` | `/api/v1/auth/logout` | Frontend Credential | Token Family 폐기 |
-| `GET` | `/api/v1/users/me` | Access JWT | 본인 정보 조회 |
-| `PATCH` | `/api/v1/users/me` | Access JWT | 본인 이름 변경 |
-| `PATCH` | `/api/v1/users/me/password` | Access JWT | 현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
-| `POST` | `/api/v2/users/me/password/email-otp` | Access JWT | 비밀번호 변경 이메일 인증번호 발급 |
-| `PATCH` | `/api/v2/users/me/password` | Access JWT | 이메일·현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
-| `DELETE` | `/api/v1/users/me` | Access JWT | 현재 비밀번호 확인 후 본인 탈퇴·전체 Refresh Session 폐기 |
-| `GET` | `/api/v1/admin/users` | Access JWT (`SYSTEM_ADMIN`) | 사용자 목록 페이지 조회·검색 |
-| `PATCH` | `/api/v1/admin/accounts/{user-id}/status` | SYSTEM_ADMIN Access JWT | 계정 활성화·비활성화와 영속 감사 기록 |
-| `GET` | `/api/v1/internal/accounts/{accountId}` | Learning Credential | 계정 상태·표시 이름 단건 조회 |
-| `POST` | `/api/v1/internal/accounts/batch` | Learning Credential | 계정 상태·표시 이름 일괄 조회 |
-| `POST` | `/api/v1/internal/accounts/search` | Learning Credential | Learning 후보 ID 범위 내 이름·이메일 검색(최대 20건) |
+| Method   | Path                                      | 인증                        | 용도                                                                     |
+|----------|-------------------------------------------|-----------------------------|--------------------------------------------------------------------------|
+| `POST`   | `/api/v1/auth/signup`                     | Frontend Credential         | 회원가입                                                                 |
+| `POST`   | `/api/v2/auth/signup/email-otp`           | Frontend Credential         | 신규 가입 또는 탈퇴 계정 복구 이메일 인증번호 발급                       |
+| `POST`   | `/api/v2/auth/signup`                     | Frontend Credential         | 이메일 인증 신규 가입 또는 탈퇴 계정 복구                                |
+| `POST`   | `/api/v1/auth/login`                      | Frontend Credential         | 로그인·Token 발급                                                        |
+| `POST`   | `/api/v1/auth/refresh`                    | Frontend Credential         | Refresh Token 회전                                                       |
+| `POST`   | `/api/v1/auth/logout`                     | Frontend Credential         | Token Family 폐기                                                        |
+| `GET`    | `/api/v1/users/me`                        | Access JWT                  | 본인 정보 조회                                                           |
+| `PATCH`  | `/api/v1/users/me`                        | Access JWT                  | 본인 이름 변경                                                           |
+| `PATCH`  | `/api/v1/users/me/password`               | Access JWT                  | 현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기            |
+| `POST`   | `/api/v2/users/me/password/email-otp`     | Access JWT                  | 비밀번호 변경 이메일 인증번호 발급                                       |
+| `PATCH`  | `/api/v2/users/me/password`               | Access JWT                  | 이메일 OTP·현재 비밀번호 확인 후 비밀번호 변경·전체 Refresh Session 폐기 |
+| `POST`   | `/api/v2/auth/password-reset/email-otp`   | Frontend Credential         | 비로그인 비밀번호 재설정 이메일 인증번호 발급                            |
+| `PATCH`  | `/api/v2/auth/password-reset`             | Frontend Credential         | 이메일 인증 후 비밀번호 재설정·전체 Refresh Session 폐기                 |
+| `DELETE` | `/api/v1/users/me`                        | Access JWT                  | 현재 비밀번호 확인 후 본인 탈퇴·전체 Refresh Session 폐기                |
+| `GET`    | `/api/v1/admin/users`                     | Access JWT (`SYSTEM_ADMIN`) | 사용자 목록 페이지 조회·검색                                             |
+| `PATCH`  | `/api/v1/admin/accounts/{user-id}/status` | SYSTEM_ADMIN Access JWT     | 계정 활성화·비활성화와 영속 감사 기록                                    |
+| `GET`    | `/api/v1/internal/accounts/{accountId}`   | Learning Credential         | 계정 상태·표시 이름 단건 조회                                            |
+| `POST`   | `/api/v1/internal/accounts/batch`         | Learning Credential         | 계정 상태·표시 이름 일괄 조회                                            |
+| `POST`   | `/api/v1/internal/accounts/search`        | Learning Credential         | Learning 후보 ID 범위 내 이름·이메일 검색(최대 20건)                     |
 
 - 관리자 목록: 기본 20건, 최대 100건, 기본 정렬 최신 가입순, 정렬 기준은 화이트리스트 고정
 - 관리자 목록 응답: `items`, `page.number`, `page.size`, `page.totalElements`, `page.totalPages`
@@ -223,5 +226,5 @@ chmod 644 secrets/jwt-public.pem
 - [HTTP Request ID](https://github.com/nhnacademy-aiot3-omagotchi/docs/blob/main/50-guides/08-http-request-id.md)
 - [Refresh Token 회전 동시성 정책](docs/adr/0001-refresh-token-rotation-concurrency.md)
 - [계정 인증·Refresh Session 직렬화](docs/adr/0002-account-authentication-refresh-session-serialization.md)
+- [이메일 인증 현재 계약](docs/email-verification.md)
 - [PostgreSQL 기반 이메일 인증 경계](docs/adr/0003-postgresql-email-verification.md)
-- [이메일 인증 재작성 구현 계획](docs/email-verification-rebuild-plan.md)

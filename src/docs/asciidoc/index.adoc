@@ -10,7 +10,8 @@
 
 === Frontend Service Credential
 
-`/api/v1/auth/**`와 `/api/v2/auth/**`는 Browser가 직접 호출하지 않는다. Frontend Service가 별도 HTTP Basic Credential로 호출한다.
+`/api/v1/auth/**`와 `/api/v2/auth/**`는 Browser가 직접 호출하지 않는다.
+Frontend Service가 별도 HTTP Basic Credential로 호출한다.
 
 include::{snippets}/security/frontend-authentication-required/http-response.adoc[]
 include::{snippets}/security/frontend-authentication-required/response-fields.adoc[]
@@ -80,7 +81,8 @@ include::{snippets}/auth/refresh/invalid-token/response-fields.adoc[]
 
 == 로그아웃
 
-로그아웃은 요청 Refresh Token의 family를 폐기한다. Token이 없거나 이미 유효하지 않아도 멱등하게 성공한다.
+로그아웃은 요청 Refresh Token의 family를 폐기한다.
+Token이 없거나 이미 유효하지 않아도 멱등하게 성공한다.
 
 include::{snippets}/auth/logout/success/request-headers.adoc[]
 include::{snippets}/auth/logout/success/request-fields.adoc[]
@@ -268,6 +270,183 @@ include::{snippets}/password-change/unchanged-password/response-fields.adoc[]
 
 include::{snippets}/password-change/not-allowed/http-response.adoc[]
 include::{snippets}/password-change/not-allowed/response-fields.adoc[]
+
+== 이메일 OTP v2
+
+이메일 OTP Challenge는 이메일과 목적에 귀속되며 한 번만 소비할 수 있다.
+발급 API는
+`Cache-Control: no-store`와 `challengeId`, `expiresInSeconds`를 반환한다. `code`는 숫자 6자리이고 `challengeId`는 UUID이다.
+
+[cols="1,3,2,2"]
+|===
+|Method |Path |인증 |성공
+
+|`POST`
+|`/api/v2/auth/signup/email-otp`
+|Frontend Basic
+|`202 Accepted`
+
+|`POST`
+|`/api/v2/auth/signup`
+|Frontend Basic
+|신규 가입 `201 Created`, 탈퇴 계정 복구 `200 OK`
+
+|`POST`
+|`/api/v2/users/me/password/email-otp`
+|Bearer JWT
+|`202 Accepted`
+
+|`PATCH`
+|`/api/v2/users/me/password`
+|Bearer JWT
+|`204 No Content`
+
+|`POST`
+|`/api/v2/auth/password-reset/email-otp`
+|Frontend Basic
+|`202 Accepted`
+
+|`PATCH`
+|`/api/v2/auth/password-reset`
+|Frontend Basic
+|`204 No Content`
+|===
+
+=== 가입·탈퇴 계정 복구 OTP 발급
+
+`POST /api/v2/auth/signup/email-otp`
+
+include::{snippets}/email-otp/v2/signup/email-otp/request-headers.adoc[]
+include::{snippets}/email-otp/v2/signup/email-otp/request-fields.adoc[]
+include::{snippets}/email-otp/v2/signup/email-otp/response-headers.adoc[]
+include::{snippets}/email-otp/v2/signup/email-otp/http-request.adoc[]
+include::{snippets}/email-otp/v2/signup/email-otp/http-response.adoc[]
+include::{snippets}/email-otp/v2/signup/email-otp/response-fields.adoc[]
+
+신규 이메일은 `SIGNUP`, 복구 기한 안의 탈퇴 일반 사용자 이메일은 `ACCOUNT_RECOVERY` 목적을 사용한다.
+활성 계정, 탈퇴한 시스템 관리자 또는 복구 기한이 지난 계정에는 발급하지 않는다.
+
+=== 이메일 인증 가입·복구 완료
+
+`POST /api/v2/auth/signup`
+
+include::{snippets}/email-otp/v2/signup/created/request-headers.adoc[]
+include::{snippets}/email-otp/v2/signup/created/request-fields.adoc[]
+include::{snippets}/email-otp/v2/signup/created/http-request.adoc[]
+include::{snippets}/email-otp/v2/signup/created/http-response.adoc[]
+include::{snippets}/email-otp/v2/signup/created/response-fields.adoc[]
+
+신규 가입은 새 계정과 `201 Created`를 반환한다. 탈퇴 계정 복구는 같은 `userId`를 유지하면서 이름과
+비밀번호를 교체하고 `200 OK`를 반환한다. 응답 계정 필드는 `userId`, `email`, `name`, `role`,
+`status`, `createdAt`, `updatedAt`이다.
+
+==== 탈퇴 계정 복구 성공
+
+include::{snippets}/email-otp/v2/signup/recovered/http-request.adoc[]
+include::{snippets}/email-otp/v2/signup/recovered/http-response.adoc[]
+include::{snippets}/email-otp/v2/signup/recovered/response-fields.adoc[]
+
+=== 로그인 사용자 비밀번호 변경
+
+`POST /api/v2/users/me/password/email-otp`는 요청 본문 없이 JWT `sub` 계정의 이메일로
+`PASSWORD_CHANGE` OTP를 발급한다.
+
+include::{snippets}/email-otp/v2/password-change/email-otp/request-headers.adoc[]
+include::{snippets}/email-otp/v2/password-change/email-otp/response-headers.adoc[]
+include::{snippets}/email-otp/v2/password-change/email-otp/http-request.adoc[]
+include::{snippets}/email-otp/v2/password-change/email-otp/http-response.adoc[]
+include::{snippets}/email-otp/v2/password-change/email-otp/response-fields.adoc[]
+
+`PATCH /api/v2/users/me/password`
+
+include::{snippets}/email-otp/v2/password-change/success/request-headers.adoc[]
+include::{snippets}/email-otp/v2/password-change/success/request-fields.adoc[]
+include::{snippets}/email-otp/v2/password-change/success/response-headers.adoc[]
+include::{snippets}/email-otp/v2/password-change/success/http-request.adoc[]
+include::{snippets}/email-otp/v2/password-change/success/http-response.adoc[]
+
+현재 비밀번호와 OTP를 함께 검증한다.
+성공하면 비밀번호를 변경하고 해당 계정의 모든 Refresh Session을 폐기한다.
+
+=== 비로그인 사용자 비밀번호 재설정
+
+`POST /api/v2/auth/password-reset/email-otp`
+
+include::{snippets}/email-otp/v2/password-reset/email-otp/request-headers.adoc[]
+include::{snippets}/email-otp/v2/password-reset/email-otp/request-fields.adoc[]
+include::{snippets}/email-otp/v2/password-reset/email-otp/response-headers.adoc[]
+include::{snippets}/email-otp/v2/password-reset/email-otp/http-request.adoc[]
+include::{snippets}/email-otp/v2/password-reset/email-otp/http-response.adoc[]
+include::{snippets}/email-otp/v2/password-reset/email-otp/response-fields.adoc[]
+
+문법상 유효한 이메일이면 계정 존재 여부를 먼저 조회하지 않고 `PASSWORD_RESET` OTP를 발급한다.
+
+`PATCH /api/v2/auth/password-reset`
+
+include::{snippets}/email-otp/v2/password-reset/success/request-headers.adoc[]
+include::{snippets}/email-otp/v2/password-reset/success/request-fields.adoc[]
+include::{snippets}/email-otp/v2/password-reset/success/response-headers.adoc[]
+include::{snippets}/email-otp/v2/password-reset/success/http-request.adoc[]
+include::{snippets}/email-otp/v2/password-reset/success/http-response.adoc[]
+
+생명주기 상태가 `ACTIVE`인 계정은 로그인 실패로 잠겨 있어도 재설정할 수 있다.
+성공하면 로그인 실패 상태를 초기화하고 모든 Refresh Session을 폐기한다.
+계정 부재·비허용 상태·유효하지 않은 OTP는 `400 AUTH_PASSWORD_RESET_INVALID`로 일반화한다.
+
+=== 이메일 OTP 오류
+
+[cols="1,3,4"]
+|===
+|HTTP |code |조건
+
+|`400`
+|`EMAIL_VERIFICATION_INVALID_CHALLENGE`
+|Challenge가 없거나 만료·소진됨, 또는 이메일·목적·인증번호가 일치하지 않음
+
+|`400`
+|`AUTH_PASSWORD_RESET_INVALID`
+|비밀번호 재설정 계정·상태 또는 Challenge 정보를 외부에 구분하지 않는 일반화된 거절
+
+|`409`
+|`EMAIL_VERIFICATION_ISSUE_SUPERSEDED`
+|동시 새 발급으로 현재 발급 요청이 대체됨
+
+|`429`
+|`EMAIL_VERIFICATION_COOLDOWN_ACTIVE`
+|정규화 이메일의 공유 쿨다운 중이거나 메일 사업자가 요청을 제한함. `Retry-After` 포함
+
+|`503`
+|`EMAIL_VERIFICATION_DELIVERY_UNAVAILABLE`
+|메일 사업자·네트워크·시간 제한 실패 또는 응답 전에 Challenge가 만료됨
+|===
+
+==== 유효하지 않은 이메일 인증 정보
+
+include::{snippets}/email-otp/v2/errors/invalid-challenge/http-response.adoc[]
+include::{snippets}/email-otp/v2/errors/invalid-challenge/response-fields.adoc[]
+
+==== 비밀번호 재설정 거절
+
+include::{snippets}/email-otp/v2/errors/invalid-password-reset/http-response.adoc[]
+include::{snippets}/email-otp/v2/errors/invalid-password-reset/response-fields.adoc[]
+
+==== 동시 발급 대체
+
+include::{snippets}/email-otp/v2/errors/issue-superseded/http-response.adoc[]
+include::{snippets}/email-otp/v2/errors/issue-superseded/response-fields.adoc[]
+
+==== 발급 쿨다운
+
+include::{snippets}/email-otp/v2/errors/cooldown-active/response-headers.adoc[]
+include::{snippets}/email-otp/v2/errors/cooldown-active/http-response.adoc[]
+include::{snippets}/email-otp/v2/errors/cooldown-active/response-fields.adoc[]
+
+==== 메일 전송 불가
+
+include::{snippets}/email-otp/v2/errors/delivery-unavailable/http-response.adoc[]
+include::{snippets}/email-otp/v2/errors/delivery-unavailable/response-fields.adoc[]
+
+자세한 저장 상태, 보상과 설정 계약은 저장소의 `docs/email-verification.md`를 따른다.
 
 == Learning 계정 단건 조회
 
