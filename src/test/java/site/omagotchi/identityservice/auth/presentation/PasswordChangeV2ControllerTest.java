@@ -10,16 +10,15 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.restdocs.payload.FieldDescriptor;
 import org.springframework.restdocs.snippet.Snippet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import site.omagotchi.identityservice.auth.application.AuthErrorCode;
-import site.omagotchi.identityservice.auth.application.PasswordResetService;
-import site.omagotchi.identityservice.auth.application.result.PasswordResetEmailOtpResult;
-import site.omagotchi.identityservice.auth.presentation.request.PasswordResetEmailOtpRequest;
-import site.omagotchi.identityservice.auth.presentation.request.PasswordResetRequest;
-import site.omagotchi.identityservice.auth.presentation.response.PasswordResetEmailOtpResponse;
+import site.omagotchi.identityservice.auth.application.PasswordChangeV2Service;
+import site.omagotchi.identityservice.auth.application.result.PasswordChangeEmailOtpResult;
+import site.omagotchi.identityservice.auth.infrastructure.JwtAccessTokenIssuer;
+import site.omagotchi.identityservice.emailverification.application.EmailVerificationErrorCode;
 import site.omagotchi.identityservice.global.config.PasswordEncoderConfig;
 import site.omagotchi.identityservice.global.exception.BusinessException;
 import site.omagotchi.identityservice.global.logging.HttpErrorEventLogger;
@@ -33,129 +32,76 @@ import site.omagotchi.identityservice.global.security.jwt.JwtProperties;
 import site.omagotchi.identityservice.global.security.jwt.JwtSecurityConfig;
 import site.omagotchi.identityservice.integration.TestJwtConfig;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import static org.assertj.core.api.BDDAssertions.then;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
+import static org.mockito.BDDMockito.*;
 import static org.springframework.restdocs.headers.HeaderDocumentation.*;
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
 import static org.springframework.restdocs.operation.preprocess.Preprocessors.*;
 import static org.springframework.restdocs.payload.PayloadDocumentation.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = PasswordResetController.class)
+@WebMvcTest(controllers = PasswordChangeV2Controller.class)
 @Import({PasswordEncoderConfig.class, FrontendSecurityConfig.class, ServiceCredentialAuthenticationProviderFactory.class,
         JwtSecurityConfig.class, JwtConfig.class, JwtAuthorityConfig.class,
         SecurityErrorResponseHandler.class, TestJwtConfig.class})
 @EnableConfigurationProperties({JwtProperties.class, FrontendCredentialProperties.class})
 @ActiveProfiles("test")
 @AutoConfigureRestDocs(outputDir = "target/generated-snippets")
-class PasswordResetControllerTest {
+class PasswordChangeV2ControllerTest {
     private static final UUID ID = UUID.fromString("00000000-0000-0000-0000-000000700201");
-    private static final String EMAIL = "member@example.com";
-    private static final String RESET = """
-            {"email":"member@example.com","newPassword":"new-password-passphrase",
+    private static final String PASSWORD = "long-enough-password";
+    private static final String CHANGE = """
+            {"currentPassword":"long-enough-password","newPassword":"new-password-passphrase",
              "challengeId":"00000000-0000-0000-0000-000000700201","code":"123456"}
             """;
 
     @Autowired
     private MockMvc mockMvc;
+    @Autowired
+    private JwtEncoder jwtEncoder;
+    @Autowired
+    private JwtProperties jwtProperties;
     @MockitoBean
-    private PasswordResetService reset;
+    private PasswordChangeV2Service change;
     @MockitoBean
     private HttpErrorEventLogger errorEventLogger;
 
-    private static final UUID CHALLENGE_ID = UUID.fromString(
-            "00000000-0000-0000-0000-000000702401"
-    );
-
     @Test
-    @DisplayName("OTP 발급은 202와 no-store 응답")
-    void returnsAcceptedWithoutCaching() {
-        // Given
-        PasswordResetService service = mock(PasswordResetService.class);
-        PasswordResetController controller = new PasswordResetController(service);
-        given(service.issueEmailOtp("member@example.com"))
-                .willReturn(new PasswordResetEmailOtpResult(CHALLENGE_ID, 300));
-
-        // When
-        var response = controller.issueEmailOtp(
-                new PasswordResetEmailOtpRequest("member@example.com")
-        );
-
-        // Then
-        then(response.getStatusCode().value()).isEqualTo(202);
-        then(response.getHeaders().getCacheControl()).isEqualTo("no-store");
-        then(response.getBody())
-                .isEqualTo(new PasswordResetEmailOtpResponse(CHALLENGE_ID, 300));
+    @DisplayName("비밀번호 변경 OTP 발급 문서")
+    void passwordChangeOtp() throws Exception {
+        given(change.issueEmailOtp(ID)).willReturn(new PasswordChangeEmailOtpResult(ID, 300));
+        success("password-change/email-otp",
+                bearer(post("/api/v2/users/me/password/email-otp")), 202, true, otpFields());
     }
 
     @Test
-    @DisplayName("비밀번호 재설정은 204와 no-store 응답")
-    void returnsNoContentWithoutCaching() {
-        // Given
-        PasswordResetService service = mock(PasswordResetService.class);
-        PasswordResetController controller = new PasswordResetController(service);
-        PasswordResetRequest request = new PasswordResetRequest(
-                "member@example.com",
-                "new-password-passphrase",
-                CHALLENGE_ID,
-                "123456"
-        );
-
-        // When
-        var response = controller.resetPassword(request);
-
-        // Then
-        then(response.getStatusCode().value()).isEqualTo(204);
-        then(response.getHeaders().getCacheControl()).isEqualTo("no-store");
-        verify(service).resetPassword(
-                "member@example.com",
-                "new-password-passphrase",
-                CHALLENGE_ID,
-                "123456"
-        );
-    }
-
-    @Test
-    @DisplayName("비밀번호 재설정 OTP 발급 문서")
-    void passwordResetOtp() throws Exception {
-        given(reset.issueEmailOtp(EMAIL)).willReturn(new PasswordResetEmailOtpResult(ID, 300));
-        success("password-reset/email-otp",
-                basic(post("/api/v2/auth/password-reset/email-otp")).content("{\"email\":\"member@example.com\"}"),
-                202, true, otpFields(), fieldWithPath("email").description("인증번호를 받을 이메일"));
-    }
-
-    @Test
-    @DisplayName("OTP 인증 비밀번호 재설정 문서")
-    void passwordReset() throws Exception {
-        success("password-reset/success",
-                basic(patch("/api/v2/auth/password-reset")).content(RESET),
-                204, true, null, fieldWithPath("email").description("이메일"),
+    @DisplayName("OTP 인증 비밀번호 변경 문서")
+    void passwordChange() throws Exception {
+        success("password-change/success",
+                bearer(patch("/api/v2/users/me/password")).content(CHANGE),
+                204, true, null, fieldWithPath("currentPassword").description("현재 비밀번호"),
                 newPassword(), challenge(), code());
-        verify(reset).resetPassword(EMAIL, "new-password-passphrase", ID, "123456");
+        then(change).should().changePassword(ID, PASSWORD, "new-password-passphrase", ID, "123456");
     }
 
     @Test
-    @DisplayName("비밀번호 재설정 거절 문서")
-    void invalidPasswordReset() throws Exception {
-        willThrow(new BusinessException(AuthErrorCode.INVALID_PASSWORD_RESET))
-                .given(reset).resetPassword(anyString(), anyString(), any(), anyString());
-        mockMvc.perform(basic(patch("/api/v2/auth/password-reset")).contentType(MediaType.APPLICATION_JSON).content(RESET))
+    @DisplayName("유효하지 않은 OTP 오류 문서")
+    void invalidChallenge() throws Exception {
+        willThrow(new BusinessException(EmailVerificationErrorCode.INVALID_CHALLENGE))
+                .given(change).changePassword(any(), anyString(), anyString(), any(), anyString());
+        mockMvc.perform(bearer(patch("/api/v2/users/me/password")).contentType(MediaType.APPLICATION_JSON).content(CHANGE))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("AUTH_PASSWORD_RESET_INVALID"))
-                .andDo(document("email-otp/v2/errors/invalid-password-reset",
-                        preprocessRequest(modifyHeaders().set("Authorization", "Basic ZnJvbnRlbmQ6PHBhc3N3b3JkPg=="), prettyPrint()),
+                .andExpect(jsonPath("$.code").value("EMAIL_VERIFICATION_INVALID_CHALLENGE"))
+                .andDo(document("email-otp/v2/errors/invalid-challenge",
+                        preprocessRequest(modifyHeaders().set("Authorization", "Bearer <access-token>"), prettyPrint()),
                         preprocessResponse(prettyPrint()), errorFields()));
     }
 
@@ -163,7 +109,7 @@ class PasswordResetControllerTest {
                          boolean noStore, Snippet response, FieldDescriptor... fields) throws Exception {
         List<Snippet> snippets = new ArrayList<>();
         snippets.add(requestHeaders(headerWithName("Authorization").description(
-                "Frontend Service Credential HTTP Basic")));
+                "사용자의 Access JWT Bearer Token")));
         if (fields.length > 0) snippets.add(requestFields(fields));
         if (response != null) snippets.add(response);
         if (noStore) snippets.add(responseHeaders(headerWithName("Cache-Control").description("no-store")));
@@ -172,12 +118,14 @@ class PasswordResetControllerTest {
         if (noStore) result.andExpect(header().string("Cache-Control", "no-store"));
         result.andDo(document("email-otp/v2/" + id,
                 preprocessRequest(modifyHeaders().set("Authorization",
-                        "Basic ZnJvbnRlbmQ6PHBhc3N3b3JkPg=="), prettyPrint()),
+                        "Bearer <access-token>"), prettyPrint()),
                 preprocessResponse(prettyPrint()), snippets.toArray(Snippet[]::new)));
     }
 
-    private MockHttpServletRequestBuilder basic(MockHttpServletRequestBuilder request) {
-        return request.with(httpBasic("frontend", "test-only-frontend-credential-password"));
+    private MockHttpServletRequestBuilder bearer(MockHttpServletRequestBuilder request) {
+        String token = new JwtAccessTokenIssuer(jwtEncoder, jwtProperties, Clock.systemUTC())
+                .issue(ID, "USER").value();
+        return request.header("Authorization", "Bearer " + token);
     }
 
     private FieldDescriptor newPassword() {
